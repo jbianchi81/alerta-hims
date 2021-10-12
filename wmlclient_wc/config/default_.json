@@ -1,0 +1,25 @@
+{
+ "wml_endpoint":"http://whos.geodab.eu/gs-service/services/essi/view/plata/cuahsi_1_1.asmx?WSDL",
+ "request_defaults":
+  {
+   "proxy":"",
+   "timeout": 60000,
+   "connection": "keep-alive"
+  },
+  "wsdl_headers": {
+    "Origin": "https://alerta.ina.gob.ar",
+    "Referer": "https://alerta.ina.gob.ar/wmlclient/wml/"
+  },
+  "port": 3003,
+  "rest": {
+	  "skip_authentication": false
+  },
+  "database":
+	{
+	  "user": "",
+	  "host": "",
+	  "database": "",
+	  "password": "",
+	  "port": 5432
+	}
+}

@@ -1,0 +1,1682 @@
+<script src="js/obs_edit_table.js"></script>
+<script src="js/series_edit_table.js"></script>
+<div class="container p-3 my-3 border">
+		<section id="mainHeading" style="display: flex;justify-content: space-between;">
+		<h3>Series puntuales</h3>
+		<h2>visualizador de datos</h2>
+		<div>
+			<a id="selectorToggle" class="btn btn-primary collapsed" data-toggle="collapse" href=".showHideFilters" role="button" aria-expanded="false" aria-controls="selector" style="">ocultar buscador</a>
+			<button id="refresh" type="submit" form="selectorform" class="btn btn-info" disabled>
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+			      <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"></path>
+			      <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"></path>
+				</svg>
+			</button>
+		</div>
+	</section>
+	<section>
+		<section id=series_banner class="multi-collapse showHideFilters collapse hide" style="justify-content: space-between; background-color: rgb(106, 150, 255);"></section>
+		<section  id=selector class="multi-collapse showHideFilters collapse show" style="justify-content: space-between;">
+			<form id=selectorform class="container">
+				<div class="filter-container" id="filters" style="background-color: rgb(106, 150, 255);">
+				<div>
+					<label for=varId>Variable</label>
+					<select name=varId id=varId class="form-control" style="font-size: medium;">
+						<option value="" selected>-- Todas (hidrométricas) --</option>
+					</select>
+				</div>
+				<div>
+					<label for=redId>Red</label>
+					<select name=redId id=redId class="form-control" style="font-size: medium;">
+						<option value="" selected>-- Todas --</option>
+					</select>
+				</div>
+				<div>
+					<label for=seriesId>Estación</label>
+					<select name=estacionId id=estacionId class="form-control" style="font-size: medium;">
+						<option value="" >-- Todas --</option>
+					</select>
+				</div>
+				<div hidden>
+					<label for=seriesId>Estación</label>
+					<select name=seriesId id=seriesId class="form-control" style="font-size: medium;">
+						<option value="" ></option>
+					</select>
+				</div>
+				<div>
+					<label for=timestart>Inicio</label>
+					<input type="date" pattern="^\d{4}-\d{2}-\d{2}$" maxlength=10 minlength=10 name=timestart id=timestart placeholder="YYYY-MM-DD" class="form-control" style="font-size: medium;" />
+				</div>
+				<div>
+					<label for=timeend>Fin</label>
+					<input type="date" pattern="^\d{4}-\d{2}-\d{2}$" maxlength=10 minlength=10 name=timeend id=timeend  placeholder="YYYY-MM-DD" class="form-control"  style="font-size: medium;" />
+				</div>
+				<div>
+						<table>
+						<tr>
+							<td><button name=submit type=submit class="btn btn-primary" style="width: 80px; height:55px">&nbsp;Buscar&nbsp;</button></td>
+						</tr>
+						<tr>
+							<td><a id=toggleAddFilters href="" title="habilitar/deshabilitar filtros adicionales">más filtros</a></td>
+						</tr>
+					</table>
+				</div>
+				{{!-- <div>
+					<label for=has_obs>Tiene datos</label>
+					<input type=checkbox name=has_obs title="has_obs" class="form-control" style="font-size: medium;">
+				</div> --}}
+				<div class=additionalFilters>
+					<label for=data_availability>Tiene datos</label>
+					<select type=checkbox name=data_availability title="disponibilidad de datos" class="form-control" style="font-size: medium;">
+						<option value=""></option>
+						<option value="r">últimas 24 horas</option>
+						<option value="n">últimos 3 días</option>
+						<option value="c">periodo seleccionado</option>
+						<option value="h">en cualquier fecha</option>
+					</select>
+				</div>
+				<div class=additionalFilters>
+					<table id=bbox_inputs title="Ingrese coordenadas de esquinas para búsqueda por rectángulo (UL: superior izquierda, LR: inferior derecha, grados decimales)">
+						<tr>
+							<td><button id=clearGeom title="borrar coordenadas" type=button><i class="fa fa-times" aria-hidden="true"></i></button></td>
+							<th>lon.</th>
+							<th>lat.</th>
+						</tr>
+						<tr>
+							<th>UL</th>
+							<td><input name=west type=number step="any" class="form-control" style="padding:0px" /></td>
+							<td><input name=north type=number step="any" class="form-control" style="padding:0px" /></td>
+						</tr>
+						<tr>
+							<th>LR</th>
+							<td><input name=east type=number step="any" class="form-control" style="padding:0px" /></td>
+							<td><input name=south type=number step="any" class="form-control" style="padding:0px" /></td>
+						</tr>
+					</table>
+				</div>				
+				<div class=additionalFilters>
+					<label for=has_prono>Tiene previsión</label>
+					<input type=checkbox name=has_prono title="has_prono" class="form-control" style="font-size: medium;">
+				</div>
+				<div class=prono-group>
+					<label for=cal_grupo_id>grupo de modelos</label>
+					<select type=number name=cal_grupo_id title="grupo de modelos" class="form-control" style="font-size: medium;">
+						<option value="">Todos</option>
+					</select>
+				</div>
+				<div class=prono-group>
+					<label for=cal_id>modelo</label>
+					<select type=number name=cal_id title="modelo (calibrado)" class="form-control" style="font-size: medium;">
+						<option value="">Todos</option>
+					</select>
+				</div>
+				<div class=prono-group2>
+					<label for=forecast_date>fecha de emisión</label>
+					<select type=text name=forecast_date title="fecha de emisión" class="form-control" style="font-size: medium;">
+						<option value="">Última</option>
+					</select>
+				</div>
+			</form>
+		</section>
+		<a href="html/README.html" style="font-size: small">ayuda</a>
+	</section>
+	<ul class="nav nav-tabs">
+	  <li class="nav-item">
+		<a class="nav-link active" data-toggle="tab" href="#general" id=generaltab>General</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#mapa" id=maptab>Mapa</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#tabla_series" id=tableseriestab>Tabla series</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#tabla" id=tabletab>Tabla datos</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#tabla_prono" id=tablepronotab>Tabla prono</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#grafico" id=charttab>Gráfico</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#descargas">Descargas</a>
+	  </li>
+	</ul>
+	<div class="tab-content" style="display: none">
+		<div class="tab-pane active container tabcontent" id="general">
+			<ul id=general>
+			</ul>
+		</div>
+		<div class="tab-pane container tabcontent" id="mapa">
+			<div class=container style="position: relative">
+				<div id="map" class="map" style="min-width:300px;"></div>
+				<div id=maplegend>
+<!--
+					<h4>Referencias</h4>
+-->
+					<table class=maplegend>
+						<tr><td><img src="img/N.gif"></td><td>sin datos</td></tr>
+						<tr><td><img src="img/S.gif"></td><td>simulado</td></tr>
+						<tr><td><img src="img/H.gif"></td><td>histórico</td></tr>
+						<tr><td><img src="img/H+S.gif"></td><td>histórico+sim.</td></tr>
+						<tr><td><img src="img/C.gif"></td><td>periodo selecc.</td></tr>
+						<tr><td><img src="img/C+S.gif"></td><td>periodo selecc.+sim.</td></tr>
+						<tr><td><img src="img/NRT.gif"></td><td>quasi-tiempo real</td></tr>
+						<tr><td><img src="img/NRT+S.gif"></td><td>quasi-tiempo real+sim.</td></tr>
+						<tr><td><img src="img/RT.gif"></td><td>tiempo real</td></tr>
+						<tr><td><img src="img/RT+S.gif"></td><td>tiempo real+sim</td></tr>
+					</table>
+				</div>
+				<label for="toggleDraw" class="switch1" id="toggleDrawLabel" title="habilitar rectángulo de búsqueda" style="position: absolute; left: 60px; top:10px">
+					<img src="img/box_select.png" />
+				</label>
+				<input type="checkbox" id="toggleDraw" class="toggleDraw" hidden>
+					{{!-- <span class="slider"></span> --}}
+				</input>
+			</div>
+		</div>
+		<div class="tab-pane container tabcontent" id="tabla_series">
+		</div>
+		<div class="tab-pane container tabcontent" id="tabla">
+			
+<!--
+			<table id=table_container class=tabla_reg>
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Valor</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td></td>
+						<td></td>
+					</tr>
+					<tr>
+						<td></td>
+						<td></td>
+					</tr>
+				</tbody>
+			</table>
+-->
+		</div>
+		<div class="tab-pane container tabcontent" id="tabla_prono">
+			<table id=table_container_prono class=tabla_reg>
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Valor</th>
+					</tr>
+				</thead>
+				<tbody>
+				</tbody>
+			</table>
+		</div>
+		<div class="tab-pane container tabcontent" id="grafico">
+			<div class="chart-title row">
+				<div class="btn-group col-sm" role=group>
+					<button type="button" class="btn btn-info add-series" disabled><i class="fa fa-plus"></i>Agregar serie</button>
+					<button type="button" class="btn btn-info remove-series" disabled><i class="fa fa-minus"></i>Borrar última serie</button>
+					<button type="button" class="btn btn-info toggle-pronos" data-toggle="tooltip" title="muestra/esconde series de pronóstico" disabled><i class="fa fa-eye"  aria-hidden="true"></i>Toggle pronos</button>
+					<button type="button" class="btn btn-info downld-pronos" data-toggle="tooltip" title="Descarga series de pronóstico" disabled><i class="fa fa-download" aria-hidden="true"></i>Descargar pronos</button>
+					<button type="button" class="btn btn-info toggle-stats" data-toggle="tooltip" title="muestra/esconde series de estadísticos" disabled><i class="fa fa-eye"  aria-hidden="true"></i>Toggle stats</button>
+					<button type="button" class="btn btn-info downld-stats" title="Descarga series de estadísticos" disabled><i class="fa fa-download" aria-hidden="true"></i>Descargar stats</button>
+					<button type="button" class="btn btn-info add-percentile" title="agrega series de percentiles" disabled><i class="fa fa-plus"></i>Agregar percentil</button>
+					<button type="button" class="btn btn-info downld-percentile" title="Descarga series de percentiles" disabled><i class="fa fa-download" aria-hidden="true"></i>Descargar percentiles</button>
+				</div>
+			</div>
+
+			<div id=chart_container style="height: 80%; min-height: 320px;"></div>
+			<div id="chartModal" class="modal fade" role="dialog" style="display: none;">
+			  <div class="modal-dialog">
+				<div class="modal-content">
+				  <div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">&times;</button>
+					<h4 class="modal-title">Seleccione serie adicional</h4>
+				  </div>
+				  <div class="modal-body" id=modal_body>
+					<form id=chooseaddseries class=chooseaddseries action="getObservaciones" method=POST target="_blank">
+						<input name=tipo value=puntual hidden>
+						<select name=series_id style="width: 450px;"></select>
+						<input name=timestart type=date hidden>
+						<input name=timeend type=date hidden>
+						<input type=submit>
+					</form>
+				  </div>
+				  <div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				  </div>
+				</div>
+			  </div>
+			</div>
+			<div id="chartModal2" class="modal fade" role="dialog" style="display: none;">
+			  <div class="modal-dialog">
+				<div class="modal-content">
+				  <div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">&times;</button>
+					<h4 class="modal-title">Seleccione percentil</h4>
+				  </div>
+				  <div class="modal-body" id=modal_body>
+					<form id=choosepercentile class=choosepercentile action="getPercentilesDiariosBetweenDates" method=GET target="_blank">
+						<input name=tipo value=puntual hidden>
+						<input name=series_id hidden>
+						<input name=timestart type=date hidden>
+						<input name=timeend type=date hidden>
+						<select name=percentil multiple style="width: 250px;" required=true>
+							<option value=0.01>0.01</option>
+							<option value=0.02>0.02</option>
+							<option value=0.03>0.03</option>
+							<option value=0.04>0.04</option>
+							<option value=0.05>0.05</option>
+							<option value=0.06>0.06</option>
+							<option value=0.07>0.07</option>
+							<option value=0.08>0.08</option>
+							<option value=0.09>0.09</option>
+							<option value=0.10>0.10</option>
+							<option value=0.11>0.11</option>
+							<option value=0.12>0.12</option>
+							<option value=0.13>0.13</option>
+							<option value=0.14>0.14</option>
+							<option value=0.15>0.15</option>
+							<option value=0.16>0.16</option>
+							<option value=0.17>0.17</option>
+							<option value=0.18>0.18</option>
+							<option value=0.19>0.19</option>
+							<option value=0.20>0.20</option>
+							<option value=0.21>0.21</option>
+							<option value=0.22>0.22</option>
+							<option value=0.23>0.23</option>
+							<option value=0.24>0.24</option>
+							<option value=0.25>0.25</option>
+							<option value=0.26>0.26</option>
+							<option value=0.27>0.27</option>
+							<option value=0.28>0.28</option>
+							<option value=0.29>0.29</option>
+							<option value=0.30>0.30</option>
+							<option value=0.31>0.31</option>
+							<option value=0.32>0.32</option>
+							<option value=0.33>0.33</option>
+							<option value=0.34>0.34</option>
+							<option value=0.35>0.35</option>
+							<option value=0.36>0.36</option>
+							<option value=0.37>0.37</option>
+							<option value=0.38>0.38</option>
+							<option value=0.39>0.39</option>
+							<option value=0.40>0.40</option>
+							<option value=0.41>0.41</option>
+							<option value=0.42>0.42</option>
+							<option value=0.43>0.43</option>
+							<option value=0.44>0.44</option>
+							<option value=0.45>0.45</option>
+							<option value=0.46>0.46</option>
+							<option value=0.47>0.47</option>
+							<option value=0.48>0.48</option>
+							<option value=0.49>0.49</option>
+							<option value=0.50>0.50</option>
+							<option value=0.51>0.51</option>
+							<option value=0.52>0.52</option>
+							<option value=0.53>0.53</option>
+							<option value=0.54>0.54</option>
+							<option value=0.55>0.55</option>
+							<option value=0.56>0.56</option>
+							<option value=0.57>0.57</option>
+							<option value=0.58>0.58</option>
+							<option value=0.59>0.59</option>
+							<option value=0.60>0.60</option>
+							<option value=0.61>0.61</option>
+							<option value=0.62>0.62</option>
+							<option value=0.63>0.63</option>
+							<option value=0.64>0.64</option>
+							<option value=0.65>0.65</option>
+							<option value=0.66>0.66</option>
+							<option value=0.67>0.67</option>
+							<option value=0.68>0.68</option>
+							<option value=0.69>0.69</option>
+							<option value=0.70>0.70</option>
+							<option value=0.71>0.71</option>
+							<option value=0.72>0.72</option>
+							<option value=0.73>0.73</option>
+							<option value=0.74>0.74</option>
+							<option value=0.75>0.75</option>
+							<option value=0.76>0.76</option>
+							<option value=0.77>0.77</option>
+							<option value=0.78>0.78</option>
+							<option value=0.79>0.79</option>
+							<option value=0.80>0.80</option>
+							<option value=0.81>0.81</option>
+							<option value=0.82>0.82</option>
+							<option value=0.83>0.83</option>
+							<option value=0.84>0.84</option>
+							<option value=0.85>0.85</option>
+							<option value=0.86>0.86</option>
+							<option value=0.87>0.87</option>
+							<option value=0.88>0.88</option>
+							<option value=0.89>0.89</option>
+							<option value=0.90>0.90</option>
+							<option value=0.91>0.91</option>
+							<option value=0.92>0.92</option>
+							<option value=0.93>0.93</option>
+							<option value=0.94>0.94</option>
+							<option value=0.95>0.95</option>
+							<option value=0.96>0.96</option>
+							<option value=0.97>0.97</option>
+							<option value=0.98>0.98</option>
+							<option value=0.99>0.99</option>
+						</select>
+						<input type=submit>
+					</form>
+				  </div>
+				  <div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				  </div>
+				</div>
+			  </div>
+			</div>
+		</div>
+		<div class="tab-pane container tabcontent" id="descargas">
+			<h4>API endpoints</h4>
+			<ul>
+				<li>
+					<b>Serie temporal con metadatos (JSON):    </b>
+					<a id=descargarJson download="serie.json" href="getObservaciones?tipo=puntual&series_id=&timestart=&timeend=">getObservaciones?tipo=puntual&amp;series_id=&amp;timestart=&amp;timeend=</a>
+				</li>
+				<li>
+					<b>Serie temporal (CSV):    </b>
+					<a id=descargarCSV download="observaciones.csv" href="getObservaciones?tipo=puntual&series_id=&timestart=&timeend=&format=csv">getObservaciones?tipo=puntual&amp;series_id=&amp;timestart=&amp;timeend=&amp;format=csv</a>
+				</li>
+				<li>
+					<b>Estaciones de monitoreo (GeoJSON):    </b>
+					<a id=descargarPoints download="secciones.GeoJSON" href="getMonitoredPoints?geojson=true">getMonitoredPoints?geojson=true</a>
+				</li>
+				<li>
+					<b>Cuantiles diarios (JSON):    </b>
+					<a id=descargarDoyStatsJSON download="CuantilesDiarios.json" href="getCuantilesDiariosSuavizados?tipo=puntual&series_id=&format=json">getCuantilesDiariosSuavizados?tipo=puntual&amp;series_id=&amp;format=json</a>
+				</li>
+				<li>
+					<b>Cuantiles diarios (CSV):    </b>
+					<a id=descargarDoyStatsCSV download="CuantilesDiarios.csv" href="getCuantilesDiariosSuavizados?tipo=puntual&series_id=&format=csv">getCuantilesDiariosSuavizados?tipo=puntual&amp;series_id=&amp;format=csv</a>
+				</li>
+				<li>
+					<b>Percentiles diarios (JSON):    </b>
+					<a id=descargarPercentiles download="PercentilesDiarios.json" href="getPercentilesDiarios?series_id=">getPercentilesDiarios?series_id=</a>
+				</li>
+				<li>
+					<b>Percentiles diarios (CSV):    </b>
+					<a id=descargarPercentilesCSV download="PercentilesDiarios.csv" href="getPercentilesDiarios?series_id=">getPercentilesDiarios?series_id=</a>
+				</li>
+				<li>
+					<b>Percentiles diarios entre fechas (JSON):    </b>
+					<a id=descargarPercentilesDiariosBetweenDates download="PercentilesDiariosBetweenDates.csv" href="getPercentilesDiariosBetweenDates?tipo=puntual&series_id=&timestart=&timeend=&percentil=">getPercentilesDiariosBetweenDates?tipo=puntual&amp;series_id=&amp;timestart=&amp;timeend=&amp;percentil=</a>
+					<span>    (acepta 1 o más valores del parámetro 'percentil' [0.01 a 0.99]. Si falta obtiene todos)</span>
+				</li>
+
+			</ul>
+			<div>Ver la descripción completa de la API <a href="apiUI">aquí</a></div>
+			<h4>Otros</h4>
+			<ul>
+				<li>
+					<b>Estación de monitoreo seleccionada (GeoJSON):    </b>
+					<a id=descargarPoint download="seccion.GeoJSON"></a>
+				</li>
+			</ul>
+		</div>
+		<!-- Modal -->
+		<div id="myModal" class="modal fade obs_edit_table_modal" role="dialog">
+		  <div class="modal-dialog">
+
+			<!-- Modal content-->
+			<div class="modal-content">
+			  <div class="modal-header">
+				<h4 class="modal-title">Confirma</h4>
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+			  </div>
+			  <div class="modal-body" id=confirm_modal_body>
+				<form id=confirm class=confirm action="/deleteObservacion" method=POST target="_blank">
+					<input name=id class=confirm hidden />
+					<input name=valor class=confirm hidden />
+					<div class=row id=timestart hidden>
+						<div class="col-sm">
+							<label for=timestart>timestart</label>
+						</div>
+						<div class="col-sm">
+							<input name=timestart class=confirm />
+						</div>
+					</div>
+					<div class=row id=timeend hidden>
+						<div class="col-sm">
+							<label for=timeend>timeend</label>
+						</div>
+						<div class="col-sm">
+							<input name=timeend class=confirm />	
+						</div>
+					</div>
+					<input name=series_id class=confirm hidden />
+					<input name=tipo class=confirm hidden />
+					<span id=csvfile style="display: none;"><label for=csvfile>Importar archivo CSV:</label><input type=file name=csvfile id=csvfile data-toggle="tooltip" title="Los campos deben ser: fechainicial,fechafinal,valor. El formato de fecha es AAAA-MM-DDTHH:MM:SS.000Z en huso horario central (+00) (Formato ISO)"></span>
+					<span id=getFromSource style="display: none;">
+						
+					</span>
+					<span id=exportcsv style="display: none;">
+						<a download="observaciones.csv"></a><br>
+					</span>
+					<span id=exportjson style="display: none;">
+						<input type=text readonly=true id=exportjsonurl style="width:150px" disabled="disabled">
+						<button type=button onclick="copyTextToClipboard('exportjsonurl')">Copiar URL para descarga de JSON</button>
+					</span>
+					<span id=exportmnemos style="display: none;">
+						<input type=text readonly=true id=exportmnemosurl style="width:150px" disabled="disabled">
+						<button type=button onclick="copyTextToClipboard('exportmnemosurl')">Copiar URL para descarga de Mnemos</button>
+					</span>
+					<span id=removeselected style="display: none;"></span>
+					<input name=observaciones hidden />
+					<input name=series hidden />
+					<div class=container id=authentication>
+<!--
+						<div class=row>
+							<div class="col-sm">
+								<label for=username>usuario</label>
+							</div>
+							<div class="col-sm">
+								<input name=username type=text />
+							</div>
+						</div>
+						<div class=row>
+							<div class=col-sm>
+								<label for=password>contraseña</label>
+							</div>
+							<div class=col-sm>
+								<input name=password type=password />
+							</div>
+						</div>
+-->
+						<div class=row>
+							<button type=submit>Submit</button>
+						</div>
+					</div>
+				</form>
+			  </div>
+			  <div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+			  </div>
+			</div>
+		  </div>
+		</div>
+		<div id="myModalSeries" class="modal fade obs_edit_table_modal" role="dialog">
+		  <div class="modal-dialog">
+			<div class="modal-content">
+			  <div class="modal-header">
+				<h4 class="modal-title">Confirma</h4>
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+			  </div>
+			  <div class="modal-body" id=confirm_modal_body_series>
+				<form id=confirm class=confirm action="obs/puntual/series" method=POST target="_blank">
+					<input name=id class=confirm hidden />
+					<input name=series class=confirm hidden />
+					<div class="row new-series" id=estacion_id hidden>
+						<div class=col-sm>
+							<label for=estacion_id>estación</label>
+						</div>
+						<div class=col-sm>
+							<select name=estacion_id class="confirm new-series" >
+								<option value="">Ninguna</option>
+							</select>
+						</div>
+					</div>
+					<div class="row new-series" id=var_id hidden>
+						<div class=col-sm>
+							<label for=var_id>variable</label>
+						</div>
+						<div class=col-sm>
+							<select name=var_id class="confirm new-series">
+								<option value="">Ninguna</option>
+							</select>
+						</div>
+					</div>
+					<div class="row new-series" id=proc_id hidden>
+						<div class=col-sm>
+							<label for=proc_id>procedimiento</label>
+						</div>
+						<div class=col-sm>
+							<select name=proc_id class="confirm new-series">
+								<option value="">Ninguna</option>
+							</select>
+						</div>
+					</div>
+					<div class="row new-series" id=unit_id hidden>
+						<div class=col-sm>
+							<label for=unit_id>unidades</label>
+						</div>
+						<div class=col-sm>
+							<select name=unit_id class="confirm new-series">
+								<option value="">Ninguna</option>
+							</select>
+						</div>
+					</div>
+					<span id=csvfile style="display: none;"><label for=csvfile>Importar archivo CSV:</label><input type=file name=csvfile id=csvfile data-toggle="tooltip" title="Los campos deben ser: estacion_id,var_id,proc_id,unit_id"></span>
+					<span id=getFromSource style="display: none;">
+						
+					</span>
+					<span id=exportcsv style="display: none;"><a download="series.csv"></a></span><br>
+					<span id=exportjson style="display: none;">
+						<input type=text readonly=true id=exportjsonurlseries style="width:150px" disabled="disabled">
+						<button type=button onclick="copyTextToClipboard('exportjsonurlseries')">Copiar URL para descarga de JSON</button>
+					</span>
+					<span id=removeselected style="display: none;"></span>
+					<div class=container id=authentication>
+						<div class=row>
+							<button type=submit>Submit</button>
+						</div>
+					</div>
+				</form>
+			  </div>
+			  <div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+			  </div>
+			</div>
+		  </div>
+		</div>
+		<div id="myModalMetadata" class="modal fade metadata_modal" role="dialog">
+		  <div class="modal-dialog">
+			<!-- Modal content-->
+			<div class="modal-content">
+			  <div class="modal-header">
+				<h4 class="modal-title">Editar metadatos</h4>
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+			  </div>
+			  <div class="modal-body" id=confirm_modal_body>
+				<form id=confirm class=confirm action="" method=PUT target="_blank">
+<!--
+					<div id=estacion style="display: none;">
+						<h4 id=estacionHeading></h4>
+						<div class=row>
+							<div class="col-sm">
+								<label for=tabla>fuente (red)</label>
+							</div>
+							<div class="col-sm">
+								<select name=tabla class="confirm edit" required disabled="disabled"></select>	
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=nombre>nombre</label>
+							</div>
+							<div class="col-sm">
+								<input type=text name=nombre class="confirm edit" required disabled="disabled">
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=longitud>longitud</label>
+							</div>
+							<div class="col-sm">
+								<input type=number name=longitud class="confirm edit" required step="0.000000001" disabled="disabled">
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=latitud>latitud</label>
+							</div>
+							<div class="col-sm">
+								<input type=number name=latitud class="confirm edit" required step="0.000000001" disabled="disabled">
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=cero_ign>altitud/cero de escala</label>
+							</div>
+							<div class="col-sm">
+								<input type=number name=cero_ign class="confirm edit" disabled="disabled" step="0.000000001" style="width: 200px;">
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=provincia>provincia</label>
+							</div>
+							<div class="col-sm">
+								<input type=text name=provincia class="confirm edit"  disabled="disabled">
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=pais>país</label>
+							</div>
+							<div class="col-sm">
+								<input type=text name=pais class="confirm edit" disabled="disabled">
+							</div>
+						</div>
+						<div class=row>
+							<div class="col-sm">
+								<label for=rio>río</label>
+							</div>
+							<div class="col-sm">
+								<input type=text name=rio class="confirm edit" disabled="disabled">
+							</div>
+						</div>
+					</div>
+					<div class=row>
+						<button type=submit>Confirma</button>
+					</div>
+-->
+				</form>
+			  </div>
+			  <div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+			  </div>
+			</div>
+		  </div>
+		</div>
+	</div>
+</div>
+<div class=container-fluid style="background-color: white"></div>
+<div id="popup" class="ol-popup" style="display: none">
+  <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+  <div id="popup-content"></div>
+</div>
+
+<script type="application/javascript" src="js/secciones_functions.js"></script>
+<script> 
+	$("div#maplegend").hide()
+	var global = {}
+	$("a[data-toggle=tab]").click(evt=>{
+		window.dispatchEvent(new Event('resize'));
+	})
+	$("section#selector").on('show.bs.collapse',()=>{
+		$("a#selectorToggle").text("ocultar buscador")
+	})
+	.on('hide.bs.collapse',()=>{
+		$("a#selectorToggle").text("mostrar buscador")
+	})
+	.collapse('show')
+	$("a#toggleAddFilters").click(()=>{
+		$("div.additionalFilters").toggle()
+		if($("div.additionalFilters:visible").length) {
+			$("div.additionalFilters .form-control").removeAttr("disabled")
+			$("div.prono-group .form-control").removeAttr("disabled")
+			$("div.prono-group2 .form-control").removeAttr("disabled")
+			$("a#toggleAddFilters").text("menos filtros")
+			if($(".form-control[name=has_prono]").prop("checked")) {
+				$("div.prono-group").show()	
+				if(global.show_forecast_date) {
+					$("div.prono-group2").show()
+				}
+			}
+		} else {
+			$("div.additionalFilters .form-control").attr("disabled","disabled")
+			$("div.prono-group .form-control").attr("disabled","disabled")
+			$("div.prono-group2 .form-control").attr("disabled","disabled")
+			$("div.prono-group").hide()
+			$("div.prono-group2").hide()
+			$("a#toggleAddFilters").text("más filtros")
+		}
+		return false
+	})
+	$(document).ready(function(){
+		$("div.additionalFilters").toggle()
+		  // set/load activeTab to/from localStorage
+		$(".prono-group").hide()
+		$(".prono-group2").hide()
+		$("body").css("cursor","progress")
+		$('div.tab-content').show()
+	    $('a[data-toggle="tab"]').on('show.bs.tab', function(e) {
+			localStorage.setItem('activeTab', $(e.target).attr('href'));
+		});
+		var activeTab = localStorage.getItem('activeTab');
+		if(activeTab){
+			$('a[href="' + activeTab + '"]').tab('show');
+		}
+		$("form#selectorform select#estacionId").select2();  // Add browse filter to select
+		$("form#selectorform select#seriesId").select2();  // Add browse filter to select
+		$("form#selectorform select#varId").select2();  // Add browse filter to select
+		$("form#selectorform select#redId").select2();  // Add browse filter to select
+		$("form#chooseaddseries select[name=series_id]").select2()
+		$("form#choosepercentile select[name=percentil]").select2()
+
+		// read urlParams
+		const urlParams = new URLSearchParams(window.location.search);
+		global.urlParams = {}
+		for(var pair of urlParams.entries()){
+			global.urlParams[pair[0]] =pair[1]
+		}
+		var timestart, timeend
+		if(urlParams.get('timestart')) {
+			$("input#timestart").val(urlParams.get('timestart').substring(0,10))
+		} 
+		if(urlParams.get('timeend')) {
+			$("input#timeend").val(urlParams.get('timeend').substring(0,10))
+		}
+		var bbox_data = {}
+		for(var i of ["west","east","south","north"]) {
+			if(urlParams.get(i)) {
+				$("input[name=" + i + "]").val(urlParams.get(i))
+				bbox_data[i] = urlParams.get(i)
+			}
+		}
+		 
+		document.getElementById('popup').style.display = "block"
+		var container = document.getElementById('popup');
+		var content = document.getElementById('popup-content');
+		var closer = document.getElementById('popup-closer');
+		/**
+		 * Create an overlay to anchor the popup to the map.
+		 */
+		var overlay = new ol.Overlay({
+		  element: container,
+		  autoPan: true,
+		  autoPanAnimation: {
+			duration: 250
+		  }
+		});
+		
+
+		/**
+		 * Add a click handler to hide the popup.
+		 * @return {boolean} Don't follow the href.
+		 */
+		closer.onclick = function() {
+		  $('div.popover').remove()
+		  overlay.setPosition(undefined);
+		  closer.blur();
+		  return false;
+		};
+
+		// box draw
+		var box_source = new ol.source.Vector({wrapX:false})
+		var box_layer = new ol.layer.Vector({
+			source: box_source,
+			zIndex: 2
+		})
+
+			
+		// instantiate openlayers map object
+		var map = new ol.Map({
+			target: 'map',
+			layers: [
+			  //~ new ol.layer.Tile({
+				//~ source: new ol.source.OSM()
+			  //~ })
+			  new ol.layer.Tile({
+				  source: new ol.source.XYZ({
+					  url: "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+				  })
+			  }),
+			  box_layer
+			],
+			overlays: [overlay],
+			view: new ol.View({
+			  center: [-55, -25],  // feature[0].getGeometry().getCoordinates(), // ol.proj.fromLonLat([geom.geometry.coordinates[0],geom.geometry.coordinates[1]]),
+			  projection: 'EPSG:4326',
+			  zoom: 5
+			})
+		});
+		var toggleDraw = document.getElementById("toggleDrawLabel")
+		// var toggleDraw = document.createElement("input")
+		// toggleDraw.type = "checkbox"
+		// toggleDraw.id = "toggleDraw"
+		// toggleDraw.checked = false
+		// toggleDraw.title='habilitar rectángulo de búsqueda'
+		// toggleDraw.classList.add("toggleDraw")
+		var toggleDrawControl = new ol.control.Control({
+			element: toggleDraw
+		});
+		map.addControl(toggleDrawControl);
+		//  $("input#toggleDraw").css("position","absolute")
+		// $("input#toggleDraw").css("left",60)
+		// $("input#toggleDraw").css("top",10)
+		let draw
+		$("input#toggleDraw").on("change",function(e) {
+			if (e.target.checked == false) {
+				map.removeInteraction(draw)
+				$("label[for=toggleDraw]").css("background-color","white")
+				// layerEstaciones.zIndex = 1
+			} else {
+				map.addInteraction(draw)
+				$("label[for=toggleDraw]").css("background-color","#2196F3")
+				// layerEstaciones.zIndex = 0
+			}
+		})
+		function addInteraction() {
+			draw = new ol.interaction.Draw({
+      			source: box_source,
+      			type: "Circle",
+				geometryFunction: ol.interaction.Draw.createBox(),
+			})
+			// map.addInteraction(draw)
+		}
+		addInteraction()
+		draw.on('drawend',function(e){
+			var coordinates = e.feature.getGeometry().getCoordinates()
+			console.log(coordinates)
+			var west = coordinates[0].map(p=>p[0]).reduce((a,b)=> Math.min(a,b),180)
+			var east = coordinates[0].map(p=>p[0]).reduce((a,b)=> Math.max(a,b),-180)
+			var south = coordinates[0].map(p=>p[1]).reduce((a,b)=> Math.min(a,b),90)
+			var north = coordinates[0].map(p=>p[1]).reduce((a,b)=> Math.max(a,b),-90)
+			$("input.form-control[name=west]").val(west)
+			$("input.form-control[name=east]").val(east)
+			$("input.form-control[name=south]").val(south)
+			$("input.form-control[name=north]").val(north)
+			
+		});
+		draw.on('drawstart',function(e){
+			box_source.clear()
+		})
+		if(Object.keys(bbox_data).length == 4) {
+			var coordinates = [[[bbox_data.west,bbox_data.north],[bbox_data.west,bbox_data.south],[bbox_data.east,bbox_data.south],[bbox_data.east,bbox_data.north],[bbox_data.west,bbox_data.north]]]
+			// box_source.clear()
+			box_source.addFeature(new ol.Feature({geometry:new ol.geom.Polygon(coordinates)}))
+		}
+		$("button#clearGeom").click(()=>{
+			$("input.form-control[name=west]").val("")
+			$("input.form-control[name=east]").val("")
+			$("input.form-control[name=south]").val("")
+			$("input.form-control[name=north]").val("")
+			box_source.clear()
+		})
+
+		// get var list
+		getVarList(urlParams.get('varId'))
+
+		$("form#selectorform select[name=varId]").change(event=>{
+			$(event.target).parents("form").submit()
+		})
+		$.get("obs/puntual/fuentes",undefined)
+		.then(data=>{
+			var redes_options_metadata = ""
+			var redes_options = data.map(red=>{
+				var selected = (urlParams.get('redId')) ? (red.id == urlParams.get('redId')) ? "selected" : "" : ""
+				redes_options_metadata += '<option value="' + red.tabla_id + '" ' + selected + '>' + red.nombre + '(' + red.tabla_id + ' - ' + red.id + ')</option>'
+				return "<option value=" + red.id + " " + selected + ">" + red.nombre + "(" + red.tabla_id + " - " + red.id + ")</option>"
+			}).join("")
+			//~ console.log({redes_options:redes_options})
+			$("form#selectorform select[name=redId]").append($(redes_options)).change(event=>{
+				// $(event.target).parents("form").submit()
+				loadEstacionesOptions()
+			})
+			$("div#myModalMetadata div#estacion select[name=tabla]").append($(redes_options_metadata))
+			metadataElements.estacion.properties.tabla.options = redes_options_metadata
+		})
+		.fail( (xhr, status, e)=>{
+			console.error(e)
+		})
+		
+		function loadEstacionesOptions() {
+			$("form#selectorform select[name=estacionId]")
+			.empty()
+			.append($('<option value="" ></option>'))
+			$("body").css("cursor","progress")
+			var estaciones_params = {}
+			var selected_redId = $("form#selectorform select[name=redId]").val()
+			if(selected_redId != "") {
+				estaciones_params["fuentes_id"] = selected_redId
+			} else if(urlParams.get('redId')) {
+				estaciones_params["fuentes_id"] = urlParams.get('redId')
+			}
+			$.get("obs/puntual/estaciones",estaciones_params)
+			.then(data=>{
+				$("body").css("cursor","default")
+				var estaciones_options = data.map(estacion=>{
+					var selected = (urlParams.get('estacionId')) ? (estacion.id == urlParams.get('estacionId')) ? "selected" : "" : ""
+					return "<option value=" + estacion.id + " " + selected + ">" + estacion.nombre + "(" + estacion.tabla + " - " + estacion.id + ")</option>"
+				}).join("")
+				//~ console.log({redes_options:redes_options})
+				$("form#selectorform select[name=estacionId]")
+				.append($(estaciones_options))
+			})
+			.fail( (xhr, status, e)=>{
+				$("body").css("cursor","default")
+				console.error(e)
+			})
+		}
+		loadEstacionesOptions()
+
+		$.get("sim/calibrados_grupos",undefined)
+		.then(data=>{
+			var cg_options = data.map(g=>{
+				var selected = (urlParams.get('cal_grupo_id')) ? (g.id == urlParams.get('cal_grupo_id')) ? "selected" : "" : ""
+				return '<option value="' + g.id + '" ' + selected + '>' + g.id + " - " + g.nombre + '</option>'
+			}).join("")
+			$("form#selectorform select[name=cal_grupo_id]").append($(cg_options)).change(event=>{
+				$(event.target).parents("form").submit()
+			})
+		})
+		.fail( (xhr, status, e)=>{
+			console.error(e)
+		})
+
+		var cal_filter = {no_metadata:true,group_by_cal:true}
+		if(urlParams.get('cal_grupo_id')) {
+			cal_filter.cal_grupo_id = urlParams.get('cal_grupo_id')
+		}
+		$.get("sim/calibrados",cal_filter)
+		.then(data=>{
+			var c_options = data.map(c=>{
+				var selected = ""
+				if (urlParams.get('cal_id') && c.id == urlParams.get('cal_id')) {
+					selected = "selected"
+					getForecastDates(c.id)
+				}
+				return '<option value="' + c.id + '" ' + selected + '>' + c.id + " - " + c.nombre + '</option>'
+			}).join("")
+			// console.log({c_options:c_options})
+			$("form#selectorform select[name=cal_id]").append($(c_options)).change(event=>{
+				$(event.target).parents("form").submit()
+			})
+		})
+		.fail( (xhr, status, e)=>{
+			console.error(e)
+		})
+
+		getForecastDates = function(cal_id) {
+			$.get("sim/calibrados/" + cal_id + "/corridas")
+			.then(data=>{
+				var fd_options = data.map(corrida=>corrida.forecast_date).sort((a,b)=>b-a).map(fd=>{
+					var selected = ""
+					if(urlParams.get('forecast_date') && fd == urlParams.get('forecast_date')) {
+						selected = "selected"
+					}
+					return '<option value="' + fd + '" ' + selected + '>' + fd + '</option>'
+				}).join("")
+				$("form#selectorform select[name=forecast_date]").append($(fd_options)).change(event=>{
+					$(event.target).parents("form").submit()
+				})
+				global.show_forecast_date = true
+				$("div.prono-group2").show()
+			})
+		}
+
+		// agrega popup2 hover
+		$("div#map").append(
+			$('<div id="popup2" class="ol-popup-hover" style="display: none;"></div>').append(
+				$('<div id="popup-content2"></div>')
+			)
+		)
+		var container2 = new ol.Overlay({
+			element: document.getElementById("popup2")
+		});
+		map.addOverlay(container2)
+	
+		$("input.form-control[name=has_prono]").change((evt)=>{
+			if(evt.target.checked) {
+				$(".prono-group").show()
+			} else {
+				$(".prono-group").hide()
+			}
+		})
+
+		// global objects
+		var gSeries, gPoints
+	
+		// get monitored points 
+		
+		var monitoredpointsparams = {geojson:true}
+		if(urlParams.get('varId')) {
+			monitoredpointsparams.var_id = urlParams.get('varId')
+		}
+		if(urlParams.get('redId')) {
+			monitoredpointsparams.red_id = urlParams.get('redId')
+		}
+		if(urlParams.get('estacionId')) {
+			monitoredpointsparams.estacion_id = urlParams.get('estacionId')
+		}
+		monitoredpointsparams.timestart=$("input#timestart").val()
+		monitoredpointsparams.timeend=$("input#timeend").val()
+		if (urlParams.get('data_availability')) {
+			monitoredpointsparams.data_availability = urlParams.get('data_availability')
+			// $("input.form-control[name=has_obs]").prop("checked",true)
+			$("select.form-control[name=data_availability]").val(urlParams.get('data_availability'))
+		} 
+		if(urlParams.get('has_prono')) {
+			$("input.form-control[name=has_prono]").prop("checked",true)
+			$(".prono-group").show()
+			monitoredpointsparams.has_prono = urlParams.get('has_prono')
+			if(urlParams.get('cal_grupo_id')) {
+				monitoredpointsparams.cal_grupo_id = urlParams.get('cal_grupo_id')
+			}
+			if(urlParams.get('cal_id')) {
+				monitoredpointsparams.cal_id = urlParams.get('cal_id')
+			}
+		}
+		if(urlParams.get('north') && urlParams.get('south') && urlParams.get('east') && urlParams.get('west')) {
+			monitoredpointsparams.geom = urlParams.get('west') + "," +  urlParams.get('south') + "," +  urlParams.get('east') + "," + urlParams.get('north') 
+		}
+		global.monitoredpointsparams = monitoredpointsparams
+		$.get("getMonitoredPoints",monitoredpointsparams)
+		.then(points=>{
+			$("body").css("cursor","default")
+			if(!points || !points.features) {
+				alert("0: No se encontraron series")
+			} else if (points.features.length == 0) {
+				alert("1: No se encontraron series")
+			}
+			$("button#refresh").removeAttr("disabled")
+			gPoints = points
+			// read points from GeoJSON and add layer to map
+			var featEstaciones = (new ol.format.GeoJSON()).readFeatures(points)
+			layerEstaciones = new ol.layer.Vector({
+				source: new ol.source.Vector({
+					projection: 'EPSG:4326',
+					features: featEstaciones
+				}),
+				style: styleFunction,
+				zIndex: 1
+			})
+			
+			map.addLayer(layerEstaciones)
+			//add map click interaction: popup table. Then clicking any row refreshes page with the corresponding data
+			map.on("singleclick", mapOnSingleClick)
+			//add map click interaction: popup table. Then clicking any row refreshes page with the corresponding data
+			function mapOnSingleClick(evt) {
+				$('div.popover').remove()
+				if($("input#toggleDraw").prop("checked")) {
+					return
+				}
+				var pixel = evt.pixel
+				var coordinate = evt.coordinate
+				features = map.getFeaturesAtPixel(pixel, {layerFilter:function(layerCandidate) {
+						if(layerCandidate.getZIndex() == 1) {
+							return true
+						} else {
+							return false
+						}
+					}, hitTolerance: 10})
+				content.innerHTML = "<h4>Estaciones</h4><table><tbody><thead><tr><th>fuente</th><th>id</th><th>nombre</th><th>variable</th><th>series_id</th><th>obs</th><th>sim</th></tr></thead></tbody></table>"
+				features.map(f=>{
+					var data_availability = f.get('data_availability')
+					var bgcolor = "#ffffff"
+					var outline = null
+					var obs = "no"
+					var sim = "no"
+					var fontColor = "white"
+					if(data_availability) {
+						obs = (data_availability.indexOf("H") > -1  || data_availability.indexOf("T") > -1 ) ? data_availability.replace(/\+.*$/,"") : "no"
+						sim = (data_availability.indexOf("S") > -1) ? "sí" : "no"
+						if(stylePars[data_availability]) {
+							bgcolor = "#" + stylePars[data_availability].fill.map(c=> rgbToHex(c)).join("").substring(0,6)
+							outline = '3px solid #' + stylePars[data_availability].stroke.map(c=> rgbToHex(c)).join("").substring(0,6)
+							fontColor = stylePars[data_availability].fontColor
+						} 
+					}
+					$("div#popup-content table tbody").append(
+						$("<tr id=" + f.get('series_id') + "><td>" + f.get('fuente') + "</td><td>" + f.get('estacion_id') + "</td><td>" + f.get('nombre') + "</td><td>" + f.get('var_name') + "</td><td>" + f.get('series_id') + "</td><td>"+obs+"</td><td>"+sim+"</td></tr>")
+						.css({'background-color': bgcolor, 'outline': outline, 'outline-offset':"-3px", 'color': fontColor})
+						.attr({"data-toggle":"popover", "data-placement":"top", "title": "acción"})
+						//~ .on('click',function(evt) {
+							//~ $('div#popup-content tr[data-toggle="popover"]').popover('dispose')
+						//~ })
+					)
+				})
+				$('div#popup-content tr[data-toggle="popover"]').popover({
+					html: true,
+					template: '<div class="popover" role="tooltip"><div class="arrow"></div><h3 class="popover-header"></h3><div class="popover-body"></div></div>',
+					trigger: "click",
+					content: function() {
+						return "<div class=popovercontent id="+$(this).attr('id')+"></div>"
+					}
+				})
+				.on('show.bs.popover', function (evt) {
+					$('div#popup-content tr[data-toggle="popover"][id!='+$(evt.target).attr('id')+']').popover('hide')
+				})
+				.on('shown.bs.popover', function (evt) {
+					console.log("popover shown")
+					$("div#"+$(evt.target).attr('id')+".popovercontent").empty().append(
+						$("<button>Ir a serie</button>").attr({
+							id: $(evt.target).attr('id')
+						}).on('click',reloadWithPars)						
+					)
+					if($("div#chart_container")[0].hasAttribute("data-highcharts-chart")) {
+						$("div#"+$(evt.target).attr('id')+".popovercontent").append(
+							$("<button>Agregar a gráfico</button>").attr({
+								id: $(evt.target).attr('id')
+							}).on('click',addToChart)
+						)
+					}
+				})
+				overlay.setPosition(coordinate)
+			}
+
+			// add map interaction on hover point change cursor to pointer & display station name and id
+			map.on('pointermove', evt => {
+				if (!evt.dragging) {
+					if(map.hasFeatureAtPixel(map.getEventPixel(evt.originalEvent))) {
+						map.getTargetElement().style.cursor = 'pointer';
+						var features = map.getFeaturesAtPixel(map.getEventPixel(evt.originalEvent),{layerFilter:function(layerCandidate) {
+							if(layerCandidate.getZIndex() == 1) {
+								return true
+							} else {
+								return false
+							}
+						}, hitTolerance: 10})
+						if(features.length>0) {
+							feature = features[0]
+							$("div#popup-content2").text(feature.get("nombre") + " (" + feature.get("estacion_id") + ")")
+							container2.setPosition(evt.coordinate);
+							$("#popup2").show()
+						}
+					} else {
+						map.getTargetElement().style.cursor = '';
+						$("#popup2").hide()
+					}
+				}
+			});
+			// add listener to maptab: on click update map size
+			$(".nav-tabs a#maptab").on('shown.bs.tab', function(e){
+				map.updateSize()
+			})
+			// show legend
+			//~ console.log("show map")
+			$("div#maplegend").show()
+			
+			//~ descarga listado estaciones/var
+			var getMonitoredPointsUrl = "getMonitoredPoints?geojson=true"
+			$("#descargarPoints").attr('href',getMonitoredPointsUrl).html(getMonitoredPointsUrl)
+			
+			// llena tabla de series
+			
+			gPoints.sortSeries = function() {
+				gPoints.sort( (a,b)=>{
+					if (a.estacion_id < b.estacion_id) {
+						return -1
+					} else if (a.estacion_id > b.estacion_id) {
+						return 1
+					} else { // misma estacion
+						if(a.var_id < b.var_id) {
+							return -1
+						} else {
+							return 1
+						}
+					}
+				})
+			}
+			
+			makeSeriesEditTable($("div.tabcontent#tabla_series"),gPoints,{{writer}})
+			
+			// series 
+			
+			//~ if(! urlParams.get('seriesId')) {
+				//~ return
+			//~ }
+			
+			var flag=false
+			var matched_point
+			var table_rows = []
+			var options = points.features.map(p=>{
+				var selected=false
+				if(urlParams.get('seriesId')) {
+					if(p.properties.series_id == urlParams.get('seriesId')) {
+						//~ console.log(p.properties)
+						flag=true
+						selected=true
+						matched_point=p
+					}
+				} 
+				var name = p.properties.estacion_id + ": " + ((p.properties.rio) ? p.properties.rio + "@" : "") + ((p.properties.nombre) ? p.properties.nombre.substring(0,30) : p.properties.estacion_id) + " (" + p.properties.var_name + ") [" + p.properties.series_id + "]"
+				return "<option value="+p.properties.series_id + " " + ((selected) ? "selected" : "" ) + " >" + name + "</option>"
+			})
+			$("select#seriesId").append(options.join(""))
+			$("form#chooseaddseries select[name=series_id]").append(options.join(""))
+			if(!flag) {
+				console.log("seriesId not found")
+				return
+			}
+			var timestart, timeend
+			if(!urlParams.get('timestart')) {
+				timestart = new Date()
+				timestart.setDate(timestart.getDate() - 90)
+			} else {
+				timestart = new Date(urlParams.get('timestart'))
+				//~ console.log("timestart from querystring")
+			}
+			if(!urlParams.get('timeend')) {
+				timeend = new Date()
+				timeend.setDate(timeend.getDate() +15)
+			} else {
+				timeend = new Date(urlParams.get('timeend'))
+				//~ console.log("timeend from querystring")
+			}
+			//~ console.log({estacion_id:matched_point.properties.estacion_id, var_id: matched_point.properties.var_id, ts:timestart, ts:timeend})
+			$("input#timestart").val(timestart.toISOString().substring(0,10))
+			$("input#timeend").val(timeend.toISOString().substring(0,10))
+			$("form#chooseaddseries input[name=timestart]").val(timestart.toISOString().substring(0,10))
+			$("form#chooseaddseries input[name=timeend]").val(timeend.toISOString().substring(0,10))
+			$("form#choosepercentile input[name=timestart]").val(timestart.toISOString().substring(0,10))
+			$("form#choosepercentile input[name=timeend]").val(timeend.toISOString().substring(0,10))
+			$("body").css("cursor","progress")
+			var getSeriesParams = {estacion_id:matched_point.properties.estacion_id, var_id:matched_point.properties.var_id, timestart:timestart, timeend:timeend, includeProno:true,proc_id:matched_point.properties.proc_id}
+			if(urlParams.get('forecast_date')) {
+				getSeriesParams.forecast_date = urlParams.get('forecast_date')
+			}
+			$.get("getSeriesBySiteAndVar",getSeriesParams) // , true, "1 days")
+			.then(series=>{
+				$("body").css("cursor","default")
+				$("section#selector").collapse("hide")
+				$("section#series_banner").html('<h2 style="text-align: center">' + series.var.nombre + ' en ' + series.estacion.nombre + '</h2>').collapse("show")
+				gSeries = series
+				var obs_stats = getSerieStats(series.observaciones)
+				series.request_params = {estacion_id:matched_point.properties.estacion_id, var_id:matched_point.properties.var_id, timestart:timestart, timeend:timeend, includeProno:true,proc_id:matched_point.properties.proc_id}
+				var prono_resumen = getPronoResumen(series)
+				//~ var general = {id:series.id, tipo: series.tipo, estacion: series.estacion, variable: series["var"], procedimiento: series.procedimiento, unidades: series.unidades, obs_stats: obs_stats, prono_resumen: prono_resumen}
+				$("div#general ul#general").append(
+					$("<li>id de serie: <b>" + series.id + "</b></li>"),
+					$("<li>tipo de serie: <b>" + series.tipo + "</b></li>")
+				)
+				
+				if (series.estacion) {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id=p_estacion>Estación <button type=button title=editar id=estacion class="metadata-edit-button" style="display: none;"><i class="material-icons" id=estacion>&#xE254;</i></button></h3>'),
+							$("<ul></ul>").append(
+								$("<li>fuente: <b>" + series.estacion.tabla + "</b></li>"),
+								$("<li>id: <b>" + series.estacion.id + "</b></li>"),
+								$("<li>nombre: <b>" + series.estacion.nombre + "</b></li>"),
+								$("<li>id_externo: <b>" + series.estacion.id_externo + "</b></li>"),
+								$("<li>longitud: <b>" + series.estacion.geom.coordinates[0] + "</b></li>"),
+								$("<li>latitud: <b>" + series.estacion.geom.coordinates[1] + "</b></li>"),
+								$("<li>altitud: <b>" + series.estacion.altitud + "</b></li>"),
+								$("<li>cero de escala: <b>" + series.estacion.cero_ign + "</b></li>"),
+								$("<li>provincia: <b>" + series.estacion.provincia + "</b></li>"),
+								$("<li>pais: <b>" + series.estacion.pais + "</b></li>"),
+								$("<li>rio: <b>" + series.estacion.rio + "</b></li>"),
+								$("<li>automatica: <b>" + series.estacion.automatica + "</b></li>"),
+								$("<li>propietario: <b>" + series.estacion.propietario + "</b></li>"),
+								$("<li>abreviatura: <b>" + series.estacion.abreviatura + "</b></li>"),
+								$("<li>URL: <b>" + series.estacion.URL + "</b></li>"),
+								$("<li>localidad: <b>" + series.estacion.localidad + "</b></li>"),
+								$("<li>real: <b>" + series.estacion.real + "</b></li>"),
+								$("<li>nivel_alerta: <b>" + series.estacion.nivel_alerta + "</b></li>"),
+								$("<li>nivel_evacuacion: <b>" + series.estacion.nivel_evacuacion + "</b></li>"),
+								$("<li>nivel_aguas_bajas: <b>" + series.estacion.nivel_aguas_bajas + "</b></li>")
+					)))
+				}
+				
+				if(series["var"]) {
+					var timeSupport = (series["var"].timeSupport) ? interval2string(series["var"].timeSupport) : 'null'
+					var defHoraCorte = (series["var"].def_hora_corte) ? interval2string(series["var"].def_hora_corte) : 'null'
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_variable">Variable <button type=button title=editar id=var class="metadata-edit-button" style="display: none;"><i class="material-icons" id=var>&#xE254;</i></button></h3>'),
+							$("<ul></ul>").append(
+								$("<li>id: <b>" + series["var"].id + "</b></li>"),
+								$("<li>código: <b>" + series["var"].var + "</b></li>"),
+								$("<li>nombre: <b>" + series["var"].nombre + "</b></li>"),
+								$("<li>abreviatura: <b>" + series["var"].abrev + "</b></li>"),
+								$("<li>tipo: <b>" + series["var"].type + "</b></li>"),
+								$("<li>dataType: <b>" + series["var"].datatype + "</b></li>"),
+								$("<li>valueType: <b>" + series["var"].valueType + "</b></li>"),
+								$("<li>generalCategory: <b>" + series["var"].GeneralCategory + "</b></li>"),
+								$("<li>VariableName: <b>" + series["var"].VariableName + "</b></li>"),
+								$("<li>sampleMedium: <b>" + series["var"].SampleMedium + "</b></li>"),
+								$("<li>timeSupport: <b>" + timeSupport + "</b></li>"),
+								$("<li>timeSupport: <b>" + defHoraCorte + "</b></li>")
+					)))
+				}
+				if(obs_stats) {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_obs">Observaciones (estadísticas)</h3>'),
+							$("<ul></ul>").append(
+								$("<li>Fecha inicial: <b>" + obs_stats.timestart + "</b></li>"),
+								$("<li>Fecha final: <b>" + obs_stats.timeend + "</b></li>"),
+								$("<li>Cantidad de registros: <b>" + obs_stats.count + "</b></li>"),
+								$("<li>Valor mínimo: <b>" + obs_stats.min + "</b></li>"),
+								$("<li>Valor máximo: <b>" + obs_stats.max + "</b></li>"),
+								$("<li>Valor medio: <b>" + obs_stats.avg + "</b></li>"),
+								$("<li>Valores nulos: <b>" + obs_stats.nulls + "</b></li>")
+					)))
+				} else {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_obs">No hay observaciones</h3>')
+					))
+				}
+				if (series.procedimiento) {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_proc">Procedimiento <button type=button title=editar id=procedimiento class="metadata-edit-button" style="display: none;"><i class="material-icons" id=procedimiento>&#xE254;</i></button></h3>'),
+							$("<ul></ul>").append(
+								$("<li>id: <b>" + series.procedimiento.id + "</b></li>"),
+								$("<li>nombre: <b>" + series.procedimiento.nombre + "</b></li>"),
+								$("<li>abreviatura: <b>" + series.procedimiento.abrev + "</b></li>"),
+								$("<li>descripción: <b>" + series.procedimiento.descripcion + "</b></li>")
+					)))
+				}
+				if (series.unidades) {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_units">Unidades <button type=button title=editar id=unidades class="metadata-edit-button" style="display: none;"><i class="material-icons" id=unidades>&#xE254;</i></button></h3>'),
+							$("<ul></ul>").append(
+								$("<li>id: <b>" + series.unidades.id + "</b></li>"),
+								$("<li>nombre: <b>" + series.unidades.nombre + "</b></li>"),
+								$("<li>abreviatura: <b>" + series.unidades.abrev + "</b></li>"),
+								$("<li>unitsID: <b>" + series.unidades.unitsID + "</b></li>"),
+								$("<li>unitsType: <b>" + series.unidades.unitsType + "</b></li>")
+					)))
+				}
+				if (prono_resumen) {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_prono">Pronósticos (resumen)</h3>'),
+							$("<ul></ul>").append(
+								prono_resumen.map(p=>{
+									return $("<li></li>").append(
+										$("<h4>" + p.nombre + "</h4>"),
+										$("<ul></ul>").append(
+											$("<li>id: <b>" + p.cal_id + "</b></li>"),
+											$("<li>nombre: <b>" + p.nombre + "</b></li>"),
+											$("<li>modelo: <b>" + p.modelo + "</b></li>"),
+											$("<li>activado: <b>" + p.activar + "</b></li>"),
+											$("<li>seleccionado: <b>" + p.selected + "</b></li>"),
+											$("<li>id de corrida: <b>" + p.cor_id + "</b></li>"),
+											$("<li>fecha de emisión: <b>" + p.forecast_date + "</b></li>"),
+											$("<li>cantidad de registros: <b>" + p.count + "</b></li>"),
+											$("<li>fecha final: <b>" + p.fecha_fin + "</b></li>")
+									))
+								})
+					)))
+				} else {
+					$("div#general ul#general").append(
+						$("<li></li>").append(
+							$('<h3 id="p_prono">No hay pronósticos</h3>')
+					))
+				}
+
+				if({{writer}}) {  // habilita edición de metadatos
+					$("button.metadata-edit-button").show().click(metadataEdit)
+					$("div#myModalMetadata form#confirm").submit(onSubmitMetadataEdit)
+					$("div#myModalMetadata").on('hide.bs.modal', function (e) {
+						//~ $(e.target).find("div#estacion").hide()
+						$(e.target).find(".edit").attr("disabled","disabled")
+					})
+				}
+
+
+				// read selected station from 'geom' and add point layer to map
+
+				gSeries.estacion.geoJSON = getGeomAsGeoJSON(series)
+	
+				var feature = (new ol.format.GeoJSON()).readFeatures(gSeries.estacion.geoJSON)
+				map.getView().setCenter(feature[0].getGeometry().getCoordinates())
+				map.getView().setZoom(8)
+				var labelStyle = new ol.style.Style({
+				  text: new ol.style.Text({
+					font: '10px Calibri,sans-serif',
+					overflow: true,
+					fill: new ol.style.Fill({
+					  color: '#000'
+					}),
+					stroke: new ol.style.Stroke({
+					  color: '#fff',
+					  width: 2
+					})
+				  })
+				});
+				var pointStyle = new ol.style.Style({
+				  image: new ol.style.Icon({
+					anchor: [0.5, 1],
+					src: '../img/map_pin_small.png',
+					//~ size: 60
+				  })
+				});
+				var layer = new ol.layer.Vector({
+					source: new ol.source.Vector({
+						projection: 'EPSG:4326',
+						features: feature,
+					}),
+					style: function(feature) {
+						labelStyle.getText().setText(feature.get('nombre'));
+						return [labelStyle,pointStyle];
+					},
+					zIndex: 10
+				})
+				map.addLayer(
+				  layer
+				)
+				// Descarga punto
+				gblob = new Blob([JSON.stringify(gSeries.estacion.geoJSON)], {type: "octet/stream"}),
+				gurl = window.URL.createObjectURL(gblob);
+				$("#descargarPoint").attr('href',gurl).html('GeoJSON')
+			
+				// read time series from 'data' and load tables and chart
+				loadChart(series, null, "chart_container", {prono_table:"table_container_prono",dt:series.var.timeSupport}, (table_container, chart_container, table_prono)=> {
+					$('a[data-toggle="tab"]#charttab').on('shown.bs.tab', function (e) {
+						$("#chart_container").highcharts().reflow()
+					})
+					//~ $('a[data-toggle="tab"]#tabletab').click(e=>{
+						//~ table_container.columns.adjust.draw()
+					//~ })
+					if(table_prono) {
+						$('a[data-toggle="tab"]#tablepronotab').click(e=>{
+							setTimeout(()=>{
+								table_prono.columns.adjust().draw()
+							},200)
+						})
+					}
+					console.log("enable chart buttons")
+					// enable chart buttons
+					$("div.tabcontent#grafico").find("button.add-series").prop('disabled',false)
+					.on('click', function () {
+						$("#chart_container").parent().find("div#chartModal").show().modal()
+					});
+					$("div.tabcontent#grafico").find("button.remove-series").prop('disabled',false)
+					.on('click', function () {
+						var chart = $("#chart_container").highcharts()
+						if(chart.series.length == 0) {
+							return
+						}
+						global.extra_series[chart.series[chart.series.length-1].name] = undefined
+						chart.series[chart.series.length-1].remove(true)
+						if(chart.series.length == 0) {  // remove horizontal lines when main series is removed
+							console.log("removing horizontal lines")
+							var pl=[]
+							chart.yAxis[0].plotLinesAndBands.forEach(i=>{
+								console.log(i)
+								pl.push(i.id)
+							})
+							 //~ console.log(pl)
+							for(var i=1;i<pl.length;i++) {
+								 //~ console.log("removing plotline "+ i)
+								chart.yAxis[0].removePlotLine( i )
+							}
+						 }
+						 adjustChartAxes(chart)
+					});
+					// enable prono buttons
+					var pronosticos_filtered = []
+					if(series.pronosticos) {
+						series.pronosticos.filter(p=>p.corrida).filter(p=>p.corrida.series).forEach(p=> {
+							p.corrida.series.forEach(s=>{
+								var prono = p
+								prono.name = (p.nombre) ? p.nombre : (p.modelo) ? p.modelo : (p.id) ? "cal_id:" + p.id : "pronóstico";
+								prono.name += "(" + s.qualifier + ")"
+								pronosticos_filtered.push(prono)
+							})
+						})
+					}
+					if(pronosticos_filtered.length>0) {
+						$("div.tabcontent#grafico").find("button.toggle-pronos").prop('disabled',false)
+						.on('click', function () {
+							var chart = $("#chart_container").highcharts()
+							chart.series.forEach(s=>{  
+								if(pronosticos_filtered.some(p=> p.name == s.name)) {
+									if(s.visible) {
+										s.hide()
+									} else {
+										s.show()
+									}
+								}
+							})
+						});
+						$("div.tabcontent#grafico").find("button.downld-pronos").prop('disabled',false)
+					}
+					
+					// enable stats buttons
+					if(series.dailyDoyStats.length>0) {
+						//~ console.log("enable Stats buttons")
+						$("div.tabcontent#grafico").find("button.toggle-stats").prop('disabled',false)
+						.on('click', function () {
+								var chart = $("#chart_container").highcharts()
+								chart.series.forEach(s=>{  
+								   if(/^permanencia\s\d\d?\%$/.test(s.name)) {
+									if(s.visible) {
+										s.hide()
+									} else {
+										s.show()
+									}
+								  }
+								})
+						});
+						$("div.tabcontent#grafico").find("button.downld-stats").prop('disabled',false)
+						.on('click', function () {
+							var chart = $("#chart_container").highcharts()
+							var doystatsseries = chart.series.filter(s=> /^permanencia\s\d\d?\%$/.test(s.name))
+							if(doystatsseries.length == 0) {
+								console.log("nothing to download")
+								return
+							}
+							var doystats = doystatsseries[0].data.map( (d,i) => {
+								var date = new Date(d.x).toISOString().substring(0,10)
+								var values = doystatsseries.map(s=> {
+									return s.data[i].y
+								})
+								return [date,...values]	
+							})
+							var colnames = ["date",...doystatsseries.map(s=>s.name)]
+							var csv = colnames.join(",") + "\n" + doystats.map(d=>d.join(",")).join("\n")
+							var gblob = new Blob([csv], {type: "octet/stream"})
+							var gurl = window.URL.createObjectURL(gblob);
+							$("#myModal span#exportcsv a").attr({'href':gurl,download:'stats.csv'}).html("Descargar CSV").on("click", e=>{
+								//~ $("#myModal").modal("hide")
+							})
+							$("#myModal span#exportjson input#exportjsonurl").val(window.location.origin + window.location.pathname.replace(/[^/]*$/,"") + "getCuantilesDiariosSuavizados?tipo=puntual&series_id=" + gSeries.id + "&format=json").removeAttr("disabled")
+							$("div#myModal span#exportcsv").show()
+							$("div#myModal span#exportjson").show()
+							$("div#myModal div#authentication").hide()
+							$("div#myModal div#authentication input").attr("disabled",true)
+							$("div#myModal").modal('show').on('hide.bs.modal', function (e) {
+								$(e.target).find("span#exportcsv").hide()
+								$(e.target).find("span#exportjson").hide()
+								$(e.target).find("span#exportcsv a").attr({"href":null,download:'observaciones.csv'})
+								$("#myModal span#exportjson input#exportjsonurl").val("").attr("disabled","disabled")
+								$(e.target).find("div#authentication").show()
+								$(e.target).find("div#authentication input").attr("disabled",false)
+							})
+						});
+						$("div.tabcontent#grafico").find("button.add-percentile").prop('disabled',false)
+						.on('click', function () {
+							$("div#chartModal2").modal('show').on('hide.bs.modal', function (e) {
+								$(e.target).find("select[name=percentil]").val([])
+							})
+						});
+						$("div.tabcontent#grafico").find("button.downld-percentile")
+						.on('click', function () {
+							var chart = $("#chart_container").highcharts()
+							var percentile_series = chart.series.filter(s=> /^percentil\s0\.\d\d?$/.test(s.name))
+							if(percentile_series.length == 0) {
+								console.log("Nothing to download")
+								return
+							}
+							var percentiles = percentile_series[0].data.map( (d,i) => {
+								var date = new Date(d.x).toISOString().substring(0,10)
+								var values = percentile_series.map(s=> {
+									return s.data[i].y
+								})
+								return [date,...values]	
+							})
+							var colnames = ["date",...percentile_series.map(s=>s.name)]
+							var csv = colnames.join(",") + "\n" + percentiles.map(d=>d.join(",")).join("\n")
+							var gblob = new Blob([csv], {type: "octet/stream"})
+							var gurl = window.URL.createObjectURL(gblob);
+							$("#myModal span#exportcsv a").attr({'href':gurl,download:'percentiles.csv'}).html("Descargar CSV");
+							//~ .on("click", e=>{
+								//~ $("#myModal").modal("hide")
+							//~ })
+							var percentil = percentile_series.map(s=>{
+								return parseFloat(s.name.replace(/^percentil\s/,""));
+							}).join(",")
+							$("#myModal span#exportjson input#exportjsonurl").val(window.location.origin + window.location.pathname.replace(/[^/]*$/,"") + "obs/puntual/series/" + global.series.id + "/percentilesDiarios/" + global.series.timestart + "/" + global.series.timeend+ "?percentil=" + percentil).removeAttr("disabled")
+							$("div#myModal span#exportcsv").show()
+							$("div#myModal span#exportjson").show()
+							$("div#myModal div#authentication").hide()
+							$("div#myModal div#authentication input").attr("disabled",true)
+							$("div#myModal").modal('show').on('hide.bs.modal', function (e) {
+								$(e.target).find("span#exportcsv").hide()
+								$(e.target).find("span#exportjson").hide()
+								$(e.target).find("span#exportcsv a").attr({"href":null,download:'observaciones.csv'})
+								$("#myModal span#exportjson input#exportjsonurl").val("").attr("disabled","disabled")
+								$(e.target).find("div#authentication").show()
+								$(e.target).find("div#authentication input").attr("disabled",false)
+							})
+						});
+					}
+
+
+					$("form#choosepercentile input[name=series_id]").val(series.id)
+
+					return
+				})
+
+
+				// make obs edit table
+				gSeries.timestart = $("form#selectorform input[name=timestart]").val()
+				gSeries.timeend = $("form#selectorform input[name=timeend]").val()
+				gSeries.reloadChart = function() {
+					loadChart(this, null,"chart_container")
+				}
+				gSeries.sortObs = function() {
+					this.observaciones.sort( (a,b)=>{
+						if (new Date(a[0]) < new Date(b[0])) {
+							return -1
+						} else {
+							return 1
+						}
+					})
+				}
+				global.series = gSeries
+				makeObsEditTable($("div.tabcontent#tabla"),gSeries,{{writer}}) //series_def)
+
+				// write REST API endpoints for data download (Descargas tab)
+				var getRequestUrl = "getSeriesBySiteAndVar?estacion_id=" + series.estacion.id + "&var_id=" + series.var.id + "&timestart=" + timestart.toISOString().substring(0,10) + "&timeend=" + timeend.toISOString().substring(0,10) + "&includeProno=true"; // "obs/puntual/series/" + series.id + "?timestart=" + timestart.toISOString().substring(0,10) + "&timeend=" timeend.toISOString().substring(0,10)
+				$("a#descargarJson").attr('href',getRequestUrl).text(getRequestUrl)
+				var getObsCSVUrl = "obs/" + series.tipo + "/series/" + series.id + "/observaciones?" + "&timestart=" + timestart.toISOString().substring(0,10) + "&timeend=" + timeend.toISOString().substring(0,10) + "&format=csv" // "getObservaciones?tipo=puntual&series_id=" + urlParams.get('seriesId') + "&timestart=" + timestart.toISOString().substring(0,10) + "&timeend=" + timeend.toISOString().substring(0,10) + "&format=csv"
+				$("a#descargarCSV").attr('href',getObsCSVUrl).text(getObsCSVUrl)
+				var doystatsurl = "obs/" + series.tipo + "/series/" + series.id + "/estadisticosDiariosSuavizados" // getCuantilesDiariosSuavizados?tipo=puntual&series_id="+ series.id + "&format=json"
+				$("a#descargarDoyStatsJSON").attr('href',doystatsurl).text(doystatsurl)
+				var doystatsurlcsv = "obs/" + series.tipo + "/series/" + series.id + "/estadisticosDiariosSuavizados?format=csv" //"getCuantilesDiariosSuavizados?tipo=puntual&series_id="+ series.id + "&format=csv"
+				$("a#descargarDoyStatsCSV").attr('href',doystatsurlcsv).text(doystatsurlcsv)
+				var percentilesurl = "obs/" + series.tipo + "/series/" + series.id + "/percentilesDiarios" // "getPercentilesDiarios?series_id="+ series.id
+				$("a#descargarPercentiles").attr('href',percentilesurl).text(percentilesurl)
+				var percentilesurlcsv = "obs/" + series.tipo + "/series/" + series.id + "/percentilesDiarios?format=csv" // "getPercentilesDiarios?series_id="+ series.id + "&format=csv"
+				$("a#descargarPercentilesCSV").attr('href',percentilesurlcsv).text(percentilesurlcsv)
+				var percentilesDiariosBetweenDatesurl = "obs/" + series.tipo + "/series/" + series.id + "/percentilesDiarios/" +  timestart.toISOString().substring(0,10) + "/" + timeend.toISOString().substring(0,10) // "getPercentilesDiariosBetweenDates?tipo=puntual&series_id="+series.id+ "&timestart=" + timestart.toISOString().substring(0,10) + "&timeend=" + timeend.toISOString().substring(0,10) + "&percentil="
+				$("a#descargarPercentilesDiariosBetweenDates").attr('href',percentilesDiariosBetweenDatesurl).text(percentilesDiariosBetweenDatesurl)
+		
+			})
+			.fail(e=>{
+				$("body").css("cursor","default")
+				alert(e.message)
+			})
+		})
+		.fail(e=>{
+			$("body").css("cursor","default")
+			alert(e.message)
+		})
+		
+		// chart button .downld-pronos action
+		$("div.tabcontent#grafico").find("button.downld-pronos").on('click', function () {
+			getPronosJsonUrl()
+		});
+	});
+	
+	// add series to chart form 
+	
+	$("form#chooseaddseries").submit(chooseAddSeries)
+
+	// add percentile(s) to chart
+
+	$("form#choosepercentile").submit(choosePercentile)
+	
+</script>
+<!--
+<script src="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.js"></script>
+-->
+<script type="text/javascript" src="js/bootstrap-table.min.js"></script>
+

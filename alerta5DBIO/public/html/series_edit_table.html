@@ -1,0 +1,60 @@
+<div class="container">
+	<div class="table-wrapper">
+		<div class="table-title">
+			<div class="row">
+				<div class="col-sm"><h4>Series</h4></div>
+				<div class="col-sm">
+					<button type="button" class="btn btn-info add-new"><i class="fa fa-plus"></i>Add New</button>
+				</div>
+				<div class="col-sm">
+					<button type="button" class="btn btn-info select-all"><i class="fa fa-check"></i>Select all</button>
+				</div>
+				<div class="col-sm">
+					<button type="button" class="btn btn-info invert-select"><i class="fa fa-check-circle-o"></i>Invert select</button>
+				</div>
+<!--
+				<div class="col-sm">
+					<button type="button" class="btn btn-info remove-selected" disabled><i class="fa fa-minus"></i>Remove selected</button>
+				</div>
+				<div class="col-sm">
+					<button type="button" class="btn btn-info import-csv" data-toggle="tooltip" title="Los campos deben ser: fechainicial,fechafinal,valor. El formato de fecha es AAAA-MM-DDTHH:MM:SS.000Z en huso horario central (+00) (Formato ISO)"><i class="fa fa-upload" aria-hidden="true"></i>Import CSV</button>
+				</div>
+				<div class="col-sm">
+					<button type="button" class="btn btn-info get-from-source" data-toggle="tooltip" title="Obtiene datos de la fuente" disabled><i class="fa fa-upload" aria-hidden="true"></i>Get from source</button>
+				</div>
+-->
+				<div class="col-sm">
+					<button type="button" class="btn btn-info export-csv" disabled><i class="fa fa-download" aria-hidden="true"></i>Export CSV (selected)</button>
+				</div>
+				<div class="col-sm">
+					<button type="button" class="btn btn-info export-csv-all"><i class="fa fa-download" aria-hidden="true"></i>Export CSV (all)</button>
+				</div>
+			</div>
+		</div>
+		<table class="series_edit_table bootstraped"  data-pagination="true" data-search="true" data-unique-id="estacion_id" data-height=720 data-multiple-select-row="true" data-maintain-meta-data="true" data-sort-name="timestart" data-page-size=15 data-page-list="[]" data-sort-stable=true>
+		  <thead>
+			<tr>
+			  <th data-checkbox="true" data-field="state"></th>
+			  <th data-sortable="true" data-field="estacion_id">estacion_id</th>
+			  <th data-sortable="true" data-field="nombre">nombre</th>
+			  <th data-sortable="true" data-field="longitud">longitud</th>
+			  <th data-sortable="true" data-field="latitud">latitud</th>
+			  <th data-sortable="true" data-field="rio">rio</th>
+			  <th data-sortable="true" data-field="series_id">series_id</th>
+			  <th data-sortable="true" data-field="var_id">var_id</th>
+			  <th data-sortable="true" data-field="var_name">var_name</th>
+			  <th data-sortable="true" data-field="proc_id">proc_id</th>
+			  <th data-sortable="true" data-field="unit_id">unit_id</th>
+			  <th data-sortable="true" data-field="timestart">timestart</th>
+			  <th data-sortable="true" data-field="timeend">timeend</th>
+			  <th data-sortable="true" data-field="forecast_date">forecast_date</th>
+			  <th data-sortable="true" data-field="data_availability">data_availability</th>
+			  <th data-sortable="true" data-field="fuente">fuente</th>
+			  <th data-sortable="true" data-field="id_externo">id_externo</th>
+			  <th data-field="action">action</th>
+			</tr>
+		  </thead>
+		</table>
+	</div>
+</div>
+

@@ -1,0 +1,1011 @@
+<div>
+	<div style="display: flex; justify-content: space-between">
+		<h4>Mapa de precipitaciones CDP</h4>
+		<a href="html/pp_cdp_view_readme.html">ayuda</a>
+	</div>
+	<form id=mainForm action="#">
+		<label for=tipo>Tipo:</label>
+		<select name=tipo class=main required>
+			<option value=diario>diario</option>
+			<option value=semanal>semanal</option>
+		</select>
+		<label for=fecha title="seleccione la fecha inicial del periodo acumulado">Fecha:</label>
+		<input name=fecha type=date class=main title="seleccione la fecha inicial del periodo acumulado" required />
+		<button type=submit>Buscar</submit>
+		<button type=button id=generar>Generar</button>
+	</form>
+</div>
+<div>
+	<ul class="nav nav-tabs">
+		<li class="nav-item">
+			<a class="nav-link active" data-toggle="tab" href="#pngFrame" id=pngtab>PNG</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link" data-toggle="tab" href="#editor_map_pane" id=editormaptab>mapa</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link" data-toggle="tab" href="#editor_table_div" id=editortabletab>tabla</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link" data-toggle="tab" href="#files" id=filestab>archivos</a>
+		</li>
+	</ul>
+	<div class="tab-content" id="myTabContent">
+		<div id=pngFrame class="tab-pane fade show active"></div>
+		<div id=editor_map_pane class="tab-pane fade">
+			<div id=editor_map title="haga click en una estación para seleccionar/deseleccionar"></div>
+			<div id=maplegend>
+				<table class=maplegend>
+				</table>
+			</div>
+			<div id=maptitle>Tipo: - Fecha: </div>
+			<div id=layerToggle style="display: none;">
+				<input type=checkbox name=toggleLayerAreas disabled />
+				<label for=toggleLayerAreas>Capa medias areales</label><br>
+				<input type=checkbox name=toggleLayerSurf disabled />
+				<label for=toggleLayerSurf>Capa splines</label><br>
+				<input type=checkbox name=toggleLayerNearest disabled />
+				<label for=toggleLayerNearest>Capa Thiessen</label>
+			</div>
+		</div>
+		<div id=editor_table_div class="tab-pane fade">
+			<table id=editor_table data-pagination="false" data-search="true" data-unique-id="estacion_id" data-multiple-select-row="false" data-maintain-meta-data="true" data-checkbox-header="false" data-click-to-select="false"  data-height="700">
+			  <thead>
+				<tr>
+					<th data-field=state data-checkbox=true></th>
+					<th data-formatter=accionesFormatter data-click-to-select=false>acción</th>
+					<th data-sortable="true" data-field="longitude">longitude</th>
+					<th data-sortable="true" data-field="latitude">latitude</th>
+					<th data-sortable="true" data-field="estacion_id">estacion_id</th>
+					<th data-sortable="true" data-field="nombre">nombre</th>
+					<th data-sortable="true" data-field="tabla">tabla</th>
+					<th data-sortable="true" data-field="red_id">red_id</th>
+					<th data-sortable="true" data-field="series_id">series_id</th>
+					<th data-sortable="true" data-field="valor">valor</th>
+					<th data-sortable="true" data-field="count">count</th>
+					<th data-sortable="true" data-field="timestart">timestart</th>
+					<th data-sortable="true" data-field="timeend">timeend</th>
+				</tr>
+			  </thead>
+			</table>
+		</div>
+		<div id=files class="tab-pane fade show">
+			<h5>Descarga de archivos</h5>
+			<ul id=files_ul></ul>
+		</div>
+	</div>
+	<div id="popup" class="ol-popup" style="display: none; overflow: hidden;">
+	  <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+	  <div id="popup-content">
+		<h5>Estaciones</h5>
+		<table data-id-field="estacion_id" id="popup_table" data-checkbox-header="false" data-click-to-select="true" title="haga click en una fila para seleccionar/deseleccionar">
+			<thead>
+				<tr>
+					<th data-field=state data-checkbox=true></th>
+					<th data-field=estacion_id>estacion_id</th>
+					<th data-field=nombre>nombre</th>
+					<th data-field=tabla>tabla</th>
+					<th data-field=series_id>series_id</th>
+					<th data-field=valor>valor</th>
+					<th data-field=count>count</th>
+				</tr>
+			</thead>
+		</table>
+	  </div>
+	</div>
+	<div class=modal id=no_existe class="modal fade" role="dialog" style="display: none;">
+	  <div class="modal-dialog">
+		<div class="modal-content">
+		  <div class="modal-body" id=modal_body>
+			<div id=modal_text></div>
+			<div id=with_filter>
+				<form>
+					<input type=checkbox name=with_filter checked=true value=yes disabled />
+					<label for=with_filter>sólo estaciones seleccionadas</label><br>
+					<div id=min_count_div style="display: none;">
+						<select type=number name=min_count disabled>
+							<option value=""></option>
+							<option value=1>1</option>
+							<option value=2>2</option>
+							<option value=3>3</option>
+							<option value=4>4</option>
+							<option value=5>5</option>
+							<option value=6 selected>6</option>
+							<option value=7>7</option>
+						</select>
+						<label for=min_count>cantidad mínima de registros diarios (sólo semanal)</label><br>
+					</div>
+					<div id=no_areales_div style="display: none;">
+						<input type=checkbox name=update_areales checked=true>
+						<label for=update_areales>actualiza medias areales (sólo diario)</label>
+					</div>
+				</form>
+			</div>
+			<button type=button id=generar_pp_cdp title="esta acción tarda entre 30 y 60 segundos">Generar</button> 
+			<button type=button id=abort title="Cancelar" style="display: none;">Cancelar</button> 
+			<button type=button id=modal_close>Salir</button> 
+		  </div>
+		</div>
+	  </div>
+	</div>
+</div>
+<link rel="stylesheet" href="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.css">
+<!--
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+-->
+<!--
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>  
+-->
+<style>
+	.dot {
+		height: 15px;
+		width: 15px;
+		border-radius: 50%;
+		display: inline-block;
+	}
+	div#editor_map_pane {
+		position: relative;
+	}
+	.maplegend {
+		background-color: rgba(255,255,255,0.5);
+		max-width: 200px;
+		position: absolute;
+		top: 50px;
+	}
+	div#maptitle {
+		background-color: rgba(255,255,255,0.3);
+		position: absolute;
+		top: 10px;
+		left: 120px;
+	}
+	table#editor_table tr {
+		cursor: default;
+	}
+	div#layerToggle {
+		background-color: rgba(255,255,255,0.3);
+		position: absolute;
+		top: 80px;
+		left: 10px;
+	}
+</style>
+<script src="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.js"></script>
+<script src="js/sprintf.js"></script>
+<script>
+	var submitted_params = {}
+	var map = {}
+	var layerEstaciones = {}
+	var featEstaciones = []
+	var propEstaciones = {}
+	var overlay = {}
+	var geoserverUrl = "https://alerta.ina.gob.ar/geoserver"
+	var layerAreas = {}
+	var layerSurf = {}
+	var sourceSurf
+	var layerNearest = {}
+	var sourceNearest
+	var Points
+	var layerPoint
+	var featPoint
+	var myHeaders = new Headers()
+	myHeaders.append('pragma', 'no-cache')
+	myHeaders.append('cache-control', 'no-cache')
+	window.onload = function() {
+		const urlParams = new URLSearchParams(window.location.search);
+		if(urlParams.get('tipo')) {
+			$("form#mainForm select[name=tipo]").val(urlParams.get('tipo'))
+		}
+		if(urlParams.get('fecha')) {
+			$("form#mainForm input[name=fecha]").val(urlParams.get('fecha'))
+		}
+		$("form#mainForm .main").change()
+		document.getElementById('popup').style.display = "block"
+		var container = document.getElementById('popup');
+		var content = document.getElementById('popup-content');
+		var closer = document.getElementById('popup-closer');
+		/**
+		 * Create an overlay to anchor the popup to the map.
+		 */
+		overlay = new ol.Overlay({
+		  element: container,
+		  autoPan: true,
+		  autoPanAnimation: {
+			duration: 250
+		  }
+		});
+
+		/**
+		 * Add a click handler to hide the popup.
+		 * @return {boolean} Don't follow the href.
+		 */
+		closer.onclick = function() {
+		  //~ $('div.popover').remove()
+		  overlay.setPosition(undefined);
+		  closer.blur();
+		  return false;
+		};
+		// instantiate openlayers map object
+		map = new ol.Map({
+			target: 'editor_map',
+			layers: [
+			  //~ new ol.layer.Tile({
+				//~ source: new ol.source.OSM()
+			  //~ })
+			  new ol.layer.Tile({
+				  source: new ol.source.XYZ({
+					  url: "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+				  })
+			  }),
+			  new ol.layer.Vector({
+				  source: new ol.source.Vector({
+					  projection: "EPSG:4326",
+					  url: "json/CDP.geojson",
+					  format: new ol.format.GeoJSON()
+				  })
+			  })
+			],
+			overlays: [overlay],
+			view: new ol.View({
+			  center: [-55, -25],  
+			  projection: 'EPSG:4326',
+			  zoom: 5
+			})
+		});
+		map.on("singleclick", mapPopup)
+		map.on('pointermove', evt=>{
+			var hit = map.forEachFeatureAtPixel(evt.pixel, f=>{
+				return true
+			}, {layerFilter:function(layerCandidate) {
+				if(layerCandidate.getZIndex() == 2) {
+					return true
+				} else {
+					return false
+				}
+			}})
+			if(hit) {
+				$("div#editor_map").css("cursor","pointer")
+			} else {
+				$("div#editor_map").css("cursor","default")
+			}
+		})
+		// instantiate bootstrapTable object
+		$("table#editor_table").bootstrapTable({
+			'onUncheck':(row,element) => deseleccionarEstacion(row.estacion_id),
+			'onCheck':(row,element) => seleccionarEstacion(row.estacion_id)
+		})
+		$("div#editor_table_div div.fixed-table-toolbar").prepend($("<div class=float-left id=editor_table_title></div>"))
+		if($("form#mainForm select[name=tipo]").val() && $("form#mainForm input[name=fecha]").val()) {
+			$("form#mainForm").submit()
+		}
+	}
+	$("form#mainForm").submit(evt=>{
+		evt.preventDefault()
+		var tipo = $(evt.target).find("select[name=tipo]").val()
+		var fecha = $(evt.target).find("input[name=fecha]").val()
+		console.log({tipo:tipo,fecha:fecha})
+		if(!tipo || !fecha) {
+			console.error("missing parameters")
+			alert("faltan parametros (tipo, fecha)")
+			return
+		}
+		submitted_params = {
+			tipo: tipo,
+			fecha: fecha
+		}
+		if (tipo == "semanal") {
+			$("select[name=min_count]").attr('disabled',false)
+			$("div#min_count_div").show()
+			$("div#no_areales_div").hide()
+		} else {
+			$("select[name=min_count]").attr('disabled',true)
+			$("div#min_count_div").hide()
+			$("div#no_areales_div").show()
+		}
+		disable_form()
+		// elimina contenido de tabpanes
+		removeAll()
+		// carga mapa PNG
+		return loadMap(tipo,fecha)
+		.then(()=>{
+			//~ $(evt.target).find("button[type=submit]").attr('disabled',false)
+			//~ $(evt.target).find("input").attr('disabled',false)
+			//~ $(evt.target).find("select").attr('disabled',false)
+			// carga mapa OL y tabla
+			return abrir_editor(tipo,fecha)
+		})
+		.catch(e=>{
+			console.error(e)
+			enable_form()
+		})
+	})
+	function removeAll() {
+		$("div#pngFrame").empty()
+		if(layerEstaciones) {
+			map.removeLayer(layerEstaciones)
+		}
+		$("table#editor_table").bootstrapTable('removeAll')
+		$("div#editor_table_div div.fixed-table-toolbar div#editor_table_title").empty()
+		$("div#maptitle").empty()
+		$("div#files ul").empty()
+		if(layerAreas) {
+			map.removeLayer(layerAreas)
+		}
+		if(layerSurf) {
+			map.removeLayer(layerSurf)
+			layerSurf = undefined
+			sourceSurf = undefined
+		}
+		if(layerNearest) {
+			map.removeLayer(layerNearest)
+			layerNearest = undefined
+			sourceNearest = undefined
+		}
+		$("input[name=toggleLayerAreas]").attr("disabled",true)
+		$("input[name=toggleLayerSurf]").attr("disabled",true)
+		$("input[name=toggleLayerNearest]").attr("disabled",true)
+		if(layerPoint) {
+			map.removeLayer(layerPoint)
+		}
+	}
+	function fetchImageFromURL(url) {
+		$("body").css("cursor","progress")
+		return fetch(url)
+		.then(r => {
+			$("body").css("cursor","default")
+			if(!r.ok) {
+				return r.text()
+				.then(text => {
+					throw(text)
+				})
+			}
+			return r.arrayBuffer()
+		})
+		.then(ab => URL.createObjectURL( new Blob( [ab], { type: 'image/png'})))
+		.then(src => $("<img></img>").attr("src",src))
+		.catch(e=>{
+			$("body").css("cursor","default")
+			throw(e)
+		})
+	}
+	function loadMap(tipo,fecha) {
+		return fetchImageFromURL("tools/pp_cdp_product?tipo="+tipo+"&fecha="+fecha+"&producto=surf_png")
+		.then(img => {
+			$("div#pngFrame").empty().append(img)
+			return
+		})
+		.catch(e=>{
+			//~ alert(e.toString())
+			//~ console.error(e)
+			$("div#modal_text").empty().append(
+				$("<h5>Producto no encontrado:</h5>"),
+				$("<ul><li>tipo: " + tipo + "</li><li>fecha:" + fecha + "</li></ul>")
+			)
+			$("div#no_existe").show()
+			//~ $("div#pngFrame").empty()
+		})
+	}
+	$("button#generar_pp_cdp").click(evt=>{
+		removeAll()
+		//~ $("modal#no_existe").hide()
+		$(evt.target).hide()
+		$("button#modal_close").attr('disabled',true)
+		var controller = new AbortController()
+		var signal = controller.signal
+		$("button#abort").show().click(evt=>{
+			controller.abort()
+			console.log("download aborted")
+		})
+		var filter = {}
+		if($("input[name=with_filter]").is(":checked")) {
+			filter.estacion_id = featEstaciones.filter(f=>f.get('state')).map(f=>f.get('estacion_id'))
+		}
+		if(!$("select[name=min_count]").attr('disabled')) {
+			if($("select[name=min_count]").val() != "") {
+				filter.min_count = parseInt($("select[name=min_count]").val())
+			}
+		}
+		if($("select[name=update_areales]").css("display") != "none" && $("input[name=update_areales]").val() == false) {
+			filter.no_update_areales = true
+		}
+		return generar_pp_cdp(submitted_params.tipo,submitted_params.fecha,signal,filter)
+	})
+	//~ $("button#abort").click(evt=>{
+		//~ controller.abort()
+		//~ console.log("download aborted")
+	//~ })
+	function generar_pp_cdp(tipo,fecha,signal,filter={}) {
+		//~ $("div#no_existe").hide()
+		$("body").css("cursor","progress")
+		var url = "tools/" + ((tipo == "diario") ? "pp_cdp" : "pp_cdp_semanal") + "/" + fecha + "?no_send_data=true"
+		var fetch_opts = {method:"post",signal}
+		var body = {}
+		if(Object.keys(filter).length > 0) {
+			fetch_opts.headers = {
+				'Content-Type': 'application/json'
+			}
+			fetch_opts.body = JSON.stringify(filter)
+		}
+		return fetch(url,fetch_opts)
+		.then(response=>{
+			$("button#abort").hide()
+			$("button#modal_close").attr('disabled',false)
+			$("button#generar_pp_cdp").show()
+			if(!response.ok) {
+				return response.text()
+				.then(text=>{
+					throw new Error(text)
+				})
+			} else {
+				return response.json()
+			}
+		})
+		.then(data=>{
+			console.log(data)
+			if(data.files.surf_png) {
+				return Promise.all([loadMap(tipo,fecha),abrir_editor(tipo,fecha)])
+				.then(()=>{
+					$("div.modal").hide()
+					enable_form()
+				})
+			} else {
+				enable_form()
+				throw("PNG map not found")
+			}
+		})
+		.catch(e=>{
+			$("button#abort").hide()
+			$("button#modal_close").attr('disabled',false)
+			$("button#generar_pp_cdp").show()
+			console.error(e)
+			alert(e.toString())
+			enable_form()
+			$("body").css("cursor","default")
+		})
+	}
+	$("form#mainForm .main").change(evt=>{
+		count = 0
+		$("form#mainForm .main").each((e,i)=> count+= ($(i).val() == ""))
+		console.log("count:" + count)
+		if(count > 0) {
+			$("button#generar").attr('disabled',true)
+			$("form#mainForm button[type=submit]").attr('disabled',true)
+		} else {
+			$("button#generar").attr('disabled',false)
+			$("form#mainForm button[type=submit]").attr('disabled',false)
+		}
+	})
+	$("button#generar").click(evt=>{
+		$("div#modal_text").empty().append(
+			$("<h5>Generar producto:</h5>"),
+			$("<ul><li>tipo: " + $("form#mainForm select[name=tipo]").val() + "</li><li>fecha:" + $("form#mainForm input[name=fecha]").val() + "</li></ul>")
+		)
+		if ($("form#mainForm select[name=tipo]").val() == "semanal") {
+			$("select[name=min_count]").attr('disabled',false)
+			$("div#min_count_div").show()
+			$("div#no_areales_div").hide()
+		} else {
+			$("select[name=min_count]").attr('disabled',true)
+			$("div#min_count_div").hide()
+			$("div#no_areales_div").show()
+		}
+		$("div#no_existe").show()
+		disable_form()
+		submitted_params.tipo = $("form#mainForm select[name=tipo]").val()
+		submitted_params.fecha = $("form#mainForm input[name=fecha]").val()
+	})
+	$("button#modal_close").click(evt=>{
+		$("div#no_existe").hide()
+		enable_form()
+	})
+	function disable_form() {
+		$("form#mainForm button[type=submit]").attr("disabled",true)
+		$("form#mainForm input").attr("disabled",true)
+		$("form#mainForm select").attr("disabled",true)
+		$("button#generar").attr("disabled",true)
+	}
+	function enable_form() {
+		$("form#mainForm button[type=submit]").attr("disabled",false)
+		$("form#mainForm input").attr("disabled",false)
+		$("form#mainForm select").attr("disabled",false)
+		$("button#generar").attr("disabled",false)
+	}
+	// busca geojson (puntos)
+	function abrir_editor(tipo,fecha) {
+		return fetch("tools/pp_cdp_product?tipo="+tipo+"&fecha="+fecha+"&producto=points_geojson")
+		.then(response => {
+			if(!response.ok) {
+				return response.text()
+				.then(text => {
+					throw new Error(text)
+				})
+			} 
+			return response.json()
+		})
+		.then(points=>{
+			propEstaciones = {...points["@properties"]}
+			points.features.forEach(f=>{
+				f.properties.state = true
+			})
+			Points = points
+			// carga puntos en mapa
+			featEstaciones = (new ol.format.GeoJSON()).readFeatures(points)
+			layerEstaciones = new ol.layer.Vector({
+				source: new ol.source.Vector({
+					projection: 'EPSG:4326',
+					features: featEstaciones
+				}),
+				zIndex: 2,
+				style: styleFunction
+			})
+			map.addLayer(layerEstaciones)
+			// carga titulo
+			$("div#maptitle").empty().append("<h5>Tipo: "+  submitted_params.tipo + " Fecha: " + submitted_params.fecha + "</h5>")
+			// carga leyenda
+			var breaks = valor_breaks[submitted_params.tipo]
+			$("table.maplegend").empty().append(
+				breaks.map(b=>{
+					var color = '#' + b.color.map(c=> rgbToHex(c)).join("").substring(0,6)
+					return $('<tr><td><span class=dot style="background-color: ' + color + '"></span></td><td>' + b.valor + '</td></tr>')
+				})
+			)
+			// carga capa areal (geoserver)
+			loadAreas(tipo,fecha)
+			// carga capa splines
+			loadSurf(tipo,fecha)
+			// carga capa thiessen
+			loadNearest(tipo,fecha)
+			// carga puntos en tabla
+			try {
+				$("table#editor_table").bootstrapTable('append',
+					points.features.map(p=>{
+						return {...p.properties,longitude:p.geometry.coordinates[0],latitude:p.geometry.coordinates[1]} //,state:true}
+					})
+				)
+				$("div#editor_table_div div.fixed-table-toolbar div#editor_table_title").empty().append($("<h5>Tipo: " + submitted_params.tipo + " - Fecha: " + submitted_params.fecha + "</h5>"))
+			} catch (e) {
+				alert(e.toString())
+			}
+			// carga filePane
+			cargarFilesPane(tipo,fecha)
+			enable_form()
+		})
+		.catch(e=>{
+			$("div#modal_text").empty().append(
+				$("<h5>producto no encontrado:</h5>"),
+				$("<ul><li>tipo: " + tipo + "</li><li>fecha:" + fecha + "</li></ul>")
+			)
+			$("div#no_existe").show()
+			//~ $("div#pngFrame").empty()
+			//~ $("div#editor").hide()
+		})
+	}
+	//~ $("a[data-toggle=tab]").click(evt=>{
+	$("a#editormaptab").click(evt=>{
+		//~ console.log("editormaptab.click")
+		//~ window.dispatchEvent(new Event('resize'));
+		setTimeout(()=> {
+			map.updateSize()
+		}, 500);
+	})
+	function mapPopup(evt) {
+		$('div.popover').remove()
+		var pixel = evt.pixel
+		var coordinate = evt.coordinate
+		var features = map.getFeaturesAtPixel(pixel, {layerFilter:function(layerCandidate) {
+				if(layerCandidate.getZIndex() == 2) {
+					return true
+				} else {
+					return false
+				}
+			}, hitTolerance: 10})
+		//~ console.log(features.map(f=>f.getProperties()))
+		$("div#popup-content table").bootstrapTable('removeAll')
+		.bootstrapTable('append',features.map(f=>{
+			return {...f.getProperties()} // , state:true}
+		}))
+		//~ $("div#popup-content table tbody tr").attr({"data-toggle":"popover", "data-placement":"top", "title": "acción"})
+		//~ $('div#popup-content tr[data-toggle="popover"]').popover({
+			//~ html: true,
+			//~ template: '<div class="popover" role="tooltip"><div class="arrow"></div><h3 class="popover-header"></h3><div class="popover-body"></div></div>',
+			//~ trigger: "click",
+			//~ content: function() {
+				//~ return "<div class=popovercontent id="+$(this).attr('id')+"></div>"
+			//~ }
+		//~ })
+		//~ .on('show.bs.popover', function (evt) {
+			//~ $('div#popup-content tr[data-toggle="popover"][id!='+$(evt.target).attr('id')+']').popover('hide')
+		//~ })
+		//~ .on('shown.bs.popover', function (evt) {
+			//~ console.log("popover shown")
+			//~ $("div#"+$(evt.target).attr('id')+".popovercontent").empty().append(
+				//~ $("<button>deseleccionar estación</button>").attr({
+					//~ id: $(evt.target).attr('id')
+				//~ }).on('click',deseleccionarEstacion)						
+			//~ )
+		//~ })
+		overlay.setPosition(coordinate)
+		document.getElementById("popup-content").scrollTo(0,0)
+	}
+	function deseleccionarEstacion (estacion_id) {
+		//~ console.log("deseleccionar id:" + estacion_id)
+		$("table#editor_table").bootstrapTable('uncheckBy',{field:'estacion_id',values:[estacion_id]})
+		$("table#popup_table").bootstrapTable('uncheckBy',{field:'estacion_id',values:[estacion_id]})
+		featEstaciones.forEach(f=> { 
+			if (f.get('estacion_id') == estacion_id) { 
+				f.set('state',false)
+			} 
+		})
+		$("input[name=with_filter]").attr("disabled",false)
+	}
+	function seleccionarEstacion (estacion_id) {
+		//~ console.log("seleccionar id:" + estacion_id)
+		$("table#editor_table").bootstrapTable('checkBy',{field:'estacion_id',values:[estacion_id]})
+		$("table#popup_table").bootstrapTable('checkBy',{field:'estacion_id',values:[estacion_id]})
+		var count_deselected = 0
+		featEstaciones.forEach(f=> { 
+			if (f.get('estacion_id') == estacion_id)
+			{
+				f.set('state',true)
+			}
+			count_deselected += (f.get('state')) ? 0 : 1
+		})
+		if(count_deselected == 0) {
+			$("input[name=with_filter]").attr("disabled",true)
+		}
+	}
+	$("div#popup-content table").bootstrapTable({
+		'onUncheck':(row,element) => deseleccionarEstacion(row.estacion_id),
+		'onCheck':(row,element) => seleccionarEstacion(row.estacion_id)
+	})
+	// styling
+	var defaultStyle = new ol.style.Style({
+		image: new ol.style.Circle({
+			radius: 6,
+			fill: new ol.style.Fill({
+				color: [0,0,0]
+			}),
+			stroke: new ol.style.Stroke({
+				color: [220,220,220,1],
+				width: 1
+			})
+		})
+    });
+	var rgbToHex = function (rgb) { 
+		var hex = Number(rgb).toString(16);
+		if (hex.length < 2) {
+			hex = "0" + hex;
+		}
+		return hex;
+	};
+	var styleCache = {}
+	var valor_breaks = {
+		"diario": [
+			{ valor: 0, color: [255,255,255]},
+			{ valor: 1, color: [150,245,140]},
+			{ valor: 5, color: [55,210,60]},
+			{ valor: 10, color: [15,160,15]},
+			{ valor: 15, color: [95,189,249]},
+			{ valor: 20, color: [40,149,209]},
+			{ valor: 30, color: [20,129,189]},
+			{ valor: 40, color: [127,112,234]},
+			{ valor: 50, color: [57,38,171]},
+			{ valor: 60, color: [40,0,159]},
+			{ valor: 70, color: [254,191,60]},
+			{ valor: 80, color: [255,96,0]},
+			{ valor: 90, color: [225,20,0]},
+			{ valor: 100, color: [165,0,0]},
+			{ valor: 130, color: [0,0,0]}
+		],
+		"semanal": [
+			{valor: 0, color: [255,255,255]},
+			{ valor: 1, color: [150,245,140]},
+			{ valor: 8, color: [55,210,60]},
+			{ valor: 15, color: [15,160,15]},
+			{ valor: 25, color: [95,189,249]},
+			{ valor: 40, color: [40,149,209]},
+			{ valor: 60, color: [20,129,189]},
+			{ valor: 80, color: [127,112,234]},
+			{ valor: 100, color: [57,38,171]},
+			{ valor: 120, color: [40,0,159]},
+			{ valor: 140, color: [254,191,60]},
+			{ valor: 160, color: [255,96,0]},
+			{ valor: 180, color: [225,20,0]},
+			{ valor: 200, color: [165,0,0]},
+			{ valor: 260, color: [0,0,0]}
+		]
+	}
+	function styleFunction(feature, resolution) {
+		var state = feature.get('state')
+		var valor = feature.get('valor')
+		var breaks = valor_breaks[submitted_params.tipo]
+		var valor_cat = breaks[0]
+		for(var i=0;i<valor_breaks[submitted_params.tipo].length;i++) {
+			if (valor >= breaks[i].valor) {
+				valor_cat = breaks[i]
+			} else {
+				break
+			}
+		}
+		var styleKey = submitted_params.tipo + "_" + valor_cat.valor + "_" + state
+		var alpha = (state) ? 1 : 0.3
+		//~ console.log({styleKey:styleKey,valor:valor,valor_cat:valor_cat})
+		if(!styleCache[styleKey]) {
+			styleCache[styleKey] = new ol.style.Style({
+				image: new ol.style.Circle({
+					radius: 6,
+					fill: new ol.style.Fill({
+						color: [...valor_cat.color,alpha]  //"#" + valor_cat.color.map(c=> rgbToHex(c)).join("").substring(0,6)
+					}),
+					stroke: new ol.style.Stroke({
+						color: [0,0,0,alpha],
+						width: 1
+					})
+				})
+			})
+		}
+		return styleCache[styleKey]
+	}
+	function getEstacionesGeoJSON() {
+		var points_geojson = (new ol.format.GeoJSON()).writeFeaturesObject(featEstaciones.filter(f=>f.get('state')))
+		points_geojson["@properties"] = {...propEstaciones}
+		points_geojson["@properties"].filter = {
+			estacion_id: featEstaciones.filter(f=>f.get('state')).map(f=>f.get('estacion_id'))
+		}
+		return points_geojson
+	}
+	function makeLinkEstacionesGeoJSON() {
+		var point_geojson = JSON.stringify(getEstacionesGeoJSON())
+		return URL.createObjectURL( new Blob( [points_geojson], { type: 'application/json'}))
+		.then(href => $("<a>GeoJSON</a>").attr("src",href))
+		.catch(e=>{
+			throw(e)
+		})
+	}		
+	const valid_products = {
+		"surf_png": { suffix: "_surf.png", contentType: "image/png"},
+		"surf_tif": { suffix: "_surf.tif", contentType: "image/tif"},
+		"points_geojson": { suffix: ".json", contentType: "application/json"},
+		"points_csv": { suffix: ".csv", contentType: "text/plain"},
+		"nearest_png": { suffix: "_nearest.png", contentType: "image/png"},
+		"nearest_tif": { suffix: "_nearest.tif", contentType: "image/tif"}
+	}
+
+	function cargarFilesPane(tipo,fecha) {
+		var prefix = (tipo == "diario") ? "pp_diaria_" : "pp_semanal_"
+		fecha = new Date(fecha)
+		$("div#files ul").empty().append(
+			Object.keys(valid_products).map(k=>{
+				var suffix = valid_products[k].suffix
+				var filename = sprintf("%s%04d%02d%02d%s", prefix, fecha.getUTCFullYear(), fecha.getUTCMonth()+1, fecha.getUTCDate(), suffix)
+				var href = 'tools/pp_cdp_product?tipo=' + tipo + '&fecha=' + fecha.toISOString().substring(0,10) + '&producto=' + k
+				return $('<li><a href="' + href + '" type="' + valid_products[k].contentType + '" download="' + filename + '">' + filename + '</a></li>')
+			})
+		)
+		var timestart = new Date(fecha)
+		var timeend = (tipo == "semanal") ? new Date(timestart.getTime() + 7*24*3600*1000) : new Date(timestart.getTime() + 24*3600*1000)
+		var viewparams = { 
+			timeStart: timestart.toISOString().substring(0,10) + "T09:00:00",
+			timeEnd: timeend.toISOString().substring(0,10) + "T09:00:00"
+		}
+		var areas_url = 'https://alerta.ina.gob.ar/geoserver/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=public:timeseries_areal&VIEWPARAMS=timeStart:' + viewparams.timeStart + ';timeEnd:' + viewparams.timeEnd + ';function:sum;sourceId:7&STYLES=pmad_suma_diario&CRS=EPSG:4326&WIDTH=600&HEIGHT=600&BBOX=-40,-70,-10,-40'
+		var areas_filename = sprintf("%s%04d%02d%02d%s", prefix, fecha.getUTCFullYear(), fecha.getUTCMonth()+1, fecha.getUTCDate(), "_areas.png")
+		var areas_geojson_url = 'https://alerta.ina.gob.ar/geoserver/siyah/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=siyah:timeseries_areal&maxFeatures=5000000&outputFormat=application%2Fjson&VIEWPARAMS=timeStart:' + viewparams.timeStart + ';timeEnd:' + viewparams.timeEnd + ';function:sum;sourceId:7'
+		var areas_geojson_filename = sprintf("%s%04d%02d%02d%s", prefix, fecha.getUTCFullYear(), fecha.getUTCMonth()+1, fecha.getUTCDate(), "_areas.geojson")
+		$("div#files ul").append(
+			$('<li><a href="' + areas_url + '" type="image/png" download="' + areas_filename + '" target=_blank>' + areas_filename + '</a></li>'),
+			$('<li><a href="' + areas_geojson_url + '" type="application/json" download="' + areas_geojson_filename + '" target=_blank>' + areas_geojson_filename + '</a></li>')
+		) 
+	}
+	function loadAreas(tipo,fecha) {
+		var timestart = new Date(fecha)
+		var timeend = (tipo == "semanal") ? new Date(timestart.getTime() + 7*24*3600*1000) : new Date(timestart.getTime() + 24*3600*1000)
+		var viewparams = { 
+			timeStart: timestart.toISOString().substring(0,10) + "T09:00:00",
+			timeEnd: timeend.toISOString().substring(0,10) + "T09:00:00",
+			"function": "sum",
+			sourceId: 7
+		}
+		try {
+			layerAreas =  new ol.layer.Image({
+				source: new ol.source.ImageWMS({
+					url: geoserverUrl + "/wms",
+					params: {
+						"LAYERS": "public:timeseries_areal",
+						"VIEWPARAMS": Object.keys(viewparams).map(k => k + ":" + viewparams[k]).join(";"),
+						"STYLES": (tipo=="semanal") ? "pmad_suma_semanal" : "pmad_suma_diario"
+					},
+					serverType: "geoserver"
+				})
+			})
+			map.addLayer(layerAreas)
+			$("div#layerToggle").show()
+			$("input[name=toggleLayerAreas]").attr("disabled",false)
+			document.getElementsByName("toggleLayerAreas")[0].checked = true
+		} catch (e) {
+			console.error(e)
+		}
+		return
+	}
+	function loadSurf(tipo,fecha) {
+		return fetch(
+		  new Request("tools/pp_cdp_product?producto=surf_png&tipo=" + tipo + "&fecha=" + fecha + "&no_send_data=true"),
+		  {
+		    method: 'GET',
+		    headers: myHeaders,
+		  }
+		)
+		.then(response=>{
+			if(!response.ok) {
+				return response.text()
+				.then(text=>{
+					throw new Error(text)
+				})
+			} else {
+				return response.json()
+			}
+		})
+		.then(data=>{
+			try {
+				sourceSurf = new ol.source.ImageStatic({
+					url: data.location,
+					projection: new ol.proj.Projection({
+						code: "epsg:4326",
+						units: "degrees",
+						extent: data.extent
+					}),
+					imageExtent: data.extent
+				})
+				layerSurf =  new ol.layer.Image({
+					source: sourceSurf,
+					visible: false
+				})
+				map.addLayer(layerSurf)
+				sourceSurf.refresh()
+				$("div#layerToggle").show()
+				$("input[name=toggleLayerSurf]").attr("disabled",false)
+				document.getElementsByName("toggleLayerSurf")[0].checked = false
+			} catch (e) {
+				console.error(e)
+			}
+			return
+		})
+		.catch(e=>{
+			console.error(e)
+			return
+		})
+	}
+	function loadNearest(tipo,fecha) {
+		return fetch(new Request("tools/pp_cdp_product?producto=nearest_png&tipo=" + tipo + "&fecha=" + fecha + "&no_send_data=true"),
+		  {
+		    method: 'GET',
+		    headers: myHeaders,
+		  }
+		)
+		.then(response=>{
+			if(!response.ok) {
+				return response.text()
+				.then(text=>{
+					throw new Error(text)
+				})
+			} else {
+				return response.json()
+			}
+		})
+		.then(data=>{
+			try {
+				sourceNearest = new ol.source.ImageStatic({
+					url: data.location,
+					projection: new ol.proj.Projection({
+						code: "epsg:4326",
+						units: "degrees",
+						extent: data.extent
+					}),
+					imageExtent: data.extent
+				})
+				layerNearest =  new ol.layer.Image({
+					source: sourceNearest,
+					visible: false
+				})
+				sourceNearest.refresh()
+				map.addLayer(layerNearest)
+				$("div#layerToggle").show()
+				$("input[name=toggleLayerNearest]").attr("disabled",false)
+				document.getElementsByName("toggleLayerNearest")[0].checked = false
+			} catch (e) {
+				console.error(e)
+			}
+			return
+		})
+		.catch(e=>{
+			console.error(e)
+			return
+		})
+	}
+	$("input[name=toggleLayerAreas]").click(evt=>{
+		if(document.getElementsByName("toggleLayerAreas")[0].checked) {
+			layerAreas.setVisible(true)
+			document.getElementsByName("toggleLayerSurf")[0].checked = false
+			layerSurf.setVisible(false)
+			document.getElementsByName("toggleLayerNearest")[0].checked = false
+			layerNearest.setVisible(false)
+		} else {
+			layerAreas.setVisible(false)
+		}
+	})
+	$("input[name=toggleLayerSurf]").click(evt=>{
+		if(document.getElementsByName("toggleLayerSurf")[0].checked) {
+			layerSurf.setVisible(true)
+			document.getElementsByName("toggleLayerAreas")[0].checked = false
+			layerAreas.setVisible(false)
+			document.getElementsByName("toggleLayerNearest")[0].checked = false
+			layerNearest.setVisible(false)
+		} else {
+			layerSurf.setVisible(false)
+		}
+	})
+	$("input[name=toggleLayerNearest]").click(evt=>{
+		if(document.getElementsByName("toggleLayerNearest")[0].checked) {
+			layerNearest.setVisible(true)
+			document.getElementsByName("toggleLayerSurf")[0].checked = false
+			layerSurf.setVisible(false)
+			document.getElementsByName("toggleLayerAreas")[0].checked = false
+			layerAreas.setVisible(false)
+		} else {
+			layerNearest.setVisible(false)
+		}
+	})
+	function accionesFormatter (value,row) {
+		return '<a class=goToSecciones data-toggle=tooltip data-original-title="ver serie"><i class="material-icons" title="ver/editar serie">assessment</i></a><a class=goToMap data-toggle=tooltip data-original-title="ir a mapa"><i class="material-icons" title="ver en mapa">place</i></a>'
+	}
+	$("table#editor_table").on("click","a.goToSecciones",evt=>{
+		var id = $(evt.target).parent().parent().parent().attr('data-uniqueid')
+		var timestart = new Date(new Date(submitted_params.fecha).getTime() - 30*24*3600*1000)
+		var timeend = new Date(timestart.getTime() + 60*24*3600*1000)
+		var url = "secciones?varId=1&seriesId=" + id + "&timestart=" + timestart.toISOString().substring(0,10) + "&timeend=" + timeend.toISOString().substring(0,10) + "#datos" 
+		window.location.href = url
+	})
+	$("table#editor_table").on("click","a.goToMap",evt=>{
+		if(layerPoint) {
+			map.removeLayer(layerPoint)
+		}
+		var id = $(evt.target).parent().parent().parent().attr('data-uniqueid')
+		var row = $("table#editor_table").bootstrapTable("getRowByUniqueId",id)
+		var point = Points.features.filter(p=>p.properties.series_id == id)[0]
+		featPoint = (new ol.format.GeoJSON()).readFeatures(point)
+		layerPoint = new ol.layer.Vector({
+			source: new ol.source.Vector({
+				projection: 'EPSG:4326',
+				features: featPoint
+			}),
+			zIndex: 3,
+			style: function(feature) {
+				labelStyle.getText().setText(feature.get('nombre'));
+				return [labelStyle,pointStyle];
+			}
+		})
+		map.addLayer(layerPoint)
+		map.getView().setCenter([row.longitude,row.latitude])
+		map.getView().setZoom(8)
+		$("a.nav-link#editormaptab").click() 
+	})
+	var labelStyle = new ol.style.Style({
+	  text: new ol.style.Text({
+		font: '10px Calibri,sans-serif',
+		overflow: true,
+		fill: new ol.style.Fill({
+		  color: '#000'
+		}),
+		stroke: new ol.style.Stroke({
+		  color: '#fff',
+		  width: 2
+		})
+	  })
+	});
+	var pointStyle = new ol.style.Style({
+	  image: new ol.style.Icon({
+		anchor: [0.5, 1],
+		src: 'img/map_pin_small.png',
+		//~ size: 60
+	  })
+	});
+</script>
+

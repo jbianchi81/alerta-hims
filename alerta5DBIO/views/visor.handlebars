@@ -1,0 +1,941 @@
+<!--
+ <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+-->
+<!--
+<link rel="stylesheet" href="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.css">
+-->
+<link rel="stylesheet" type="text/css" href="css/bootstrap-table.min.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto|Varela+Round|Open+Sans">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+<!--<link rel="stylesheet" type="text/css" href="css/font-awesome.min.css"> -->
+<!-- <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"> -->
+<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script> -->
+<script src="js/popper.min.js"></script>
+<!-- <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script> -->
+<script src="js/bootstrap.min.js"></script>
+<script src="js/obs_edit_table.js"></script>
+<div class="container p-3 my-3 border">
+	<section id=selector style="justify-content: space-between;">
+		<form id=selectorform class=form-inline>
+			<div class=form-group>
+				<label for=tipo class="mr-sm-2">tipo</label>
+				<select name=tipo id=tipo class="form-control mb-2 mr-sm-2" style="width: 100px">
+					<option value="puntual" selected>puntos</option>
+					<option value="areal">áreas</option>
+					<option value="raster">ráster</option>
+				</select>
+				<label for=varId class="mr-sm-2">Variable</label>
+				<select name=varId id=varId class="form-control mb-2 mr-sm-2" style="width: 100px">
+					<option value="" selected>Todas (hidrométricas)</option>
+				</select>
+				<label for=fuentesId class="mr-sm-2" style="display: none">Fuente</label>
+				<select name=fuentesId id=fuentesId class="form-control mb-2 mr-sm-2" style="width: 100px;display: none">
+					<option value=1 selected>todas las redes</option>
+				</select>
+			</div>
+			<div class=form-group>
+				<label for=seriesId class="mr-sm-2">Estación</label>
+				<select name=seriesId id=seriesId class="form-control mb-2 mr-sm-2" style="width: 300px">
+					<option value="" ></option>
+				</select>
+			</div>
+
+			<div class=form-group>
+				<label for=timestart class="mr-sm-2">Inicio</label>
+				<input type="date" pattern="^\d{4}-\d{2}-\d{2}$" maxlength=10 minlength=10 name=timestart id=timestart placeholder="YYYY-MM-DD" class="form-control mb-2 mr-sm-2" style="width:160px" />
+			</div>
+
+			<div class=form-group>
+				<label for=timeend class="mr-sm-2">Fin</label>
+				<input type="date" pattern="^\d{4}-\d{2}-\d{2}$" maxlength=10 minlength=10 name=timeend id=timeend  placeholder="YYYY-MM-DD" class="form-control mb-2 mr-sm-2"  style="width:160px" />
+			</div>
+			<button type=submit class="btn btn-primary mb-2">Submit</button>
+
+		</form>
+		<a href="html/README.html" style="font-size: small">ayuda</a>
+	</section>
+	<ul class="nav nav-tabs">
+	  <li class="nav-item">
+		<a class="nav-link active" data-toggle="tab" href="#general">General</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#mapa" id=maptab>Mapa</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#tabla" id=tabletab>Tabla</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#tabla_prono" id=tablepronotab>Tabla prono</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#grafico" id=charttab>Gráfico</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#descargas">Descargas</a>
+	  </li>
+	</ul>
+	<div class="tab-content" style="display: none">
+		<div class="tab-pane active container tabcontent" id="general">
+			<ul id=general>
+			</ul>
+		</div>
+		<div class="tab-pane container tabcontent" id="mapa">
+			<div class=container style="position: relative">
+				<div id="map" class="map" style="min-width:300px;"></div>
+				<div id=maplegend>
+<!--
+					<h4>Referencias</h4>
+-->
+					<table class=maplegend>
+						<tr><td><img src="img/N.gif"></td><td>sin datos</td></tr>
+						<tr><td><img src="img/S.gif"></td><td>simulado</td></tr>
+						<tr><td><img src="img/H.gif"></td><td>histórico</td></tr>
+						<tr><td><img src="img/H+S.gif"></td><td>histórico+sim.</td></tr>
+						<tr><td><img src="img/NRT.gif"></td><td>quasi-tiempo real</td></tr>
+						<tr><td><img src="img/NRT+S.gif"></td><td>quasi-tiempo real+sim.</td></tr>
+						<tr><td><img src="img/RT.gif"></td><td>tiempo real</td></tr>
+						<tr><td><img src="img/RT+S.gif"></td><td>tiempo real+sim</td></tr>
+					</table>
+				</div>
+			</div>
+		</div>
+		<div class="tab-pane container tabcontent" id="tabla">
+			
+<!--
+			<table id=table_container class=tabla_reg>
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Valor</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td></td>
+						<td></td>
+					</tr>
+					<tr>
+						<td></td>
+						<td></td>
+					</tr>
+				</tbody>
+			</table>
+-->
+		</div>
+		<div class="tab-pane container tabcontent" id="tabla_prono">
+			<table id=table_container_prono class=tabla_reg>
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Valor</th>
+					</tr>
+				</thead>
+				<tbody>
+				</tbody>
+			</table>
+		</div>
+		<div class="tab-pane container tabcontent" id="grafico">
+			<div id=chart_container style="height: 80%; min-height: 320px;"></div>
+			<div id="chartModal" class="modal fade" role="dialog" style="display: none;">
+			  <div class="modal-dialog">
+				<div class="modal-content">
+				  <div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">&times;</button>
+					<h4 class="modal-title">Seleccione serie adicional</h4>
+				  </div>
+				  <div class="modal-body" id=modal_body>
+					<form id=chooseaddseries class=chooseaddseries action="getObservaciones" method=POST target="_blank">
+						<input name=tipo value=puntual hidden>
+						<select name=series_id style="width: 450px;"></select>
+						<input name=timestart type=date hidden>
+						<input name=timeend type=date hidden>
+						<input type=submit>
+					</form>
+				  </div>
+				  <div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				  </div>
+				</div>
+			  </div>
+			</div>
+		</div>
+		<div class="tab-pane container tabcontent" id="descargas">
+			<ul>
+				<li>
+					<b>Serie temporal con metadatos (JSON):    </b>
+					<a id=descargarJson download="serie.json"></a>
+				</li>
+				<li>
+					<b>Serie temporal (CSV):    </b>
+					<a id=descargarCSV download="observaciones.csv"></a>
+				</li>
+				<li>
+					<b>Estaciones de monitoreo (GeoJSON):    </b>
+					<a id=descargarPoints download="secciones.GeoJSON"></a>
+				</li>
+				<li>
+					<b>Estación de monitoreo seleccionada (GeoJSON):    </b>
+					<a id=descargarPoint download="seccion.GeoJSON"></a>
+				</li>
+			</ul>
+		</div>
+	</div>
+</div>
+<div class=container-fluid style="background-color: white"></div>
+<div id="popup" class="ol-popup" style="display: none">
+  <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+  <div id="popup-content"></div>
+</div>
+
+<script> 
+	$("div#maplegend").hide()
+	var rgbToHex = function (rgb) { 
+		var hex = Number(rgb).toString(16);
+		if (hex.length < 2) {
+			hex = "0" + hex;
+		}
+		return hex;
+	};
+	var global = {}
+	$(document).ready(function(){
+		  // set/load activeTab to/from localStorage
+		$('div.tab-content').show()
+	    $('a[data-toggle="tab"]').on('show.bs.tab', function(e) {
+			localStorage.setItem('activeTab', $(e.target).attr('href'));
+		});
+		var activeTab = localStorage.getItem('activeTab');
+		if(activeTab){
+			$('a[href="' + activeTab + '"]').tab('show');
+		}
+		$("#seriesId").select2();  // Add browse filter to select
+		$("form#chooseaddseries select[name=series_id]").select2()
+
+		// read urlParams
+		const urlParams = new URLSearchParams(window.location.search);
+		var timestart, timeend
+		if(urlParams.get('timestart')) {
+			$("form#selectorform input#timestart").val(urlParams.get('timestart').substring(0,10))
+		} 
+		if(urlParams.get('timeend')) {
+			$("form#selectorform input#timeend").val(urlParams.get('timeend').substring(0,10))
+		}
+		if(urlParams.get('tipo')) {
+			$("form#selectorform select#tipo").val(urlParams.get('tipo'))
+		}
+		if(urlParams.get('varId')) {
+			$("form#selectorform select#varId").val(urlParams.get('varId'))
+		}
+		if(urlParams.get('fuentesId')) {
+			$("form#selectorform select#fuentesId").val(urlParams.get('fuentesId'))
+		}
+		if(urlParams.get('seriesId')) {
+			$("form#selectorform select#seriesId").val(urlParams.get('seriesId'))
+		}
+		// popup container 
+		document.getElementById('popup').style.display = "block"
+		var container = document.getElementById('popup');
+		var content = document.getElementById('popup-content');
+		var closer = document.getElementById('popup-closer');
+		/**
+		 * Create an overlay to anchor the popup to the map.
+		 */
+		var overlay = new ol.Overlay({
+		  element: container,
+		  autoPan: true,
+		  autoPanAnimation: {
+			duration: 250
+		  }
+		});
+
+		/**
+		 * Add a click handler to hide the popup.
+		 * @return {boolean} Don't follow the href.
+		 */
+		closer.onclick = function() {
+		  $('div.popover').remove()
+		  overlay.setPosition(undefined);
+		  closer.blur();
+		  return false;
+		};
+		// instantiate openlayers map object
+		var map = new ol.Map({
+			target: 'map',
+			layers: [
+			  //~ new ol.layer.Tile({
+				//~ source: new ol.source.OSM()
+			  //~ })
+			  new ol.layer.Tile({
+				  source: new ol.source.XYZ({
+					  url: "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+				  })
+			  }),
+			  new ol.layer.Image({
+				  source: new ol.source.ImageWMS({
+					  url: "http://localhost:8080/geoserver/wms",
+					  params: {
+						  "LAYERS": "a5:areas_pluvio"
+					  },
+					  ratio: 1,
+					  serverType: "geoserver"
+				  }),
+				  opacity: 0.5
+			  })
+			],
+			overlays: [overlay],
+			view: new ol.View({
+			  center: [-55, -25],  // feature[0].getGeometry().getCoordinates(), // ol.proj.fromLonLat([geom.geometry.coordinates[0],geom.geometry.coordinates[1]]),
+			  projection: 'EPSG:4326',
+			  zoom: 5
+			})
+		});
+		
+		$("form#selectorform select[name=varId]").change(event=>{
+			$(event.target).parents("form").submit()
+		})
+		
+		
+		// global objects
+		var gSeries, gPoints
+		
+		
+		// submit main form
+		return
+		$("form#selectorform").submit()
+		$("form#selectorform").submit( event=>{
+			event.preventDefault()
+			var inputs = document.getElementById("selectorform").elements
+			var def_timestart = new Date()
+			def_timestart.setDate(def_timestart.getDate() - 90)		
+			var def_timeend = new Date()
+			def_timeend.setDate(def_timeend.getDate() + 15)		
+			var selectorparams = {
+				tipo: (inputs.tipo.value != "") ? inputs.tipo.value : undefined,
+				varId: (inputs.varId.value != "") ? inputs.varId.value : undefined,
+				seriesId: (inputs.seriesId.value != "") ? inputs.seriesId.value :  undefined,
+				timestart: (inputs.timestart.value != "") ? inputs.timestart.value : def_timeend.toISOString().substring(0,10),
+				timeend: (inputs.timeend.value != "") ? inputs.timeend.value : def_timeend.toISOString().substring(0,10)
+			}
+			
+			if(!selectorparams.tipo) {
+				inputs.tipo.scrollIntoView()
+				return
+			}
+			
+			// get var list
+			
+			$.post("getMonitoredVars",{tipo:selectorparams.tipo}, vars=>{
+				if(!vars) {
+					alert("Error on getMonitoredVars")
+					return
+				}
+				if(!vars.length == 0) {
+					alert("Error on getMonitoredVars: got 0 vars")
+					return
+				}
+				$(inputs.varId).empty()
+				vars.foreach(v=>{
+					var selected = false
+					if(selectorparams.varId) {
+						if (v.id == selectorparams.varId) {
+							selected = true
+						}
+					}
+					$(inputs.varId).append(
+						$("<option></option>")
+						.val(v.id)
+						.html(v.nombre)
+						.attr("selected",selected)
+					)
+				})
+				
+				if(!selectorparams.varId) {
+					inputs.varId.scrollIntoView()
+					return
+				}
+				
+				if(selectorparams.tipo != "puntual") {
+					$(inputs.fuentesId).show()
+					$("form#selectorform label[for=fuentesId]").show()
+				}
+				
+				if(selectorparams.tipo == "areal") {
+					// case areal 
+					// get monitored fuentes
+					$.post("getMonitoredFuentes",{tipo: selectorparams.tipo, var_id:selectorparams.varId}, fuentes=>{
+						if(!fuentes) {
+							alert("Error on getMonitoredFuentes")
+							return
+						}
+						if(!fuentes.length == 0) {
+							alert("Error on getMonitoredFuentes: got 0 fuentes")
+							return
+						}
+						fuentes.foreach(f=>{
+							var selected = false
+							if(selectorparams.fuentesId) {
+								if (f.fuentes_id == selectorparams.fuentesId) {
+									selected = true
+								}
+							}
+							$(inputs.fuentesId).append(
+								$("<option></option>")
+								.val(f.fuentes_id)
+								.html(f.nombre)
+								.attr("selected",selected)
+							)
+						})
+						
+						if(!selectorparams.fuentesId) {
+							inputs.fuentesId.scrollIntoView()
+							return
+						}
+						
+						// get monitored areas
+						
+					}, "json")
+					.fail(e=>{
+						alert(e)
+					})
+				} else {
+					// case "puntual"
+
+					// get monitored points 
+					
+					var monitoredpointsparams = {geojson:true}
+					if(selectorparams.varId) {
+						monitoredpointsparams.var_id = selectorparams.varId
+					}
+					$.get("getMonitoredPoints",monitoredpointsparams)
+					.then(points=>{
+						gPoints = points
+
+						// create style for rendering points acording to their 'data_availability' attribute
+						var defaultStyle = new ol.style.Style({
+							image: new ol.style.Circle({
+							  radius: 6,
+							  stroke: new ol.style.Stroke({
+								color: [220,220,220,1]
+							  }),
+							  fill: new ol.style.Fill({
+								color: [250,250,250,1]
+							  })
+							})
+						})
+						var altStyles={}
+						var stylePars = { 
+							'N': {fill:[110,110,110,1], radius: 8, stroke:[220,220,220,0], fontColor: "white", zIndex: 1},
+							'S': {fill: [110,110,110,1], radius: 7,stroke:[0,220,220,1], fontColor: "white", zIndex: 2},
+							'H': {fill: [0,128,255,1], radius: 8, stroke: [220,220,220,0], fontColor: "white", zIndex: 3},
+							'H+S': {fill: [0,128,255,1], radius: 7, stroke:[0,220,220,1], fontColor: "white", zIndex: 4},
+							'NRT': {fill: [0,102,0,1], radius: 8, stroke: [220,220,220,0], fontColor: "white", zIndex: 5},
+							'NRT+S': {fill: [0,102,0,1], radius: 7, stroke:[0,220,220,1], fontColor: "white", zIndex: 6},
+							'RT': {fill: [0,255,0,1], radius: 8, stroke: [220,220,220,0], fontColor: "black", zIndex: 7},
+							'RT+S': {fill: [0,255,0,1], radius: 7, stroke:[0,220,220,1], fontColor: "black", zIndex: 8}
+						}
+						function styleFunction(feature, resolution) {
+							var data_availability = feature.get('data_availability')
+							if(!data_availability) {
+								return [defaultStyle]
+							}
+							if(altStyles[data_availability]) {
+								return [altStyles[data_availability]]
+							} else if (stylePars[data_availability]) {
+								altStyles[data_availability] = new ol.style.Style({
+									image: new ol.style.Circle({
+									  radius: stylePars[data_availability].radius,
+									  stroke: new ol.style.Stroke({
+										color: stylePars[data_availability].stroke,
+										width: 3
+									  }),
+									  fill: new ol.style.Fill({
+										color: stylePars[data_availability].fill
+									  })
+									}),
+									zIndex: stylePars[data_availability].zIndex
+								})
+								return [altStyles[data_availability]]
+							} else {
+								return [defaultStyle]
+							}
+						}
+						// read points from GeoJSON and add layer to map
+						var featEstaciones = (new ol.format.GeoJSON()).readFeatures(points)
+						var layerEstaciones = new ol.layer.Vector({
+							source: new ol.source.Vector({
+								projection: 'EPSG:4326',
+								features: featEstaciones
+							}),
+							style: styleFunction,
+							zIndex: 1
+						})
+						
+						map.addLayer(layerEstaciones)
+						
+						var flag=false
+						var matched_point
+						var options = points.features.map(p=>{
+							var selected=false
+							if(urlParams.get('seriesId')) {
+								if(p.properties.series_id == urlParams.get('seriesId')) {
+									//~ console.log(p.properties)
+									flag=true
+									selected=true
+									matched_point=p
+								}
+							} 
+							return {series_id:p.properties.series_id, name: p.properties.estacion_id + ": " + ((p.properties.rio) ? p.properties.rio + "@" : "") + ((p.properties.nombre) ? p.properties.nombre.substring(0,30) : p.properties.estacion_id) + " (" + p.properties.var_name + ") [" + p.properties.series_id + "]",selected:selected}				
+						})
+						options.forEach( (o,i) => {
+							$("select#seriesId").append(
+								$("<option value="+o.series_id + " " + ((o.selected) ? "selected" : "" ) + " >" + o.name + "</option>")
+							)
+							$("form#chooseaddseries select[name=series_id]").append(
+								$("<option value="+o.series_id + " " + ((o.selected) ? "selected" : "" ) + " >" + o.name + "</option>")
+							)
+						})
+						if(!flag) {
+							console.log("seriesId not found")
+							return
+						}
+		
+						var timestart, timeend
+						if(!urlParams.get('timestart')) {
+							timestart = new Date()
+							timestart.setDate(timestart.getDate() - 90)
+						} else {
+							timestart = new Date(urlParams.get('timestart'))
+							//~ console.log("timestart from querystring")
+						}
+						if(!urlParams.get('timeend')) {
+							timeend = new Date()
+							timeend.setDate(timeend.getDate() +15)
+						} else {
+							timeend = new Date(urlParams.get('timeend'))
+							//~ console.log("timeend from querystring")
+						}
+						//~ console.log({estacion_id:matched_point.properties.estacion_id, var_id: matched_point.properties.var_id, ts:timestart, ts:timeend})
+						$("input#timestart").val(timestart.toISOString().substring(0,10))
+						$("input#timeend").val(timeend.toISOString().substring(0,10))
+						$("form#chooseaddseries input[name=timestart]").val(timestart.toISOString().substring(0,10))
+						$("form#chooseaddseries input[name=timeend]").val(timeend.toISOString().substring(0,10))
+						$.get("getSeriesBySiteAndVar",{estacion_id:matched_point.properties.estacion_id, var_id:matched_point.properties.var_id, timestart:timestart, timeend:timeend, includeProno:true,proc_id:matched_point.properties.proc_id}) // , true, "1 days")
+						.then(series=>{
+							gSeries = series
+							var obs_stats
+							if(series.observaciones.length > 0) {
+								var o_timestart = series.observaciones[0][0]
+								var o_timeend = series.observaciones[0][1]
+								var minval = series.observaciones[0][2]
+								var maxval = series.observaciones[0][2]
+								var sum=0
+								series.observaciones.map(o=> {
+									o_timestart = (o[0] < o_timestart) ? o[0] : o_timestart
+									o_timeend = (o[1] > o_timeend) ? o[1] : o_timeend
+									minval = (o[2] < minval) ? o[2] : minval
+									maxval = (o[2] > maxval) ? o[2] : maxval
+									sum = sum + o[2]
+								})
+								obs_stats = {timestart: o_timestart, timeend: o_timeend, count: series.observaciones.length, min: minval, max: maxval, avg: sum/series.observaciones.length}
+							}
+							var prono_resumen = []
+							var index = 0
+							if(series.pronosticos) {
+								for(var i=0;i<series.pronosticos.length;i++) {
+									if(series.pronosticos[i].corrida) {
+										prono_resumen[index] = {
+											cal_id: series.pronosticos[i].id,
+											nombre: series.pronosticos[i].nombre,
+											modelo: series.pronosticos[i].modelo,
+											activar: series.pronosticos[i].activar,
+											selected: series.pronosticos[i].selected,
+											cor_id: series.pronosticos[i].corrida.id,
+											forecast_date: series.pronosticos[i].corrida.date,
+											count: series.pronosticos[i].corrida.series.length,
+											fecha_fin: series.pronosticos[i].corrida.series[series.pronosticos[i].corrida.series.length-1][0]
+										}
+										i++
+									}
+								}
+							}
+							//~ var general = {id:series.id, tipo: series.tipo, estacion: series.estacion, variable: series["var"], procedimiento: series.procedimiento, unidades: series.unidades, obs_stats: obs_stats, prono_resumen: prono_resumen}
+							$("div#general ul#general").append(
+								$("<li>id de serie: <b>" + series.id + "</b></li>"),
+								$("<li>tipo de serie: <b>" + series.tipo + "</b></li>")
+							)
+							
+							if (series.estacion) {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$("<h3 id=p_estacion>Estación de monitoreo</h3>"),
+										$("<ul></ul>").append(
+											$("<li>id: <b>" + series.estacion.id + "</b></li>"),
+											$("<li>nombre: <b>" + series.estacion.nombre + "</b></li>"),
+											$("<li>id_externo: <b>" + series.estacion.id_externo + "</b></li>"),
+											$("<li>longitud: <b>" + series.estacion.geom.coordinates[0] + "</b></li>"),
+											$("<li>latitud: <b>" + series.estacion.geom.coordinates[1] + "</b></li>"),
+											$("<li>provincia: <b>" + series.estacion.provincia + "</b></li>"),
+											$("<li>pais: <b>" + series.estacion.pais + "</b></li>"),
+											$("<li>rio: <b>" + series.estacion.rio + "</b></li>"),
+											$("<li>automatica: <b>" + series.estacion.automatica + "</b></li>"),
+											$("<li>propietario: <b>" + series.estacion.propietario + "</b></li>"),
+											$("<li>abreviatura: <b>" + series.estacion.abreviatura + "</b></li>"),
+											$("<li>URL: <b>" + series.estacion.URL + "</b></li>"),
+											$("<li>localidad: <b>" + series.estacion.localidad + "</b></li>"),
+											$("<li>real: <b>" + series.estacion.real + "</b></li>"),
+											$("<li>nivel_alerta: <b>" + series.estacion.nivel_alerta + "</b></li>"),
+											$("<li>nivel_evacuacion: <b>" + series.estacion.nivel_evacuacion + "</b></li>")
+								)))
+							}
+							if(series["var"]) {
+								var timeSupport = (series["var"].timeSupport) ? Object.keys(series["var"].timeSupport).map(k=> k + ": " + series["var"].timeSupport[k]).join(", ") : undefined
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_variable">Variable</h3>'),
+										$("<ul></ul>").append(
+											$("<li>id: <b>" + series["var"].id + "</b></li>"),
+											$("<li>código: <b>" + series["var"].var + "</b></li>"),
+											$("<li>nombre: <b>" + series["var"].nombre + "</b></li>"),
+											$("<li>abreviatura: <b>" + series["var"].abrev + "</b></li>"),
+											$("<li>tipo: <b>" + series["var"].type + "</b></li>"),
+											$("<li>dataType: <b>" + series["var"].datatype + "</b></li>"),
+											$("<li>valueType: <b>" + series["var"].valueType + "</b></li>"),
+											$("<li>generalCategory: <b>" + series["var"].GeneralCategory + "</b></li>"),
+											$("<li>VariableName: <b>" + series["var"].VariableName + "</b></li>"),
+											$("<li>sampleMedium: <b>" + series["var"].SampleMedium + "</b></li>"),
+											$("<li>timeSupport: <b>" + timeSupport + "</b></li>")
+								)))
+							}
+							if(obs_stats) {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_obs">Observaciones (estadísticas)</h3>'),
+										$("<ul></ul>").append(
+											$("<li>Fecha inicial: <b>" + obs_stats.timestart + "</b></li>"),
+											$("<li>Fecha final: <b>" + obs_stats.timeend + "</b></li>"),
+											$("<li>Cantidad de registros: <b>" + obs_stats.count + "</b></li>"),
+											$("<li>Valor mínimo: <b>" + obs_stats.min + "</b></li>"),
+											$("<li>Valor máximo: <b>" + obs_stats.max + "</b></li>"),
+											$("<li>Valor medio: <b>" + obs_stats.avg + "</b></li>")
+								)))
+							} else {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_obs">No hay observaciones</h3>')
+								))
+							}
+							if (series.procedimiento) {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_proc">Procedimiento</h3>'),
+										$("<ul></ul>").append(
+											$("<li>id: <b>" + series.procedimiento.id + "</b></li>"),
+											$("<li>nombre: <b>" + series.procedimiento.nombre + "</b></li>"),
+											$("<li>abreviatura: <b>" + series.procedimiento.abrev + "</b></li>"),
+											$("<li>descripción: <b>" + series.procedimiento.descripcion + "</b></li>")
+								)))
+							}
+							if (series.unidades) {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_units">Unidades</h3>'),
+										$("<ul></ul>").append(
+											$("<li>id: <b>" + series.unidades.id + "</b></li>"),
+											$("<li>nombre: <b>" + series.unidades.nombre + "</b></li>"),
+											$("<li>abreviatura: <b>" + series.unidades.abrev + "</b></li>"),
+											$("<li>unitsID: <b>" + series.unidades.unitsID + "</b></li>"),
+											$("<li>unitsType: <b>" + series.unidades.unitsType + "</b></li>")
+								)))
+							}
+							if (prono_resumen) {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_prono">Pronósticos (resumen)</h3>'),
+										$("<ul></ul>").append(
+											prono_resumen.map(p=>{
+												return $("<li></li>").append(
+													$("<h4>" + p.nombre + "</h4>"),
+													$("<ul></ul>").append(
+														$("<li>id: <b>" + p.cal_id + "</b></li>"),
+														$("<li>nombre: <b>" + p.nombre + "</b></li>"),
+														$("<li>modelo: <b>" + p.modelo + "</b></li>"),
+														$("<li>activado: <b>" + p.activar + "</b></li>"),
+														$("<li>seleccionado: <b>" + p.selected + "</b></li>"),
+														$("<li>id de corrida: <b>" + p.cor_id + "</b></li>"),
+														$("<li>fecha de emisión: <b>" + p.forecast_date + "</b></li>"),
+														$("<li>cantidad de registros: <b>" + p.count + "</b></li>"),
+														$("<li>fecha final: <b>" + p.fecha_fin + "</b></li>")
+												))
+											})
+								)))
+							} else {
+								$("div#general ul#general").append(
+									$("<li></li>").append(
+										$('<h3 id="p_prono">No hay pronósticos</h3>')
+								))
+							}
+
+							// read selected station from 'geom' and add point layer to map
+
+							var geom = {
+								type:"Feature", 
+								geometry: series.estacion.geom, 
+								properties: { 
+									id: series.estacion.id,
+									nombre: series.estacion.nombre,
+									id_externo: series.estacion.id_externo,
+									longitud: series.estacion.geom.coordinates[0],
+									latitud: series.estacion.geom.coordinates[1],
+									provincia: series.estacion.provincia,
+									pais: series.estacion.pais,
+									rio: series.estacion.rio,
+									automatica: series.estacion.automatica,
+									propietario: series.estacion.propietario,
+									abreviatura: series.estacion.abreviatura,
+									URL: series.estacion.URL,
+									localidad: series.estacion.localidad,
+									real: series.estacion.real,
+									nivel_alerta: series.estacion.nivel_alerta,
+									nivel_evacuacion: series.estacion.nivel_evacuacion
+								}
+							}
+							gSeries.estacion.geoJSON = geom
+				
+							var feature = (new ol.format.GeoJSON()).readFeatures(geom)
+							map.getView().setCenter(feature[0].getGeometry().getCoordinates())
+							map.getView().setZoom(8)
+							var labelStyle = new ol.style.Style({
+							  text: new ol.style.Text({
+								font: '10px Calibri,sans-serif',
+								overflow: true,
+								fill: new ol.style.Fill({
+								  color: '#000'
+								}),
+								stroke: new ol.style.Stroke({
+								  color: '#fff',
+								  width: 2
+								})
+							  })
+							});
+							var pointStyle = new ol.style.Style({
+							  image: new ol.style.Icon({
+								anchor: [0.5, 1],
+								src: '../img/map_pin_small.png',
+								//~ size: 60
+							  })
+							});
+							var layer = new ol.layer.Vector({
+								source: new ol.source.Vector({
+									projection: 'EPSG:4326',
+									features: feature,
+								}),
+								style: function(feature) {
+									labelStyle.getText().setText(feature.get('nombre'));
+									return [labelStyle,pointStyle];
+								},
+								zIndex: 10
+							})
+							map.addLayer(
+							  layer
+							)
+							// Descarga punto
+							gblob = new Blob([JSON.stringify(geom)], {type: "octet/stream"}),
+							gurl = window.URL.createObjectURL(gblob);
+							$("#descargarPoint").attr('href',gurl).html('GeoJSON')
+						
+							// read time series from 'data' and load tables and chart 
+							loadChart(series, null, "chart_container", {prono_table:"table_container_prono"}, (table_container, chart_container, table_prono)=> {
+								$('a[data-toggle="tab"]#charttab').on('shown.bs.tab', function (e) {
+									$("#chart_container").highcharts().reflow()
+								})
+								//~ $('a[data-toggle="tab"]#tabletab').click(e=>{
+									//~ table_container.columns.adjust()
+								//~ })
+								if(table_prono) {
+									$('a[data-toggle="tab"]#tablepronotab').click(e=>{
+										table_prono.columns.adjust()
+									})
+								}
+								return
+							})
+
+							// make obs edit table
+							gSeries.timestart = $("form#selectorform input[name=timestart]").val()
+							gSeries.timeend = $("form#selectorform input[name=timeend]").val()
+							gSeries.reloadChart = function() {
+								loadChart(this, null,"chart_container")
+							}
+							gSeries.sortObs = function() {
+								this.observaciones.sort( (a,b)=>{
+									if (new Date(a[0]) < new Date(b[0])) {
+										return -1
+									} else {
+										return 1
+									}
+								})
+							}
+							global.series = gSeries
+							makeObsEditTable($("div.tabcontent#tabla"),gSeries) //series_def)
+
+							// write REST API endpoints for data downolad (Descargas tab)
+							var getRequestUrl = "getSeriesBySiteAndVar?estacion_id=" + series.estacion.id + "&var_id=" + series.var.id + "&timestart=" + urlParams.get('timestart') + "&timeend=" + urlParams.get('timeend') + "&includeProno=true";
+							$("#descargarJson").attr('href',getRequestUrl).html(getRequestUrl)
+							var getObsCSVUrl = "getObservaciones?tipo=puntual&series_id=" + urlParams.get('seriesId') + "&timestart=" + urlParams.get('timestart') + "&timeend=" + urlParams.get('timeend') + "&format=csv"
+							$("#descargarCSV").attr('href',getObsCSVUrl).html(getObsCSVUrl)
+					
+						})
+						.fail(e=>{
+							alert(e.message)
+						})
+					})
+				}
+				var reloadWithPars = function(evt){
+					var ts = $("input#timestart").val()
+					var te = $("input#timeend").val()
+					var series_id = evt.currentTarget.id
+					var var_id = $("select#varId").val()
+					window.location.search = '?varId=' + var_id + '&seriesId=' + series_id + ((ts) ? '&timestart=' + ts : '') + ((te) ? '&timeend=' + te : '')
+				}
+				var addToChart = function(evt){
+					$('div.popover').remove()
+					$('a#charttab').click()
+					$("form#chooseaddseries select[name=series_id]").val(evt.currentTarget.id)
+					$("form#chooseaddseries").submit()
+				}
+				//add map click interaction: popup table. Then clicking any row refreshes page with the corresponding data
+				map.on("singleclick", function(evt) {
+					$('div.popover').remove()
+					var pixel = evt.pixel
+					var coordinate = evt.coordinate
+					features = map.getFeaturesAtPixel(pixel, {layerFilter:function(layerCandidate) {
+							if(layerCandidate.getZIndex() == 1) {
+								return true
+							} else {
+								return false
+							}
+						}, hitTolerance: 10})
+					content.innerHTML = "<h4>Estaciones</h4><table><tbody><thead><tr><th>id</th><th>nombre</th><th>variable</th><th>series_id</th><th>obs</th><th>sim</th></tr></thead></tbody></table>"
+					features.map(f=>{
+						var data_availability = f.get('data_availability')
+						var bgcolor = "#ffffff"
+						var outline = null
+						var obs = "no"
+						var sim = "no"
+						var fontColor = "white"
+						if(data_availability) {
+							obs = (data_availability.indexOf("H") > -1  || data_availability.indexOf("T") > -1 ) ? data_availability.replace(/\+.*$/,"") : "no"
+							sim = (data_availability.indexOf("S") > -1) ? "sí" : "no"
+							if(stylePars[data_availability]) {
+								bgcolor = "#" + stylePars[data_availability].fill.map(c=> rgbToHex(c)).join("").substring(0,6)
+								outline = '3px solid #' + stylePars[data_availability].stroke.map(c=> rgbToHex(c)).join("").substring(0,6)
+								fontColor = stylePars[data_availability].fontColor
+							} 
+						}
+						$("div#popup-content table tbody").append(
+							$("<tr id=" + f.get('series_id') + "><td>" + f.get('estacion_id') + "</td><td>" + f.get('nombre') + "</td><td>" + f.get('var_name') + "</td><td>" + f.get('series_id') + "</td><td>"+obs+"</td><td>"+sim+"</td></tr>")
+							.css({'background-color': bgcolor, 'outline': outline, 'outline-offset':"-3px", 'color': fontColor})
+							.attr({"data-toggle":"popover", "data-placement":"top", "title": "acción"})
+							//~ .on('click',function(evt) {
+								//~ $('div#popup-content tr[data-toggle="popover"]').popover('dispose')
+							//~ })
+						)
+					})
+					$('div#popup-content tr[data-toggle="popover"]').popover({
+						html: true,
+						template: '<div class="popover" role="tooltip"><div class="arrow"></div><h3 class="popover-header"></h3><div class="popover-body"></div></div>',
+						trigger: "click",
+						content: function() {
+							return "<div class=popovercontent id="+$(this).attr('id')+"></div>"
+						}
+					})
+					.on('show.bs.popover', function (evt) {
+						$('div#popup-content tr[data-toggle="popover"][id!='+$(evt.target).attr('id')+']').popover('hide')
+					})
+					.on('shown.bs.popover', function (evt) {
+						console.log("popover shown")
+						$("div#"+$(evt.target).attr('id')+".popovercontent").empty().append(
+							$("<button>Ir a serie</button>").attr({
+								id: $(evt.target).attr('id')
+							}).on('click',reloadWithPars)						
+						)
+						if($("div#chart_container")[0].hasAttribute("data-highcharts-chart")) {
+							$("div#"+$(evt.target).attr('id')+".popovercontent").append(
+								$("<button>Agregar a gráfico</button>").attr({
+									id: $(evt.target).attr('id')
+								}).on('click',addToChart)
+							)
+						}
+					})
+					overlay.setPosition(coordinate)
+				})
+
+				// add map interaction on hover point change cursor to pointer
+				map.on('pointermove', evt => {
+				  if (!evt.dragging) {
+					map.getTargetElement().style.cursor = map.hasFeatureAtPixel(map.getEventPixel(evt.originalEvent)) ? 'pointer' : '';
+				  }
+				});
+				// add listener to maptab: on click update map size
+				$(".nav-tabs a#maptab").on('shown.bs.tab', function(e){
+					map.updateSize()
+				})
+				// show legend
+				//~ console.log("show map")
+				$("div#maplegend").show()
+				
+				//~ descarga listado estaciones/var
+				var getMonitoredPointsUrl = "getMonitoredPoints?geojson=true"
+				$("#descargarPoints").attr('href',getMonitoredPointsUrl).html(getMonitoredPointsUrl)
+				
+				// series 
+				
+				//~ if(! urlParams.get('seriesId')) {
+					//~ return
+				//~ }
+			}).fail(e=>{
+				alert(e.message)
+			})
+		})
+	});
+	
+	// add series to chart form 
+	
+	$("form#chooseaddseries").submit(event=>{
+		event.preventDefault();
+		$("body").css("cursor","progress")
+		if($(event.currentTarget).find("input[name=timestart]").val() == "") {
+			var timestart = new Date()
+			timestart.setDate(timestart.getDate() - 90)
+			$(event.currentTarget).find("input[name=timestart]").val(timestart.toISOString().substring(0,10))
+		}
+		if($(event.currentTarget).find("input[name=timeend]").val() == "") {
+			var timeend = new Date()
+			timeend.setDate(timeend.getDate() + 15)
+			$(event.currentTarget).find("input[name=timeend]").val(timeend.toISOString().substring(0,10))
+		}
+		$.post($(event.currentTarget).attr('action'),$(event.currentTarget).serialize(),function(response) {
+			if(response.length <= 0) {
+				alert("No data found")
+				$("body").css("cursor","default")
+				return
+			}				
+			var name = $(event.currentTarget).find("select[name=series_id] option:selected").html()
+			addSeriesToChart({name:name,series:response},undefined,"chart_container")
+			//~ $("div#chart_container").highcharts().renderer.point(
+			$("div#chartModal").modal("hide")
+			$("body").css("cursor","default")
+		})
+		.fail(e=>{
+			$("body").css("cursor","default")
+			alert("getObservaciones error")
+			$("div#chartModal").hide()
+		})	
+	})
+</script>
+<!--
+<script src="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.js"></script>
+-->
+<script type="text/javascript" src="js/bootstrap-table.min.js"></script>
+

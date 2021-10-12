@@ -1,0 +1,24 @@
+{
+"database":
+	{
+	  "user": "",
+	  "host": "",
+	  "database": "",
+	  "password": "",
+	  "port": 5432
+	},
+"rest":
+  {
+	  "port": 3000,
+	"index": "index",
+	"skip_authentication": false
+  },
+  "latex": {
+	  "location": "/home/leyden/44-NODEJS_APIS/informe_complementario/public/latex/"
+  },
+  "a5": {
+	  "host": "http://localhost:3005",
+	  "user": "",
+	  "password": ""
+  }
+}

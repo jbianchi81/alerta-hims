@@ -1,0 +1,23 @@
+{
+	"sat2_database": {
+	  "user": "",
+	  "host": "",
+	  "database": "",
+	  "password": "",
+	  "port": 5432
+	},
+	"database": {
+	  "user": "",
+	  "host": "",
+	  "database": "",
+	  "password": "",
+	  "port": 5432
+	},
+	"rest": {
+		"port": 3002,
+		"skip_authentication": false
+	},
+	"Reportes": {
+		"location": "public/reportes"
+	}
+}

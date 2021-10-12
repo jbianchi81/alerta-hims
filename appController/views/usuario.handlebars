@@ -1,0 +1,103 @@
+<h4>Propiedades del usuario <b>{{user.username}}</b></h4>
+<table class=table>
+	<tr>
+		<th>id</th>
+		<td>{{user.id}}</td>
+	</tr>
+	<tr>
+		<th>username</th>
+		<td>{{user.username}}</td>
+	</tr>
+	<tr>
+		<th>role</th>
+		<td>
+			{{#if isAdmin}}
+				<form action="users/{{user.username}}" method=POST>
+					<select id=roleselect name=role default={{user.role}}>
+						<option value=public>public</option>
+						<option value=reader>reader</option>
+						<option value=writer>writer</option>
+						<option value=admin>admin</option>
+					</select>
+					<button type=submit>Cambiar</button>
+				</form>
+			{{else}}
+				{{user.role}}
+			{{/if}}
+		</td>
+	</tr>
+	<tr>
+		<th>password</th>
+		<td>
+			{{#if protected}}
+				-- no autorizado --
+			{{else}}
+				<form id=change_password class=change-pot method="POST" action="userChangePassword">
+					<input type=text name=newpassword placeholder="nueva contraseña">
+					<button>Cambiar</button>
+				</form>
+			{{/if}}
+		</td>
+	</tr>
+	<tr>
+		<th>token</th>
+		<td>
+			{{#if protected}}
+				-- no autorizado --
+			{{else}}
+				<form id=change_token class=change-pot method="POST" action="userChangePassword">
+					<input type=text name=newtoken placeholder="nuevo token">
+					<button>Cambiar</button>
+				</form>
+			{{/if}}
+		</td>
+	</tr>
+</table>
+{{!-- <h4>Modificación de contraseña</h4>
+<form id=change_password method="POST" action="../userChangePassword">
+	<div id=submit>
+		<table id=submit>
+			<tr>
+				<td><label for=newpassword>Nueva contraseña</label></td>
+				<td><input type=text name=newpassword placeholder="nueva contraseña"></td>
+			</tr>
+			<tr>
+				<td><label for=newtoken>Nuevo token</label></td>
+				<td><input type=text name=newtoken placeholder="nuevo token"></td>
+			</tr>
+			<tr>
+				<td colspan=2 style="align: centered"><button>Enviar</button></td>
+			</tr>
+		</table>
+	</div>
+	<input hidden name=username value={{user.username}}>
+</form> --}}
+
+<script>
+	$("form.change-pot").submit( event=>{
+		event.preventDefault()
+		$("body").css("cursor","progress")
+		var data = $(event.currentTarget).serialize()
+		data += "&username={{user.username}}"
+		$.post($(event.currentTarget).attr('action'),data,function(response) {
+			if(response.length <= 0) {
+				alert("Empty response")
+				$("body").css("cursor","default")
+				return
+			}
+			$("body").css("cursor","default")
+			alert(response)
+			return
+		})			
+		.fail( (xhr, status, error)=>{
+			$("body").css("cursor","default")
+			alert(error.toString())
+			// $("div#chartModal").hide()
+		})	
+	})
+	window.onload = (event)=>{
+		var default_role = $("select#roleselect").attr("default")
+		// console.log(default_role)
+		$("select#roleselect option[value=" + default_role + "]").attr("selected",true)
+	}
+</script>

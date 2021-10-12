@@ -1,0 +1,43 @@
+{
+	"options":{
+		"port":4001,
+		"def_interval_start":-7,
+		"def_interval_end": -1
+	},
+	"database":{
+		"host": "",
+		"port": "",
+		"database": "", 
+		"user": "", 
+		"password": "",
+		"connectionTimeoutMills":5000 
+	},
+	"rest": {
+		"skip_authentication": false
+	},
+	"views": [{
+		"id": 1,
+		"name": "Control cuantitativo series puntuales",
+		"time_scale": "month",
+		"group_by": ["redId","varId"],
+		"tuples": [
+			[1,27,"acumar pp int. nativo"],
+			[2,1,"synop pp diaria"],
+			[7,1,"synop_cdp pp diaria"],
+			[9,2,"genica (conae) nivel hidrométrico"],
+			[10,2,"prefectura nivel hidrométrico"],
+			[12,2,"DINAC (Paraguay) nivel hidrométrico"],
+			[13,2,"UNLU (Luján) nivel hidrométrico"],
+			[14,27,"SINARAME pp int. nativo"],
+			[15,27,"Salto Grande pp int. nativo"],
+			[18,2,"ONS (Presas Brasil) nivel hidrométrico"],
+			[19,2,"ANA (Brasil) nivel hidrométrico"],
+			[22,2,"Mareógrafos PVNyMM (Vías Navegables) nivel hidrométrico"],
+			[23,2,"Hidrografía Naval nivel hidrométrico"],
+			[27,2,"SAT (telemétricas RHN) nivel hidrométrico"],
+			[29,1,"DMH (Paraguay) pp diaria"],
+			[30,1,"SISSA pp diaria (interrumpido)"],
+			[32,2,"INA Delta nivel hidrométrico"]
+		]
+	}]
+}

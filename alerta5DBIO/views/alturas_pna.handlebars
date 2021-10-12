@@ -1,0 +1,29 @@
+<h4>Subir planilla de alturas de PNA</h4>
+<form id=post method=post action="accessors/alturas_pna/upload" enctype="multipart/form-data">
+	<div class="container">
+		<div class="row">
+			<div class="col-md-auto">
+				<label for=file>File</label>
+			</div>
+			<div class="col-md-auto">
+				<input name=file type=file required=true>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-auto">
+				<button type=submit>Confirma</button>
+			</div>
+		</div>
+	</div>
+</form>
+<a href="/cargarPlanillas">&lt;&lt;volver</a>
+
+<script>
+	window.onload = function() {
+		if(!$("form#post input[name=timestart]").val()) {
+			var timestart = new Date()
+			timestart.setTime(timestart.getTime() - 30*24*3600*1000)
+			$("form#post input[name=timestart]").val(timestart.toISOString().substring(0,10))
+		}
+	}
+</script>

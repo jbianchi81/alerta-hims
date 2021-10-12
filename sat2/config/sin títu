@@ -1,0 +1,33 @@
+{
+	"sat2_database_local": {
+	  "user": "sat2",
+	  "host": "localhost",
+	  "database": "sat2",
+	  "password": "sat2",
+	  "port": 5432
+	},
+	"sat2_database": {
+	  "user": "sat2",
+	  "host": "correo.ina.gob.ar",
+	  "database": "sat2",
+	  "password": "sat2",
+	  "port": 9049
+	},
+	"database": {
+	  "user": "actualiza",
+	  "host": "correo.ina.gob.ar",
+	  "database": "meteorology",
+	  "password": "alturas",
+	  "port": 9049
+	},
+	"database_local": {
+	  "user": "actualiza",
+	  "host": "10.10.9.14",
+	  "database": "meteorology",
+	  "password": "alturas",
+	  "port": 5432
+	},
+	"rest": {
+		"skip_authentication": false
+	}
+}

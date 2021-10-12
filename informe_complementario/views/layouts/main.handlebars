@@ -1,0 +1,656 @@
+<html>
+<head>
+<link class="jsbin" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.css" rel="stylesheet" type="text/css" />
+<script class="jsbin" src="https://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+<script class="jsbin" src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="//netdna.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="css/richtext.min.css" type="text/css">
+<script class="jsbin" src="js/jquery.richtext.min.js" type="application/javascript"></script>
+<style>
+	table, tr, td, th {
+		border: 1px solid black;
+		padding: 0px
+	}
+	textarea {
+		font-size: 14px
+	}
+	div#submit {
+		width:400px;
+		border: 15px solid green;
+		padding: 20px;
+		margin: auto;
+	}
+	div#todo {
+		width: 1350px;
+		margin: auto;
+		background-color: #afd7fb;
+		border: 1px black solid;
+	}
+	button img {
+		resize: none;
+	}
+
+</style>
+<meta charset=utf-8 />
+</head>
+<body>
+<h1>Informes</h1>
+<div id=todo>
+
+{{{body}}}
+
+</div>
+<div id=logout><a href="/logout">logout</a></div>
+<script type="text/javascript">
+	//~ document.onreadystatechange = function () {
+		//~ if (document.readyState === 'complete') {
+			//~ $('.datePicker').val(new Date().toDateInputValue());
+	if($("textarea")) {
+		$("textarea.rich").each(function (index) {
+			//~ console.log(this)
+			console.log( index + ":" + $(this).attr('id'))
+			$(this).richText()
+		})
+		$("textarea.hidro").each(function (index) {
+			//~ console.log(this)
+			console.log( index + ":" + $(this).attr('id'))
+			$(this).richText()
+		})
+	}
+	$("input[name=init_condicion]").each((i,v)=>{
+		$('select#'+v.id+'.condicion option[value="'+v.value+'"]').attr('selected',true)
+		if(v.value == 'normal') {
+			$('select#'+v.id+'.condicion').before($('<img src="img/verde.png" class=condicion id="'+v.id+'" style="width=80px;height=80px"><br>'))
+		} else if(v.value == 'alerta') {
+			$('select#'+v.id+'.condicion').before($('<img src="img/amarillo.png" class=condicion id="'+v.id+'" style="width=80px;height=80px"><br>'))
+		} else if(v.value == 'evacuacion') {
+			$('select#'+v.id+'.condicion').before($('<img src="img/rojo.png" class=condicion id="'+v.id+'" style="width=80px;height=80px"><br>'))
+		} else if(v.value == 'aguas bajas') {
+			$('select#'+v.id+'.condicion').before($('<img src="img/estiaje.png" class=condicion id="'+v.id+'" style="width=80px;height=80px"><br>'))
+		} else { 
+			$('select#'+v.id+'.condicion').before($('<img src="img/blanco.png" class=condicion id="'+v.id+'" style="width=80px;height=80px"><br>'))
+		}
+	})
+	
+	$('select.condicion').change(event=>{
+		if(event.target.value == 'normal') {
+			$('img.condicion#'+event.target.id).attr('src', "img/verde.png")
+		} else if(event.target.value == 'alerta') {
+			$('img.condicion#'+event.target.id).attr('src', "img/amarillo.png")
+		} else if(event.target.value == 'evacuacion') {
+			$('img.condicion#'+event.target.id).attr('src', "img/rojo.png")
+		} else if(event.target.value == 'aguas bajas') {
+			$('img.condicion#'+event.target.id).attr('src', "img/estiaje.png")
+		} else { 
+			$('img.condicion#'+event.target.id).attr('src', "img/blanco.png")
+		}
+	})	
+
+	
+	function readUrl(input,img_id,width,height)  {
+		var w = (width) ? width : 400
+		var h = (height) ? height : 400
+		if (input.files && input.files[0]) {
+			console.log(input.files)
+			var reader = new FileReader();
+
+			reader.onload = function (e) {
+				$('img#'+img_id)
+					.attr('src', e.target.result)
+					.width(w)
+					.height(h);
+			};
+
+			reader.readAsDataURL(input.files[0]);
+		} else {
+			console.log("files not found")
+		}
+	}
+	$("button.add").click( () => {
+		var id = $("input#new_hidro_id").val()
+		if(! id) {
+			console.log("value is null!");
+			return
+		}
+		if(id == "") {
+			console.log("value is empty!");
+			return
+		}
+		var name = $("tr#hidro_add td input#new_hidro_name").val();
+		var text = $("tr#hidro_add td textarea#new_hidro_text").val();
+		$("tr#hidro_add").before("$(<tr><th>" + id + "</th><td><input type=text class=hidro_name id=\"" + id + "\" placeholder=\"nombre de la cuenca o sistema\" value=\"" + name + "\"></td><td><textarea class=hidro id=\"" + id + "\" style=\"width:100%;height:200px\" placeholder=\"descripción de la situación\">" + text + "</textarea></td><td><select class=condicion id="+ id + " ><option value=normal style=\"background-image:url(img/verde.png);width:80px;height:80px\">Normal</option><option value=alerta style=\"background-image:url(img/amarillo.png);width:80px;height:80px\">Alerta</option><option value=evacuacion style=\"background-image:url(img/rojo.png);width:80px;height:80px\">Evacuación</option></select></td><td><button type=\"button\" class=moveup><img src=\"img/up.png\" width=80 height=66 alt=subir /></button><br><button type=\"button\" class=movedown><img src=\"img/down.png\"  width=80 height=66 alt=bajar /></button><br><button type=\"button\" class=delete><img src=\"img/del.png\"  width=80 height=66  alt=eliminar /></button></td></tr>");
+		$("tr#hidro_add td input#new_hidro_name").val("");
+		$("tr#hidro_add td textarea#new_hidro_text").val("");
+		$("tr#hidro_add td input#new_hidro_id").val("");
+		$("textarea.hidro#"+id).richText();
+		
+		//~ console.log("hidro row added");
+	})
+		
+	$("button#formsubmit").click( (event) => {
+		switch(true) {
+			case /\/informe_complementario$/.test(window.location.pathname):
+				var hidro = $.map($("input.hidro_name"), (element, i) => {
+					//~ console.log("element id:" + $(element).attr("id"));
+					var id = $(element).attr("id");
+					var name = $(element).val();
+					var text = $(element).parent().next().find("div.richText-editor").html();
+					var condicion = $(element).parent().parent().find("select.condicion").val();
+					return {id: id, name: name, text: text, condicion: condicion};  //~ $("textarea#" + element.id)[0].val()
+				})
+				//~ console.log(hidro)
+				//~ alert("hidro mapped. length:" + hidro.length);
+				if(hidro.length>0) {
+					//~ console.log(hidro);
+					//~ alert("hidro data added. " + hidro.length + " rows.");
+					$('<input />').attr('id','hidro_all').attr('type', 'hidden').attr('name', "hidro").attr('value', JSON.stringify(hidro)).appendTo('form#informe');
+				}
+				console.log($("input#hidro_all").val());
+				if(!$("input#smn_clima_mapa_file").val() && $("img#smn_clima_mapa").attr("src") != "") {
+					$("<input>").attr({"type": "hidden",
+									   "name":"smn_map_filename"})
+								.val($("img#smn_clima_mapa").attr("src"))
+								.appendTo("form#informe")
+				}
+				if(!$("input#cptec_clima_mapa_file").val() && $("img#cptec_clima_mapa").attr("src") != "") {
+					$("<input>").attr({"type": "hidden",
+									   "name":"cptec_map_filename"})
+								.val($("img#cptec_clima_mapa").attr("src"))
+								.appendTo("form#informe")
+				}
+				if(!$("input#synop_semanal_file").val() && $("img#synop_semanal_mapa").attr("src") != "") {
+					$("<input>").attr({"type": "hidden",
+									   "name":"synop_map_filename"})
+								.val($("img#synop_semanal_mapa").attr("src"))
+								.appendTo("form#informe")
+				}
+				break;
+			case /\/paraguay$/.test(window.location.pathname):
+				//~ alert("case informe paraguay")
+				var diarios = $("tr.prono_diario").map( (i, element) => {
+				//~ for(var i =0; len = $(prono_diario).length; i< len; i++)
+				  //~ var diarios = $.map($("tr.prono_diario"), (element, i) => {
+					//~ console.log("element id:" + $(element).attr("id"));
+					//~ var id = $(element).attr("id");
+					var values = {}
+					$(element).find("input").map( (index, el) => {
+						values[$(el).attr("class")] = $(el).val()
+						console.log($(el).attr("class") + ":" + $(el).val())
+					})
+					//~ console.log("diarios row " + i + " read, " + Object.keys(values).length + " inputs found")
+					//~ console.log(values)
+					return values
+				}).get()
+				if(diarios.length>0) {
+					//~ console.log(hidro);
+					//~ alert("hidro data added. " + hidro.length + " rows.");
+					$('<input />').attr('id','diarios_all').attr('type', 'hidden').attr('name', "prono_diario").attr('value', JSON.stringify(diarios)).appendTo('form#informe');
+					//~ console.log($("input#diarios_all").val())
+					//~ alert("diario found " + diarios.length + " rows")
+					
+				} else {
+					alert("diarios not found!")
+					return
+				}
+				var mensuales = $("tr.prono_mensual").map( (i, element) => {
+					console.log("mensual element:" + i);
+					//~ var id = $(element).attr("id");
+					var values = {}
+					$(element).find("input").map( (index, el) => {
+						values[$(el).attr("class")] = $(el).val()
+					})
+					return values
+				}).get()
+				if(mensuales.length>0) {
+					//~ console.log(hidro);
+					//~ alert("hidro data added. " + hidro.length + " rows.");
+					$('<input />').attr('id','mensuales_all').attr('type', 'hidden').attr('name', "prono_mensual").attr('value', JSON.stringify(mensuales)).appendTo('form#informe');
+				} else {
+					alert("mensuales not found!")
+					return
+				}
+				if(!$("input#tabla_bombas").val() && $("img#tabla_bombas").attr("src") != "") {
+					$("<input>").attr({"type": "hidden",
+									   "name":"tabla_bombas_filename"})
+								.val($("img#tabla_bombas").attr("src"))
+								.appendTo("form#informe")
+				}
+				//~ $.get($("img#synop_pasada").attr("src"))
+					//~ .done(function() {
+						$("<input>").attr({"type": "hidden",
+									   "name":"synop_pasada_filename"})
+								.val($("img#synop_pasada").attr("src").replace(/^\.\.\//,""))
+								.appendTo("form#informe")
+						$("<input>").attr({"type": "hidden",
+									   "name":"synop_presente_filename"})
+								.val($("img#synop_presente").attr("src").replace(/^\.\.\//,""))
+								.appendTo("form#informe")
+				break
+			case /\/arco_portuario_rio_parana$/.test(window.location.pathname):
+				var pronosticos = []
+				$("tr.niveles").map( (i, element) => {
+					var fecha = $(element).find("input.fecha")[0].value
+					var fecha_emision = $("input[name=fecha]").val() 
+					$(element).find("input.valor").map( (index, el) => {
+						pronosticos.push({ fecha_emision: fecha_emision, fecha: fecha, estacion_id: $(el).attr("id"), valor: $(el).val()})
+					})
+				}).get()
+				if(pronosticos.length>0) {
+					$('<input />').attr('id','pronosticos').attr('type', 'hidden').attr('name', "pronosticos").attr('value', JSON.stringify(pronosticos)).appendTo('form#informe');
+				} else {
+					alert("pronosticos not found!")
+					return
+				}
+				if(!$("input#smn_map_file").val() && $("img#smn_map_file").attr("src") != "") {
+					$("<input>").attr({"type": "hidden",
+									   "name":"smn_map_file"})
+								.val($("img#smn_map_file").attr("src"))
+								.appendTo("form#informe")
+				}
+				//~ if(!$("input#cptec_map_file").val() && $("img#cptec_map_file").attr("src") != "") {
+					//~ $("<input>").attr({"type": "hidden",
+									   //~ "name":"cptec_map_file"})
+								//~ .val($("img#cptec_map_file").attr("src"))
+								//~ .appendTo("form#informe")
+				//~ }
+				if(!$("input#tendencia_climatica_file").val() && $("img#tendencia_climatica_file").attr("src") != "") {
+					$("<input>").attr({"type": "hidden",
+									   "name":"tendencia_climatica_file"})
+								.val($("img#tendencia_climatica_file").attr("src"))
+								.appendTo("form#informe")
+				}
+				//~ $("<input />").attr({"type": "hidden",
+							   //~ "name":"synop_pasada_filename"})
+						//~ .val($("img#synop_pasada").attr("src").replace(/^\.\.\//,""))
+						//~ .appendTo("form#informe")
+				$("<input />").attr({"type": "hidden",
+							   "name":"synop_presente_filename"})
+						.val($("img#synop_presente").attr("src").replace(/^\.\.\//,""))
+						.appendTo("form#informe")
+				break
+		}
+		// SUBMIT //
+		$("form#informe").submit();
+	})
+	
+	$("table.hidro_list tbody").on("click", "tr td button.moveup", function() {
+		var item = $(this).parent().parent();
+		var prev = item.prev(":not(.hidro_headers)");
+		if(prev.length>0) {
+			item.remove();
+			prev.before(item);
+		}
+	})
+	$("table.hidro_list tbody").on("click", "tr td button.movedown", function() {
+		var item = $(this).parent().parent();
+		var next = item.next(":not(.hidro_add)");
+		if(next.length>0) {
+			item.remove();
+			next.after(item);
+		}
+	})			
+	$("table.hidro_list tbody").on("click", "tr td button.delete", function() {
+		var item = $(this).parent().parent();
+		item.remove();
+	})		
+	$("table#submit tbody").on("change", "tr td input", function() {
+		var filled=0;
+		$.map($("table#submit tbody tr td input"), (el, i) => {
+			filled = filled  + ($(el).val().length > 0) ? 0 : 1;
+		})
+		if(filled == 0) {
+			$("button#formsubmit").prop('disabled',false)
+		} else {
+			$("button#formsubmit").prop('disabled',true)
+		}
+	})
+	$("button.add_prono_diario").on("click", function () {
+		var row = $(this).parent().parent();
+		console.log($(row).prop("tagName"))
+		var a = {}
+		$(row).find("td input").each( (i,el) => {
+			console.log($(el).prop("tagName"))
+			console.log("it id: " + $(el).attr("id") + ", val:" + $(el).val())
+			a[$(el).attr("id")] = $(el).val()
+			$(el).val(null)
+		})
+		hidro_addrow($("table#prono_diario"),a)
+		//~ $(row).parent().find("tr:last-child").before( $("<tr></tr>").append(
+		 //~ $("<td></td>").append($("<input type=date value=\"" + a.fecha + "\" class=fecha_prono placeholder=\"fecha\">")),
+		 //~ $("<td></td>").append($("<input type=number value=\"" + a.bneg + "\" class=bneg placeholder=\"altura\">")),
+		 //~ $("<td></td>").append($("<input type=number value=\"" + a.conc + "\" class=conc placeholder=\"altura\">")),
+		 //~ $("<td></td>").append($("<input type=number value=\"" + a.pilc + "\" class=pilc placeholder=\"altura\">")),
+		 //~ $("<td></td>").append($("<input type=number value=\"" + a.form + "\" class=form placeholder=\"altura\">")),
+		 //~ $("<td></td>").append($('<button type="button" class=moveup><img src="../img/up.png"  width=30 height=20 alt=subir /></button><br>'),
+							   //~ $('<button type="button" class=movedown><img src="../img/down.png" width=30 height=20 alt=bajar /></button><br>'),
+							   //~ $('<button type="button" class=delete><img src="../img/del.png"  width=30 height=20 alt=eliminar /></button>')
+							   //~ )
+		 //~ ))
+	})
+	$("button.add_prono_mensual").on("click", function () {
+		var row = $(this).parent().parent();
+		console.log($(row).prop("tagName"))
+		var a = {}
+		$(row).find("td input").each( (i,el) => {
+			console.log($(el).prop("tagName"))
+			console.log("it id: " + $(el).attr("id") + ", val:" + $(el).val())
+			a[$(el).attr("id")] = $(el).val()
+			$(el).val(null)
+		})
+		hidro_addrow_mensual($("table#prono_mensual"),a)
+	})
+	function hidro_addrow(table, values) {
+		$(table).find("tbody tr:last-child").before(
+			$("<tr></tr>").attr("class","prono_diario").append(
+			 $("<td></td>").append($("<input type=date class=fecha_prono placeholder=\"fecha\">").val(values.fecha)),
+			 $("<td></td>").append($("<input type=number class=bneg placeholder=\"altura\" step=0.01>").val(values.bneg)),
+			 $("<td></td>").append($("<input type=number class=conc placeholder=\"altura\" step=0.01>").val(values.conc)),
+			 $("<td></td>").append($("<input type=number class=pilc placeholder=\"altura\" step=0.01>").val(values.pilc)),
+			 $("<td></td>").append($("<input type=number class=form placeholder=\"altura\" step=0.01>").val(values.form)),
+			 $("<td></td>").append($('<button type="button" class=moveup><img src="img/up.png"  width=30 height=20 alt=subir /></button>'),
+							   $('<button type="button" class=movedown><img src="img/down.png" width=30 height=20 alt=bajar /></button>'),
+							   $('<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>')
+							   )
+		 ))
+	}
+	function hidro_addrow_semanal(table, values) {
+		$(table).find("tbody tr.hidro_headers#1").before(
+			$("<tr></tr>").attr("class","niveles").append(
+			 $("<td></td>").append($("<input type=date class=fecha placeholder=\"fecha\">").val(values[0])),
+			 $("<td></td>").append($("<input type=number class=valor id=18 placeholder=\"altura\" step=0.01>").val(values[1])),
+			 $("<td></td>").append($("<input type=number class=valor id=19 placeholder=\"altura\" step=0.01>").val(values[2])),
+			 $("<td></td>").append($("<input type=number class=valor id=20 placeholder=\"altura\" step=0.01>").val(values[3])),
+			 $("<td></td>").append($("<input type=number class=valor id=21 placeholder=\"altura\" step=0.01>").val(values[4])),
+			 $("<td></td>").append($("<input type=number class=valor id=22 placeholder=\"altura\" step=0.01>").val(values[5])),
+			 $("<td></td>").append($('<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>'))
+		 ))
+		$(table).find("tbody tr.hidro_headers#2").before(
+			$("<tr></tr>").attr("class","niveles").append(
+			 $("<td></td>").append($("<input type=date class=fecha placeholder=\"fecha\">").val(values[0])),
+			 $("<td></td>").append($("<input type=number class=valor id=23 placeholder=\"altura\" step=0.01>").val(values[6])),
+			 $("<td></td>").append($("<input type=number class=valor id=24 placeholder=\"altura\" step=0.01>").val(values[7])),
+			 $("<td></td>").append($("<input type=number class=valor id=25 placeholder=\"altura\" step=0.01>").val(values[8])),
+			 $("<td></td>").append($("<input type=number class=valor id=26 placeholder=\"altura\" step=0.01>").val(values[9])),
+			 $("<td></td>").append($("<input type=number class=valor id=29 placeholder=\"altura\" step=0.01>").val(values[10])),
+			 $("<td></td>").append($('<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>'))
+		 ))
+		$(table).find("tbody tr.hidro_headers#3").before(
+			$("<tr></tr>").attr("class","niveles").append(
+			 $("<td></td>").append($("<input type=date class=fecha placeholder=\"fecha\">").val(values[0])),
+			 $("<td></td>").append($("<input type=number class=valor id=30 placeholder=\"altura\" step=0.01>").val(values[11])),
+			 $("<td></td>").append($("<input type=number class=valor id=31 placeholder=\"altura\" step=0.01>").val(values[12])),
+			 $("<td></td>").append($("<input type=number class=valor id=32 placeholder=\"altura\" step=0.01>").val(values[13])),
+			 $("<td></td>").append($("<input type=number class=valor id=33 placeholder=\"altura\" step=0.01>").val(values[14])),
+			 $("<td></td>").append($("<input type=number class=valor id=34 placeholder=\"altura\" step=0.01>").val(values[15])),
+			 $("<td></td>").append($('<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>'))
+		 ))
+		$(table).find("tbody").append(
+			$("<tr></tr>").attr("class","niveles").append(
+			 $("<td></td>").append($("<input type=date class=fecha placeholder=\"fecha\">").val(values[0])),
+			 $("<td></td>").append($("<input type=number class=valor id=35 placeholder=\"altura\" step=0.01>").val(values[16])),
+			 $("<td></td>").append($("<input type=number class=valor id=36 placeholder=\"altura\" step=0.01>").val(values[17])),
+			 $("<td></td>").append($("<input type=number class=valor id=37 placeholder=\"altura\" step=0.01>").val(values[18])),
+			 $("<td></td>").append($("<input type=number class=valor id=38 placeholder=\"altura\" step=0.01>").val(values[19])),
+			 $("<td></td>").append($("<input type=number class=valor id=45 placeholder=\"altura\" step=0.01>").val(values[20])),
+			 $("<td></td>").append($('<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>'))
+		 ))
+	}
+	function hidro_addrow_mensual(table, values) {
+		$(table).find("tbody tr:last-child").before(
+			$("<tr></tr>").attr("class","prono_mensual").append(
+			 $("<td></td>").append($("<input type=date class=fecha_prono placeholder=\"mes\" type=\"month\" >").val(values.fecha)),
+			 $("<td></td>").append($("<input type=number class=bneg placeholder=\"altura\" step=0.01>").val(values.bneg)),
+			 $("<td></td>").append($("<input type=number class=conc placeholder=\"altura\" step=0.01>").val(values.conc)),
+			 $("<td></td>").append($("<input type=number class=pilc placeholder=\"altura\" step=0.01>").val(values.pilc)),
+			 $("<td></td>").append($("<input type=number class=form placeholder=\"altura\" step=0.01>").val(values.form)),
+			 $("<td></td>").append($('<button type="button" class=moveup><img src="img/up.png"  width=30 height=20 alt=subir /></button>'),
+							   $('<button type="button" class=movedown><img src="img/down.png" width=30 height=20 alt=bajar /></button>'),
+							   $('<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>')
+							   )
+		 ))
+		
+		
+	}
+	$("textarea#hidro_area").change( () => {
+		//~ console.log($("textarea#hidro_area").val())
+		var data = TSVToArray($("textarea#hidro_area").val().replace(/,/g,'.'))
+		// console.log(data)
+		if(data.length>0) {
+			//~ $("table#hidro_list tbody").empty()
+			data.forEach( (value,index,array) => {
+				var fecha = new Date()
+				if($("input#fecha").val() != "") {
+					fecha.setTime(new Date($("input#fecha").val()).getTime() + index*3600*24*1000)
+				} else {
+					fecha.setTime(fecha.getTime() + index*3600*24*1000)
+				}
+				hidro_addrow($("table#prono_diario"), {fecha: fecha.toISOString().substring(0,10), bneg: value[0], conc: value[1], pilc: value[2], form: value[3]}, "prono_diario")
+				
+				//~ $("table#hidro_list tbody tr td input.fecha_prono").eq(index).val(value[0])
+				//~ $("table#hidro_list tbody tr td input.bneg").eq(index).val(value[1])
+				//~ $("table#hidro_list tbody tr td input.conc").eq(index).val(value[2])
+				//~ $("table#hidro_list tbody tr td input.pilc").eq(index).val(value[3])
+				//~ $("table#hidro_list tbody tr td input.form").eq(index).val(value[4])
+				//~ console.log("row " + index + " added. Fecha: " + fecha.toISOString().substring(0,10))
+			})
+		} else {
+			console.log("textarea empty")
+		}
+	})
+	$("textarea#hidro_area_semanal").change( () => {
+		//~ console.log($("textarea#hidro_area").val())
+		$("tr.niveles").remove()
+		var data = TSVToArray($("textarea#hidro_area_semanal").val().replace(/,/g,'.').replace(/\s$/,''))
+		//~ console.log({data_semanal:data})
+		data = data.map((row,i)=> {
+			return row.map((d,j)=>{
+				var matches = d.match(/\-?\d+\.\d+|\-?\.\d+|\-?\d+/)
+				if(!matches) {
+					alert("Valor fila " + i + ", columna " + j + " faltante o inválido")
+					return
+				}
+				return matches[0]
+			})
+		})
+		console.log({data:data})
+		if(data.length>0) {
+			//~ $("table#hidro_list tbody").empty()
+			data.forEach( (value,index,array) => {
+				var fecha = new Date()
+				if($("input#fecha").val() != "") {
+					fecha.setTime(new Date($("input#fecha").val()).getTime() + index*7*3600*24*1000)
+				} else {
+					fecha.setTime(fecha.getTime() + index*7*3600*24*1000)
+				}
+				hidro_addrow_semanal($("table#niveles"), [fecha.toISOString().substring(0,10), ...value])
+				
+				//~ $("table#hidro_list tbody tr td input.fecha_prono").eq(index).val(value[0])
+				//~ $("table#hidro_list tbody tr td input.bneg").eq(index).val(value[1])
+				//~ $("table#hidro_list tbody tr td input.conc").eq(index).val(value[2])
+				//~ $("table#hidro_list tbody tr td input.pilc").eq(index).val(value[3])
+				//~ $("table#hidro_list tbody tr td input.form").eq(index).val(value[4])
+				//~ console.log("row " + index + " added. Fecha: " + fecha.toISOString().substring(0,10))
+			})
+		} else {
+			console.log("textarea empty")
+		}
+	})
+	$("textarea#mensual_area").change( () => {
+		console.log($("textarea#mensual_area").val())
+		var data = TSVToArray($("textarea#mensual_area").val().replace(/,/g,'.'))
+		console.log(data)
+		if(data.length>0) {
+			//~ $("table#hidro_list tbody").empty()
+			data.forEach( (value,index,array) => {
+				var fecha = new Date()
+				if($("input#fecha").val() != "") {
+					fecha.setMonth(new Date($("input#fecha").val()).getMonth() + index)
+				} else {
+					fecha.setTime(fecha.getMonth() + index)
+				}
+				fecha.setDate(1)
+				hidro_addrow_mensual($("table#prono_mensual"), {fecha: fecha.toISOString().substring(0,10), bneg: value[0], conc: value[1], pilc: value[2], form: value[3]},"prono_mensual")
+				
+				//~ $("table#hidro_list tbody tr td input.fecha_prono").eq(index).val(value[0])
+				//~ $("table#hidro_list tbody tr td input.bneg").eq(index).val(value[1])
+				//~ $("table#hidro_list tbody tr td input.conc").eq(index).val(value[2])
+				//~ $("table#hidro_list tbody tr td input.pilc").eq(index).val(value[3])
+				//~ $("table#hidro_list tbody tr td input.form").eq(index).val(value[4])
+				
+				//~ console.log("row " + index + " added. Fecha: " + fecha.toISOString().substring(0,10))
+			})
+		} else {
+			console.log("textarea empty")
+		}
+	})
+	$("input#fecha").change(()=> {
+		if(/\/paraguay$/.test(window.location.pathname)) {
+			var fecha = new Date($("input#fecha").val())
+			var fecha_pasada = new Date()
+			fecha_pasada.setTime(fecha.getTime() - 7*24*3600*1000)
+			var fecha_iso=fecha.toISOString()
+			var fecha_pasada_iso = fecha_pasada.toISOString()
+			$("img#synop_pasada").attr("src", "mapas_semanales/" + fecha_pasada_iso.substring(0,4) + "/" + fecha_pasada_iso.substring(5,7) + "/pp_semanal_" + fecha_pasada_iso.substring(0,10).replace(/-/g,"") + "_rst.png")
+			$("img#synop_presente").attr("src", "mapas_semanales/" + fecha_iso.substring(0,4) + "/" + fecha_iso.substring(5,7) + "/pp_semanal_" + fecha_iso.substring(0,10).replace(/-/g,"") + "_rst.png")
+			$("td#synop_pasada_text").html("Lluvias Semanales acumuladas al " + fecha_pasada_iso.substring(0,10)) 
+			$("td#synop_text").html("Lluvias Semanales acumuladas al " + fecha_iso.substring(0,10)) 
+		} else if(/\/arco_portuario_rio_parana$/.test(window.location.pathname)) {
+			var fecha_fin = new Date($("input#fecha").val())
+			var fecha = new Date(fecha_fin.getTime() - 7*24*3600*1000)
+			var fecha_pasada = new Date()
+			fecha_pasada.setTime(fecha.getTime() - 7*24*3600*1000)
+			var fecha_iso=fecha.toISOString()
+			var fecha_pasada_iso = fecha_pasada.toISOString()
+			$("img#synop_pasada").attr("src", "mapas_semanales_/" + fecha_pasada_iso.substring(0,4) + "/" + fecha_pasada_iso.substring(5,7) + "/pp_semanal_" + fecha_pasada_iso.substring(0,10).replace(/-/g,"") + "_surf.png")
+			$("img#synop_presente").attr("src", "mapas_semanales_/" + fecha_iso.substring(0,4) + "/" + fecha_iso.substring(5,7) + "/pp_semanal_" + fecha_iso.substring(0,10).replace(/-/g,"") + "_surf.png")
+			$("td#synop_pasada_text").html("Lluvias Semanales acumuladas al " + fecha_iso.substring(0,10)) 
+			$("td#synop_text").html("Lluvias Semanales acumuladas al " + fecha_fin.toISOString().substring(0,10))
+			$("span#synop_presente_caption").html("Lluvias Semanales acumuladas al " + fecha_fin.toISOString().substring(0,10))
+		}
+	})
+	
+	
+	
+	function TSVToArray ( strData) {
+		if (!strData) {
+			return []
+		}
+		var rows = strData.split("\n")
+		var arr = rows.map( (row) => {
+			return row.split("\t")
+		})
+		return arr
+	}
+		
+	function CSVToArray( strData, strDelimiter ){
+		// Check to see if the delimiter is defined. If not,
+		// then default to comma.
+		strDelimiter = (strDelimiter || ",");
+
+		// Create a regular expression to parse the CSV values.
+		var objPattern = new RegExp(
+			(
+				// Delimiters.
+				"(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+
+				// Quoted fields.
+				"(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+
+				// Standard fields.
+				"([^\"\\" + strDelimiter + "\\r\\n]*))"
+			),
+			"gi"
+			);
+
+
+		// Create an array to hold our data. Give the array
+		// a default empty first row.
+		var arrData = [[]];
+
+		// Create an array to hold our individual pattern
+		// matching groups.
+		var arrMatches = null;
+
+
+		// Keep looping over the regular expression matches
+		// until we can no longer find a match.
+		while (arrMatches = objPattern.exec( strData )){
+
+			// Get the delimiter that was found.
+			var strMatchedDelimiter = arrMatches[ 1 ];
+
+			// Check to see if the given delimiter has a length
+			// (is not the start of string) and if it matches
+			// field delimiter. If id does not, then we know
+			// that this delimiter is a row delimiter.
+			if (
+				strMatchedDelimiter.length &&
+				strMatchedDelimiter !== strDelimiter
+				){
+
+				// Since we have reached a new row of data,
+				// add an empty row to our data array.
+				arrData.push( [] );
+
+			}
+
+			var strMatchedValue;
+
+			// Now that we have our delimiter out of the way,
+			// let's check to see which kind of value we
+			// captured (quoted or unquoted).
+			if (arrMatches[ 2 ]){
+
+				// We found a quoted value. When we capture
+				// this value, unescape any double quotes.
+				strMatchedValue = arrMatches[ 2 ].replace(
+					new RegExp( "\"\"", "g" ),
+					"\""
+					);
+
+			} else {
+
+				// We found a non-quoted value.
+				strMatchedValue = arrMatches[ 3 ];
+
+			}
+
+
+			// Now that we have our value string, let's add
+			// it to the data array.
+			arrData[ arrData.length - 1 ].push( strMatchedValue );
+		}
+
+		// Return the parsed data.
+		return( arrData );
+	}
+	var delete_informe = function(fecha) {
+		var r  = confirm("Está seguro que quiere eliminar el informe de la fecha "+fecha+"?");
+		if (r == true) {
+			window.location.href = "informe_complementario/delete?fecha="+fecha;
+		}
+	} 
+	var delete_informe_paraguay = function(fecha) {
+		var r  = confirm("Está seguro que quiere eliminar el informe paraguay de la fecha "+fecha+"?");
+		if (r == true) {
+			window.location.href = "paraguay/delete?fecha="+fecha;
+		}
+	} 
+	var delete_informe_arco_portuario = function(fecha) {
+		var r  = confirm("Está seguro que quiere eliminar el informe arco portuario de la fecha "+fecha+"?");
+		if (r == true) {
+			window.location.href = "arco_portuario_rio_parana/delete?fecha="+fecha;
+		}
+	} 
+		//~ }
+	//~ }
+	document.onreadystatechange = function () {
+		$("input#fecha").change()
+	}
+			
+		
+</script>
+
+
+</body>
+</html>

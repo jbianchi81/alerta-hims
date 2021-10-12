@@ -1,0 +1,184 @@
+<style>
+	input.valor {
+		width: 150px
+	}
+</style>
+<h2>ARCO PORTUARIO DEL RIÓ PARANÁ</h2>
+<form id=informe method=POST action="arco_portuario_rio_parana/submit-form" enctype="multipart/form-data">
+	<label for=fecha>Fecha:</label>
+	<input type=date id=fecha name=fecha value="{{fecha}}"><br>
+	<h3>Situación General</h3>
+	<textarea class=rich name=situacion_general id=situacion_general rows=4 columns=120 style="height:140; width:100%">{{situacion_general}}</textarea><br>
+	<table>
+		<tr>
+			
+			<td>
+				<img id=synop_presente src="{{synop_presente}}" alt="synop paraguay semana presente" style="width:600px" />
+				<br>
+				<span id=synop_presente_caption>Lluvias Semanales acumuladas al {{fecha}}</span> 
+			</td>
+			<td>
+				<textarea class=rich name=texto_mapa_semanal id=texto_mapa_semanal rows=14 columns=60 style="width:600px">{{texto_mapa_semanal}}</textarea>
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<label for=smn_map_file>Mapa pronóstico trimestral SMN:</label><br>
+				<input id=smn_map_file type=file name=smn_map_file accept=".png" onchange="readUrl(this,'smn_map_file');" required="required">
+			</td>
+			<td>
+<!--
+				<label for=cptec_map_file>Mapa pronóstico trimestral CPTEC:</label><br>
+				<input id=cptec_map_file type=file name=cptec_map_file accept=".png" onchange="readUrl(this,'cptec_map_file');" required="required"><br>
+-->
+				Tendencia climática
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<img id=smn_map_file src="{{smn_map_file}}" alt="" />
+			</td>
+			<td>	
+				<textarea class=rich name=tendencia_climatica id=tendencia_climatica placeholder="tendencia climática" rows=4 columns=120 style="height:140; width:100%">{{tendencia_climatica}}</textarea>
+<!--
+				<img id=cptec_map_file src="{{cptec_map_file}}" alt="" /><br>
+-->
+			</td>
+		</tr>
+	</table>
+<!--
+	<textarea class=rich name=tendencia_climatica id=tendencia_climatica placeholder="tendencia climática" rows=4 columns=120 style="height:140; width:100%">{{tendencia_climatica}}</textarea><br>
+-->
+	<h3>Pronóstico meteorológico</h3>
+	<textarea class=rich name=pronostico_meteorologico id=pronostico_meteorologico placeholder="pronóstico meteorológico" rows=4 columns=120 style="height:140; width:100%">{{pronostico_meteorologico}}</textarea><br>
+	<h3>Perspectiva hidrométrica</h3>
+	<textarea class=rich name=perspectiva_hidrometrica id=perspectiva_hidrometrica placeholder="Perspectiva hidrométrica" rows=4 columns=120 style="height:140; width:100%">{{perspectiva_hidrometrica}}</textarea><br>
+	<h3>Niveles medios semanales (en metros):</h3>
+	<div>
+	<textarea id=hidro_area_semanal placeholder="Copiar tabla aquí" style="width:1330px; height: 175px"></textarea><br>
+	<table class=hidro_list id=niveles>
+		<tr class=hidro_headers id=0>
+			<th>Semana al</th><th>P. PATRIA</th><th>CORRIENTES</th><th>BARRANQUERAS</th><th>EMPEDRADO</th><th>BELLA VISTA</th>
+		</tr>
+		{{#each niveles}}
+		<tr class=niveles>
+			<td>
+				<input type=date value="{{this.[0]}}" class=fecha placeholder="fecha" required="required">
+			</td>
+			<td>
+				<input type=number id=18 value="{{this.[1]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=19 value="{{this.[2]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=20 value="{{this.[3]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=21 value="{{this.[4]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=22 value="{{this.[5]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>
+			</td>
+		</tr>
+		{{/each}}
+		<tr class=hidro_headers id=1>
+			<th>Semana al</th><th>GOYA</th><th>RECONQUISTA</th><th>ESQUINA</th><th>LA PAZ</th><th>PARANÁ</th>
+		</tr>
+		{{#each niveles}}
+		<tr class=niveles>
+			<td>
+				<input type=date value="{{this.[0]}}" class=fecha placeholder="fecha" required="required">
+			</td>
+			<td>
+				<input type=number id=23 value="{{this.[6]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=24 value="{{this.[7]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=25 value="{{this.[8]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=26 value="{{this.[9]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=29 value="{{this.[10]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>
+			</td>
+		</tr>
+		{{/each}}
+		<tr class=hidro_headers id=2>
+			<th>Semana al</th><th>SANTA FE</th><th>DIAMANTE</th><th>VICTORIA</th><th>SAN MARTÍN</th><th>ROSARIO</th>
+		</tr>
+		{{#each niveles}}
+		<tr class=niveles>
+			<td>
+				<input type=date value="{{this.[0]}}" class=fecha placeholder="fecha" required="required">
+			</td>
+			<td>
+				<input type=number id=30 value="{{this.[11]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=31 value="{{this.[12]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=32 value="{{this.[13]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=33 value="{{this.[14]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=34 value="{{this.[15]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>
+			</td>
+		</tr>
+		{{/each}}
+		<tr class=hidro_headers id=3>
+			<th>Semana al</th><th>V. CONSTITUCIÓN</th><th>SAN NICOLÁS</th><th>RAMALLO</th><th>SAN PEDRO</th><th>IBICUY</th>
+		</tr>
+		{{#each niveles}}
+		<tr class=niveles>
+			<td>
+				<input type=date value="{{this.[0]}}" class=fecha placeholder="fecha" required="required">
+			</td>
+			<td>
+				<input type=number id=35 value="{{this.[16]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=36 value="{{this.[17]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=37 value="{{this.[18]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=38 value="{{this.[19]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<input type=number id=45 value="{{this.[20]}}" class=valor placeholder="nivel" required="required">
+			</td>
+			<td>
+				<button type="button" class=delete><img src="img/del.png"  width=30 height=20 alt=eliminar /></button>
+			</td>
+		</tr>
+		{{/each}}
+	</table>
+	</div>
+	<div id=submit>
+		<button type=button id=formsubmit>Generar informe</button>
+	</div>
+</form>
+	
+
+
+
+
+
+

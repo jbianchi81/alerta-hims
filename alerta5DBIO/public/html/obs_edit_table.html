@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Hello, Bootstrap Table!</title>
+	<link rel="stylesheet" href="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto|Varela+Round|Open+Sans">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>  
+  </head>
+  <body>
+	  <div class="container">
+        <div class="table-wrapper">
+            <div class="table-title">
+                <div class="row">
+                    <div class="col-sm-8"><h2>Observaciones</h2></div>
+                    <div class="col-sm-4">
+                        <button type="button" class="btn btn-info add-new"><i class="fa fa-plus"></i> Add New</button>
+                    </div>
+                </div>
+            </div>
+			<table id=t data-pagination="true" data-search="true" data-unique-id="id">
+			  <thead>
+				<tr>
+				  <th data-sortable="true" data-field="id">id</th>
+				  <th data-sortable="true" data-field="timestart">timestart</th>
+				  <th data-sortable="true" data-field="timeend">timeend</th>
+				  <th data-sortable="true" data-field="valor">valor</th>
+				  <th>action</th>
+				</tr>
+			  </thead>
+			</table>
+		</div>
+	</div>
+	<!-- Modal -->
+	<div id="myModal" class="modal fade" role="dialog">
+	  <div class="modal-dialog">
+
+		<!-- Modal content-->
+		<div class="modal-content">
+		  <div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal">&times;</button>
+			<h4 class="modal-title">Confirma</h4>
+		  </div>
+		  <div class="modal-body" id=confirm_modal_body>
+			<form id=confirm class=confirm action="/deleteObservacion" method=POST target="_blank">
+				<input name=id hidden />
+				<input name=valor hidden />
+				<input name=timeend hidden />
+				<input name=timestart hidden />
+				<input name=series_id hidden />
+				<input name=tipo hidden />
+				<label for=username>usuario</label><input name=username type=text /><br>
+				<label for=password>contraseña</label><input name=password type=password /><br>
+				<button type=submit>Submit</button>
+			</form>
+		  </div>
+		  <div class="modal-footer">
+			<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+		  </div>
+		</div>
+
+	  </div>
+	</div>
+    <script>
+		var observaciones = []
+		$(document).ready(function(){
+			const urlParams = new URLSearchParams(window.location.search);
+			if(!urlParams.get('tipo') || !urlParams.get('series_id') || !urlParams.get('timestart') || !urlParams.get('timeend')) {
+				alert("missing parameters")
+				return
+			}
+			var series = {
+				tipo:urlParams.get('tipo'),
+				series_id:urlParams.get('series_id'),
+				timestart:urlParams.get('timestart'),
+				timeend:urlParams.get('timeend')
+			}
+			var input_fields = ["timestart","timeend","valor"]
+			$("form#confirm input[name=series_id]").val(series.series_id)
+			$("form#confirm input[name=tipo]").val(series.tipo)
+			$.get("/getObservaciones",series)
+			.done(data=> {
+				observaciones = data
+				data.forEach(r=>{
+					$("table#t").append( 
+						$("<tr></tr>").attr("id",r.id).append(
+							$("<td>" + r.id + "</td>"),
+							$("<td>" + r.timestart + "</td>"),
+							$("<td>" + r.timeend + "</td>"),
+							$("<td>" + r.valor + "</td>"),
+							$("<td>" + 
+								'<a class="add" title="Add" data-toggle="tooltip" hidden><i class="material-icons">&#xE03B;</i></a> ' +
+								'<a class="edit" title="Edit" data-toggle="tooltip"><i class="material-icons">&#xE254;</i></a> ' +
+								'<a class="delete" title="Delete" data-toggle="tooltip"><i class="material-icons">&#xE872;</i></a>' +
+								'<a class="cancel" title="Cancel" data-toggle="tooltip" hidden><i class="material-icons">cancel</i></a>' +
+							"</td>")
+						)
+					)
+				})	
+				$("table#t").bootstrapTable() //.attr("data-toggle","table")
+				$('[data-toggle="tooltip"]').tooltip();
+				var actions = $("table td:last-child").html();
+				// Append table with add row form on add new button click
+				$(".add-new").click(function(){
+					$(this).attr("disabled", "disabled");
+					$("ul.pagination li").addClass("disabled");
+					var index = $("table#t tbody tr:last-child").index();
+					var row = '<tr>' +
+						'<td></td>' + 
+						'<td><input type="text" class="form-control" name="timestart" id="timestart"></td>' +
+						'<td><input type="text" class="form-control" name="timeend" id="timeend"></td>' +
+						'<td><input type="text" class="form-control" name="valor" id="valor"></td>' +
+						'<td>' + actions + '</td>' +
+					'</tr>';
+					$("table#t").prepend(row);		
+					$("table#t tbody tr").eq(0).find(".add, .edit, .cancel").toggle(); // eq(index + 1).find(".add, .edit").toggle();
+					$('[data-toggle="tooltip"]').tooltip();
+				});
+				// Add row on add button click
+				$(document).on("click", ".add", function(){
+					var empty = false;
+					$("form#confirm input[name=id]").val("")
+					$("form#confirm input[name=timestart]").val("")
+					$("form#confirm input[name=timeend]").val("")
+					$("form#confirm input[name=valor]").val("")
+					var input = $(this).parents("tr").find('input[type="text"]');
+					$(this).parents("tr").addClass("rowToAdd")
+					input.each(function(){
+						if(!$(this).val()){
+							$(this).addClass("error");
+							empty = true;
+						} else{
+							$(this).removeClass("error");
+							$("form#confirm input[name="+$(this).attr("name")+"]").val($(this).val())
+						}
+					});
+					$(this).parents("tr").find(".error").first().focus();
+					if(!empty){
+						$("form#confirm").attr("action","/upsertObservacion")
+						$("#myModal").modal('show')
+						//~ input.each(function(){
+							//~ $(this).parent("td").html($(this).val());
+						//~ });			
+						//~ $(this).parents("tr").find(".add, .edit").toggle();
+						//~ $(".add-new").removeAttr("disabled");
+					}		
+				});
+				// Edit row on edit button click
+				$(document).on("click", ".edit", function(){		
+					$(this).parents("tr").find("td:not(:first-child):not(:last-child)").each(function(i){
+						var field_name= input_fields[i]
+						$(this).html('<input type="text" name="'+field_name+'" class="form-control" value="' + $(this).text() + '">');
+					});		
+					$(this).parents("tr").parents("tbody").find(".cancel:visible").click()
+					$(this).parents("tr").find(".add, .edit, .cancel").toggle();
+					$(".add-new").attr("disabled", "disabled");
+					$("ul.pagination li").addClass("disabled");
+				});
+				// Delete row on delete button click
+				$(document).on("click", ".delete", function(){
+					var idForDeletion = $(this).parents("tr").find("td:first-child").eq(0).html()
+					$(".add-new").removeAttr("disabled");
+					if(idForDeletion) {
+						$("form#confirm").attr("action","/deleteObservacion")
+						$("form#confirm input[name=id]").val(idForDeletion)
+						$("form#confirm input[name=tipo]").val("puntual")
+						$('#myModal').modal('show')
+					} else {
+						$(this).parents("tr").remove();
+						$("ul.pagination li").removeClass("disabled");
+					}
+				});
+				// Cancel row edit on button click
+				$(document).on("click",".cancel",function(){
+					var rowId = $(this).parents("tr").find("td:first-child").eq(0).html()
+					if(!rowId) {
+						$(this).parents("td").find(".delete").click()
+						return
+					}
+					var restoreData = observaciones.filter(o=> o.id == rowId)[0]
+					$(this).parents("tr").find("td:not(:first-child):not(:last-child)").each(function(i) {
+						$(this).html(restoreData[input_fields[i]])
+					})
+					$(this).parents("tr").find(".add, .edit, .cancel").toggle();
+					$(this).parents("tr").removeClass("rowToAdd")
+					$(".add-new").removeAttr("disabled");
+					$("ul.pagination li").removeClass("disabled");
+				})
+				$("form#confirm").submit( function (event) {
+					event.preventDefault();
+					$.post($(event.currentTarget).attr('action'),$(event.currentTarget).serialize(),function(response) {
+						if(response.id) {
+							alert("obs id:"+response.id)
+							if($(event.currentTarget).attr('action') == "/deleteObservacion") {
+								$("tr#"+response.id).remove();
+								observaciones = observaciones.filter(r=> r.id != response.id)
+							} else if ($(event.currentTarget).attr('action') == "/upsertObservacion") {
+								$("table#t tr[id="+response.id+"]:not(.rowToAdd)").remove()
+								$("tr.rowToAdd td").eq(0).html(response.id)
+								$("tr.rowToAdd").find("input[type=text]").each(function(){
+									$(this).parent("td").html($(this).val());
+								});			
+								$("tr.rowToAdd").find(".add, .edit, .cancel").toggle();
+								$("tr.rowToAdd").removeClass("rowToAdd")
+								$(".add-new").removeAttr("disabled");
+								var match = false
+								observaciones = observaciones.map(r=> {
+									if(r.id == response.id) {
+										match = true
+										return response
+									} else {
+										return r
+									}
+								})
+								if(!match) {
+									observaciones.push(response)
+								}
+							}
+						} else {
+							alert("Nothing done")
+						}
+						$("ul.pagination li").removeClass("disabled");
+						$('#myModal').modal('hide')
+					}, "json")
+					.fail(response=>{
+						alert("Input error")
+						$('#myModal').modal('hide')
+					})
+					return false
+				})
+			})
+			.fail(response=>{
+				console.log(response.responseJSON)
+				alert(response.responseJSON.error)
+			})
+			
+
+					//~ .done(o=>{
+						//~ alert("deleted id:" + o.id + ", timestart:" + o.timestart + ", series_id:" + o.series_id)
+						//~ $(this).parents("tr").remove();
+					//~ })
+					//~ .fail(()=>{
+						//~ alert("Delete error")
+					//~ })
+			//~ })
+			//~ $(document).on('click','ul.pagination li a', function(e){
+				//~ $("button.add-new").removeAttr("disabled")
+				//~ console.log("Pagination")
+			//~ });
+		});
+    </script>
+    <script src="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.js"></script>
+<!--
+    <script src="extensions/export/bootstrap-table-export.js"></script>
+-->
+  </body>
+</html>

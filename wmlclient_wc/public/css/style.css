@@ -1,0 +1,93 @@
+input[type=text], select {
+  width: 100%;
+  padding: 12px 20px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+input[type=datetime-local], select {
+  width: 100%;
+  padding: 12px 20px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+
+input[type=submit] {
+  width: 100%;
+  background-color: #4CAF50;
+  color: white;
+  padding: 14px 20px;
+  margin: 8px 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+input[type=submit]:hover {
+  background-color: #45a049;
+}
+
+div.general {
+  border-radius: 5px;
+  background-color: #f2f2f2;
+  padding: 20px;
+}
+
+.results td, #results th {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.results tr:nth-child(even){background-color: #f2f2f2;}
+
+.results tr:hover {background-color: #ddd;}
+
+.results th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  background-color: #4CAF50;
+  color: white;
+}
+
+#response p {
+  text-indent: 50px;
+  text-align: justify;
+  letter-spacing: 3px;
+}
+
+.toggleDraw {
+		position: absolute;
+        top: 65px;
+        left: .5em;
+      }
+
+.ol-popup {
+	position: absolute;
+	background-color: rgba(255,255,255,0.8);
+	-webkit-filter: drop-shadow(0 1px 4px rgba(0,0,0,0.2));
+	filter: drop-shadow(0 1px 4px rgba(0,0,0,0.2));
+	padding: 15px;
+	border-radius: 10px;
+	border: 1px solid #cccccc;
+	bottom: 12px;
+	left: -50px;
+	cursor: default;
+	width: 280px;
+	max-height: 230px;
+}
+.popup-box {
+		width: 280px;
+		max-height: 200px;
+		overflow: auto;
+	}
+tr.popup-row {
+	  cursor: pointer;
+}

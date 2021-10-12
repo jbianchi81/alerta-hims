@@ -1,0 +1,410 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<style>
+			body {
+				background-color: darkseagreen;
+			}
+			img {
+				max-width: 100%;
+				height: auto;
+			}
+			.container {
+				width: 960px;
+				max-width: 100%;
+				padding: 20px;
+				margin: 0 auto;
+			}
+			.main-header .container {
+				display: flex;
+				align-items: center;
+				justify-content: space-around;
+				flex-wrap: wrap;
+			}
+			.main-nav ul {
+				margin: 1em 0 .5em;
+				text-align: center;
+			}
+			.main-nav li {
+				display: inline;
+			}
+			.main-nav a {
+				display: inline-block;
+				padding: .5em 1.5em;
+			}
+			section {
+			  display: -webkit-flex;
+			  display: flex;
+			  -webkit-flex-wrap: wrap;
+			  flex-wrap: wrap;
+			}			
+			div.tabcontent {
+/*
+			  height: 700px;
+			  overflow: scroll;
+*/
+			}
+			.map {
+			  height: 80vh;
+			  width: 100%;
+			}
+			.form-group {
+			   display: flex;
+			   flex-direction: row;
+			   flex-wrap: wrap;
+			 }
+			 
+			 .form-group label {
+			   text-align: right; 
+			   flex: none;
+			   display: block;
+			   font-weight: bold;
+			   font-size: 1em;
+			   padding-right: 1mm;
+			   padding-left: 1mm;
+			 }
+			 table.tabla_reg {
+				 max-width: 1600px;
+			 }
+			 div.punteros {
+				 
+				 
+			 }
+			 div.punteros a {
+				 font-size: 0.8em;
+				 font-color: grey;
+				 text-decoration: none;
+			 }
+			 
+			 .ol-popup {
+				position: absolute;
+				background-color: white;
+				-webkit-filter: drop-shadow(0 1px 4px rgba(0,0,0,0.2));
+				filter: drop-shadow(0 1px 4px rgba(0,0,0,0.2));
+				padding: 15px;
+				border-radius: 10px;
+				border: 1px solid #cccccc;
+				bottom: 12px;
+				left: -50px;
+				min-width: 380px;
+			  }
+			  .ol-popup:after, .ol-popup:before {
+				top: 100%;
+				border: solid transparent;
+				content: " ";
+				height: 0;
+				width: 0;
+				position: absolute;
+				pointer-events: none;
+			  }
+			  .ol-popup:after {
+				border-top-color: white;
+				border-width: 10px;
+				left: 48px;
+				margin-left: -10px;
+			  }
+			  .ol-popup:before {
+				border-top-color: #cccccc;
+				border-width: 11px;
+				left: 48px;
+				margin-left: -11px;
+			  }
+			  .ol-popup-closer {
+				text-decoration: none;
+				position: absolute;
+				top: 2px;
+				right: 8px;
+			  }
+			  .ol-popup-closer:after {
+				content: "✖";
+			  }
+			  div#popup-content {
+				max-height: 350px;
+   				overflow-y: scroll;
+			  }
+			  div#popup-content table tbody tr:hover {
+				  cursor: pointer;
+				  background-color: #f5f5f5;
+ 			  }
+			  div#popup-content table tbody tr {
+				font-size: 12px;
+ 			  }
+ 			  div#popup-content table tbody tr td {
+				  border: 1px solid black;
+				  text-align: center;
+			  }
+			  div#popup-content table {
+				  border-collapse: collapse;
+			  }
+			 .ol-popup-hover {
+				position: absolute;
+				padding: 15px;
+				pointer-events: none;
+				font-size: smaller;
+				width: 120px;
+			  }
+			  div#maplegend {
+				  background-color: rgba(255,255,255,0.5);
+				  max-width: 200px;
+				  position:absolute;
+				  top:100px;
+			  }
+			  table.maplegend tbody tr td {
+				  font-size: 10px;
+				  text-align: left;
+			  }
+			  a:hover {
+				  cursor:pointer
+			  }
+			  table.bootstraped {
+				  font-size: 13px;
+			  }
+			  table.bootstraped input[type=text] {
+				  font-size: 13px;
+			  }
+			  table.bootstraped td {
+				  padding:5px;
+				  line-height: 1;
+			  }
+			  .modal-content form.confirm .edit {
+				  width: 360px;
+			  }
+			  .filter-container {
+				  display: flex;
+				  flex-wrap: wrap;
+			  }
+			  .filter-container > div {
+				width: 150px;
+				margin: 10px;
+				line-height: 20px;
+			  }
+			  .filter-container > div > label {
+				  text-align: right;
+				  font-weight: bold;
+			  }
+			  .filter-container > div > input, select {
+				  text-align: left;
+			  }
+			  .navbar {
+				  background-color: #dbedff;
+			  }
+			  .showHideFilters > div {
+				 margin: 10px;
+				 line-height: 10px;
+			  } 
+			  input.toggleDraw:checked + .switch1 {
+				background-color: #2196F3;
+				}
+			  label.switch1 {
+				width: 26px;
+				height: 26px;
+				background: white;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				}
+				/* Chrome, Safari, Edge, Opera */
+			  input::-webkit-outer-spin-button,
+				input::-webkit-inner-spin-button {
+				-webkit-appearance: none;
+				margin: 0;
+				}
+
+				/* Firefox */
+			  input[type=number] {
+				-moz-appearance: textfield;
+				}
+
+
+		</style>
+<!--
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.1.1/css/ol.css" type="text/css">
+-->
+		<link rel="stylesheet" href="css/ol.css" type="text/css">
+<!--
+		<script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.1.1/build/ol.js"></script>
+-->
+		<script src="js/ol.js"></script>
+<!--
+		<script src = "https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+-->
+		<script src = "js/jquery.min.js"></script>
+<!--
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+-->
+<!--
+		<script src = "https://code.highcharts.com/highcharts.js"></script>
+-->
+		<script src = "js/highcharts.js"></script>
+<!--
+		<script src = "https://code.highcharts.com/modules/data.js"></script>
+-->
+		<script src = "js/data.js"></script>
+<!--
+		<script src="https://code.highcharts.com/modules/exporting.js"></script>
+-->
+		<script src="js/exporting.js"></script>
+<!--
+		<script src="https://code.highcharts.com/modules/offline-exporting.js"></script>
+-->
+		<script src="js/offline-exporting.js"></script>
+<!--
+		<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.20/b-1.6.1/b-flash-1.6.1/b-html5-1.6.1/b-print-1.6.1/datatables.min.css"/>
+-->
+		<link rel="stylesheet" type="text/css" href="css/datatables.min.css"/>
+<!--
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/pdfmake.min.js"></script>
+-->
+		<script type="text/javascript" src="js/pdfmake.min.js"></script>
+<!--
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/vfs_fonts.js"></script>
+-->
+		<script type="text/javascript" src="js/vfs_fonts.js"></script>
+<!--
+		<script type="text/javascript" src="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.20/b-1.6.1/b-flash-1.6.1/b-html5-1.6.1/b-print-1.6.1/datatables.min.js"></script>
+-->
+		<script type="text/javascript" src="js/datatables.min.js"></script>
+		<script type="text/javascript" src="js/select2.min.js"></script>
+		<link rel="stylesheet" type="text/css" href="css/select2.min.css" />
+<!--
+ <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+-->
+<!--
+<link rel="stylesheet" href="https://unpkg.com/bootstrap-table@1.16.0/dist/bootstrap-table.min.css">
+-->
+		<link rel="stylesheet" type="text/css" href="css/bootstrap-table.min.css">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto|Varela+Round|Open+Sans">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+		<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+		<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+<!--
+		<link rel="stylesheet" type="text/css" href="css/bootstrap-datetimepicker-standalone.min.css">
+-->
+		<script src="js/popper.min.js"></script>
+		<script src="js/bootstrap.min.js"></script>		
+		<script src="js/chart.js"></script>
+<!--
+		<script type="text/javascript" src="js/bootstrap-datetimepicker.min.js"></script>
+-->
+
+	</head>
+	<body  style="background-color: darkseagreen">
+		<nav class="navbar navbar-expand-lg navbar-light">
+			<a class="navbar-brand" href="#">
+				<img src="https://www.ina.gob.ar/img/Logo_ina_chico.png" width="70" height="40" alt="INA-SIyAH">
+			</a>
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+
+			<div id="navbar" class="collapse navbar-collapse">
+			  <ul class="navbar-nav mr-auto">
+				<li class="nav-item mx-3">
+					<a href="secciones">Ver datos</a>
+				</li>
+				<li class="nav-item mx-3">
+					<a href="cargarPlanillas">Cargar planillas</a>
+				</li>
+				<li class="nav-item mx-3">
+					<a href="apiUI">apiUI</a>
+				</li>
+				<li class="nav-item dropdown mx-3">
+					<a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Catálogo<span class="caret"></span></a>
+				    <ul class="dropdown-menu">
+						<li><a href="metadatos">clases</a></li>
+						<li><a href="metadatos?element=estacion">estaciones</a></li>
+						<li><a href="metadatos?element=area">áreas</a></li>
+						<li><a href="metadatos?element=escena">escenas</a></li>
+						<li><a href="metadatos?element=var">variables</a></li>
+						<li><a href="metadatos?element=procedimiento">procedimientos</a></li>
+						<li><a href="metadatos?element=unidades">unidades</a></li>
+						<li><a href="metadatos?element=redes">redes</a></li>
+						<li><a href="metadatos?element=seriesPuntuales">series puntuales</a></li>
+						<li><a href="metadatos?element=seriesAreales">series areales</a></li>
+						<li><a href="metadatos?element=seriesRaster">series ráster</a></li>
+						<li><a href="metadatos?element=observacion">observaciones</a></li>
+						<li><a href="metadatos?element=asociacion">asociaciones</a></li>
+				    </ul>
+				</li>
+				<li class="nav-item dropdown mx-3">
+					<a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Herramientas<span class="caret"></span></a>
+				    <ul class="dropdown-menu">
+						<li><a href="pp_cdp_view">mapa de precipitaciones CDP</a></li>
+				    </ul>
+				</li>
+				<li class="nav-item mx-3">
+					<a href="mailto:jbianchi@ina.gob.ar" target=_top>Contacto</a>
+				</li>
+				<li class="nav-item dropdown  mx-3">
+				  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Links<span class="caret"></span></a>
+				  <ul class="dropdown-menu">
+					<li><a href="https://www.ina.gob.ar/alerta">web SIyAH</a></li>
+					<li><a href="https://alerta.ina.gob.ar/res/mapa">webMap SIyAH</a></li>
+					<li><a href="https://alerta.ina.gob.ar/res/gui">webAPI SIyAH</a></li>
+					<li><a href="https://alerta.ina.gob.ar/ina">directorio HTTP SIyAH</a></li>
+					<li><a href="https://alerta.ina.gob.ar/seriescontrol">control cuantitativo de series</a></li>
+					<li role="separator" class="divider"></li>
+<!--
+					<li class="dropdown-header">Nav header</li>
+-->
+					<li><a href="https://alerta.ina.gob.ar/informes">Formularios de informes</a></li>
+				  </ul>
+				</li>
+			  </ul>
+			  <ul class="nav navbar-nav navbar-right" id="login_bar">
+				<li><a href="login">Login</a></li>
+			  </ul>
+			</div><!--/.nav-collapse -->
+		</nav>
+		{{{body}}}
+<!--
+		<footer class="main-header">
+			<div class="container">
+				<h1 class="logo">
+					<img src="https://www.ina.gob.ar/img/Logo_ina_chico.png" width="170" height="95" alt="Logo_ina">
+				</h1>
+				<nav class="main-nav">
+					<ul class="main-nav-list">
+						<li>
+							<a href="https://www.ina.gob.ar/alerta">Home</a>
+						</li>
+						<li>
+							<a href="https://alerta.ina.gob.ar/res/mapa">Mapa</a>
+						</li>
+						<li>
+							<a href="https://alerta.ina.gob.ar/a5/secciones">Secciones de monitoreo</a>
+						</li>
+						<li>
+							<a href="https://alerta.ina.gob.ar/res/gui">Servicios web</a>
+						</li>
+						<li>
+							<a href="cargarPlanillas">Cargar planillas</a>
+						</li>
+						<li>
+							<a href="mailto:jbianchi@ina.gob.ar" target=_top>Contacto</a>
+						</li>
+						<li>
+							<a href="https://alerta.ina.gob.ar/a5/login" target=_top>Login</a>
+						</li>
+						<li>
+							<a href="https://alerta.ina.gob.ar/a5/logout" target=_top>Logout</a>
+						</li>
+					</ul>
+				</nav>
+			</div>
+		</footer>
+-->
+	{{#if loggedAs}}
+		<script>
+			var path = "logout?path=" + window.location.pathname.replace(/^\//,"") + "&" + window.location.search.replace(/^\?/,"")
+			$("ul#login_bar").html('<li>Sesión iniciada como <b>{{loggedAs}}</b>. <a href="' + path + '">Cerrar sesión</a></li>')
+		</script>
+	{{else}}
+		<script>
+			var path = "login?path=" + window.location.origin + "/" + window.location.pathname.replace(/^\//,"") + "&" + window.location.search.replace(/^\?/,"")
+			$("ul#login_bar").html('<li>Sesión no iniciada. <a href="' + path + '">Iniciar sesión</a></li>')
+		</script>
+	{{/if}}
+	</body>
+</html>

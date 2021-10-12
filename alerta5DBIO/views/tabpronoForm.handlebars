@@ -1,0 +1,35 @@
+<h4>Subir Tabprono.xls</h4>
+<form id=postTabprono method=post action="accessors/tabprono/upload" enctype="multipart/form-data">
+	<div class="container">
+		<div class="row">
+			<div class="col-md-auto">
+				<label for=file>File</label>
+			</div>
+			<div class="col-md-auto">
+				<input name=file type=file required=true>
+			</div>
+		</div>
+		<div class=row>
+			<div class="col-md-auto">
+				<label for=forecast_date>Fecha de pronóstico</label>
+			</div>
+			<div class="col-md-auto">
+				<input name=forecast_date type=date required>
+			</div>
+		</div>
+		<div class=row>
+			<div class="col-md-auto">
+				<button type=submit>Confirma</button>
+			</div>
+		</div>
+	</div>
+</form>
+<a href="/cargarPlanillas">&lt;&lt;volver</a>
+<script>
+	window.onload = function() {
+		if(!$("form#postTabprono input[name=forecast_date]").val()) {
+			var forecast_date = new Date()
+			$("form#postTabprono input[name=forecast_date]").val(forecast_date.toISOString().substring(0,10))
+		}
+	}
+</script>

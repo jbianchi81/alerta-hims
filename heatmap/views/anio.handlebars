@@ -1,0 +1,33 @@
+<form id=getheatmap action="">
+	<table class=form>
+		<tr>
+			<td>
+				<label for=tabla>tabla:</label>
+			</td>
+			<td>
+				<select type=text id=tabla name=tabla value="emas_sinarame" />
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<label for=varId>varId:</label>
+			</td>
+			<td>
+				<select type=integer id=varId name=varId value=31 />
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<label for=anio>año:</label>
+			</td>
+			<td>
+				<input type=number min=1900 max=2022 step=1 id=anio name=anio value="" />
+			</td>
+		</tr>
+		<tr>
+			<td colspan=2>
+				<button type=submit >Cargar datos</button>
+			</td>
+		</tr>
+	</table>
+</form>

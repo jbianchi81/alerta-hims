@@ -1,0 +1,507 @@
+<section id=selector style="justify-content: space-between;">
+	<form id=selectorform>
+		<div class=form-group>
+			<label for=seriesId>Sección monitoreada</label>
+			<select name=seriesId id=seriesId>
+				<option value="" ></option>
+				{{#each secciones}}
+					<option value={{this.series_id}} {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
+				{{/each}}
+			</select>
+			<label for=timestart>Inicio</label>
+			<input type="date" pattern="^\d{4}-\d{2}-\d{2}$" maxlength=10 minlength=10 name=timestart id=timestart placeholder="YYYY-MM-DD" />
+			<label for=timeend>Fin</label>
+			<input type="date" pattern="^\d{4}-\d{2}-\d{2}$" maxlength=10 minlength=10 name=timeend id=timeend  placeholder="YYYY-MM-DD" />
+			<button>Submit</button>
+		</div>
+	</form>
+	<a href="html/README.html" style="font-size: small">ayuda</a>
+</section>
+<section id="tabs">
+	<input id="tab-one" type="radio" name="grp" checked="checked"/>
+	<label for="tab-one">General</label>
+	<div class=tabcontent>
+		<ul>
+<!--
+			<div class=punteros>
+				<a href="#p_estacion">estación</a>
+				<a href="#p_variable">variable</a>
+				<a href="#p_obs">observaciones</a>
+				<a href="#p_proc">procedimiento</a>
+				<a href="#p_units">unidades</a>
+				<a href="#p_prono">pronóstico</a>
+			</div>
+-->
+			<li>id de serie: <b>{{general.id}}</b></li>
+			<li>tipo de serie: <b>{{general.tipo}}</b></li>
+			{{#if general.estacion}}
+				<li>
+					<h3 id=p_estacion>Estación de monitoreo (sección fluvial)</h3>
+					<ul>
+						<li>id: <b>{{general.estacion.id}}</b></li>
+						<li>nombre: <b>{{general.estacion.nombre}}</b></li>
+						<li>id_externo: <b>{{general.estacion.id_externo}}</b></li>
+						<li>longitud: <b>{{general.estacion.geom.coordinates.[0]}}</b></li>
+						<li>latitud: <b>{{general.estacion.geom.coordinates.[1]}}</b></li>
+						<li>provincia: <b>{{general.estacion.provincia}}</b></li>
+						<li>pais: <b>{{general.estacion.pais}}</b></li>
+						<li>rio: <b>{{general.estacion.rio}}</b></li>
+						<li>automatica: <b>{{general.estacion.automatica}}</b></li>
+						<li>propietario: <b>{{general.estacion.propietario}}</b></li>
+						<li>abreviatura: <b>{{general.estacion.abreviatura}}</b></li>
+						<li>URL: <b>{{general.estacion.URL}}</b></li>
+						<li>localidad: <b>{{general.estacion.localidad}}</b></li>
+						<li>real: <b>{{general.estacion.real}}</b></li>
+						<li>nivel_alerta: <b>{{general.estacion.nivel_alerta}}</b></li>
+						<li>nivel_evacuacion: <b>{{general.estacion.nivel_evacuacion}}</b></li>
+					</ul>
+				</li>
+			{{/if}}
+			{{#if general.variable}}
+				<li>
+					<h3 id="p_variable">Variable</h3>
+					<ul>
+						<li>id: <b>{{general.variable.id}}</b></li>
+						<li>código: <b>{{general.variable.var}}</b></li>
+						<li>nombre: <b>{{general.variable.nombre}}</b></li>
+						<li>abreviatura: <b>{{general.variable.abrev}}</b></li>
+						<li>tipo: <b>{{general.variable.type}}</b></li>
+						<li>dataType: <b>{{general.variable.datatype}}</b></li>
+						<li>valueType: <b>{{general.variable.valueType}}</b></li>
+						<li>generalCategory: <b>{{general.variable.GeneralCategory}}</b></li>
+						<li>VariableName: <b>{{general.variable.VariableName}}</b></li>
+						<li>sampleMedium: <b>{{general.variable.SampleMedium}}</b></li>
+						<li>timeSupport: <b>{{general.variable.timeSupport}}</b></li>
+					</ul>
+				</li>
+			{{/if}}
+			{{#if general.obs_stats}}
+				<li>
+					<h3 id="p_obs">Observaciones (estadísticas)</h3>
+					<ul>
+						<li>Fecha inicial: <b>{{general.obs_stats.timestart}}</b></li>
+						<li>Fecha final: <b>{{general.obs_stats.timeend}}</b></li>
+						<li>Cantidad de registros: <b>{{general.obs_stats.count}}</b></li>
+						<li>Valor mínimo: <b>{{general.obs_stats.min}}</b></li>
+						<li>Valor máximo: <b>{{general.obs_stats.max}}</b></li>
+						<li>Valor medio: <b>{{general.obs_stats.avg}}</b></li>
+					</ul>
+				</li>
+			{{else}}
+				<li>
+					<h3 id="p_obs">No hay observaciones</h3>
+				</li>
+			{{/if}}
+			{{#if general.procedimiento}}
+				<li>
+					<h3 id="p_proc">Procedimiento</h3>
+					<ul>
+						<li>id: <b>{{general.procedimiento.id}}</b></li>
+						<li>nombre: <b>{{general.procedimiento.nombre}}</b></li>
+						<li>abreviatura: <b>{{general.procedimiento.abrev}}</b></li>
+						<li>descripción: <b>{{general.procedimiento.descripcion}}</b></li>
+					</ul>
+				</li>
+			{{/if}}
+			{{#if general.unidades}}
+				<li>
+					<h3 id="p_units">Unidades</h3>
+					<ul>
+						<li>id: <b>{{general.unidades.id}}</b></li>
+						<li>nombre: <b>{{general.unidades.nombre}}</b></li>
+						<li>abreviatura: <b>{{general.unidades.abrev}}</b></li>
+						<li>unitsID: <b>{{general.unidades.unitsID}}</b></li>
+						<li>unitsType: <b>{{general.unidades.unitsType}}</b></li>
+					</ul>
+				</li>
+			{{/if}}
+			{{#if general.prono_resumen}}
+				<li>
+					<h3 id="p_prono">Pronósticos (resumen)</h3>
+					<ul>
+						{{#each general.prono_resumen}}
+							<li>
+								<h4>{{this.nombre}}</h4>
+								<ul>
+									<li>id: <b>{{this.cal_id}}</b></li>
+									<li>nombre: <b>{{this.nombre}}</b></li>
+									<li>modelo: <b>{{this.modelo}}</b></li>
+									<li>activado: <b>{{this.activar}}</b></li>
+									<li>seleccionado: <b>{{this.selected}}</b></li>
+									<li>id de corrida: <b>{{this.cor_id}}</b></li>
+									<li>fecha de emisión: <b>{{this.forecast_date}}</b></li>
+									<li>cantidad de registros: <b>{{this.count}}</b></li>
+									<li>fecha final: <b>{{this.fecha_fin}}</b></li>
+								</ul>
+							</li>
+						{{/each}}
+					</ul>
+				</li>
+			{{else}}
+				<li>
+					<h3 id="p_prono">No hay pronósticos</h3>
+				</li>
+			{{/if}}
+		</ul>
+	</div>
+	<input id="tab-two" type="radio" name="grp" />
+	<label for="tab-two">Mapa</label>
+	<div class=tabcontent>
+		<div style="display:flex">
+			<div id="map" class="map"></div>
+			<div id=maplegend hidden>
+				<h4>Referencias</h4>
+				<table class=maplegend>
+					<tr><td><img src="img/N.gif"></td><td>sin datos</td></tr>
+					<tr><td><img src="img/S.gif"></td><td>simulado</td></tr>
+					<tr><td><img src="img/H.gif"></td><td>histórico</td></tr>
+					<tr><td><img src="img/H+S.gif"></td><td>histórico+sim.</td></tr>
+					<tr><td><img src="img/NRT.gif"></td><td>quasi-tiempo real</td></tr>
+					<tr><td><img src="img/NRT+S.gif"></td><td>quasi-tiempo real+sim.</td></tr>
+					<tr><td><img src="img/RT.gif"></td><td>tiempo real</td></tr>
+					<tr><td><img src="img/RT+S.gif"></td><td>tiempo real+sim</td></tr>
+				</table>
+			</div>
+		</div>
+	</div>
+	<input id="tab-three" type="radio" name="grp" />
+	<label for="tab-three">Tabla</label>
+	<div class=tabcontent>
+		<table id=table_container class=tabla_reg>
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Valor</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td></td>
+					<td></td>
+				</tr>
+				<tr>
+					<td></td>
+					<td></td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+	<input id="tab-three-bis" type="radio" name="grp" />
+	<label for="tab-three-bis">Tabla prono</label>
+	<div class=tabcontent>
+		<table id=table_container_prono class=tabla_reg>
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Valor</th>
+				</tr>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+	</div>
+	<input id="tab-four" type="radio" name="grp" />
+	<label for="tab-four">Gráfico</label>
+	<div class=tabcontent>
+		<div id=chart_container style="height: 80vh;"></div>
+	</div>
+	<input id="tab-five" type="radio" name="grp" />
+	<label for="tab-five">Descargas</label>
+	<div class=tabcontent>
+		<ul>
+			<li>
+				<b>Serie temporal con metadatos (JSON):    </b>
+				<a id=descargarJson download="serie.json"></a>
+			</li>
+			<li>
+				<b>Serie temporal (CSV):    </b>
+				<a id=descargarCSV download="observaciones.csv"></a>
+			</li>
+			<li>
+				<b>Secciones de monitoreo (GeoJSON):    </b>
+				<a id=descargarPoints download="secciones.GeoJSON"></a>
+			</li>
+			<li>
+				<b>Sección de monitoreo seleccionada (GeoJSON):    </b>
+				<a id=descargarPoint download="seccion.GeoJSON"></a>
+			</li>
+			
+			
+			
+		</ul>
+	</div>
+	<div id="popup" class="ol-popup">
+      <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+      <div id="popup-content"></div>
+    </div>
+
+	<script> 
+		var rgbToHex = function (rgb) { 
+		  var hex = Number(rgb).toString(16);
+		  if (hex.length < 2) {
+			   hex = "0" + hex;
+		  }
+		  return hex;
+		};
+	  $(document).ready(function(){
+
+		$("#seriesId").select2();
+		const urlParams = new URLSearchParams(window.location.search);
+		if(urlParams.get('timestart')) {
+			$("input#timestart").val(urlParams.get('timestart').substring(0,10))
+		} else {
+			// var defsd = new Date()
+			// defsd.setDate(defsd.getDate() - 90)
+			// $("input#timestart").val(defsd.toISOString().substring(0,10))
+			var timestart = "{{dates.timestart}}"
+			$("input#timestart").val(timestart.substring(0,10))
+		}
+		if(urlParams.get('timeend')) {
+			$("input#timeend").val(urlParams.get('timeend').substring(0,10))
+		} else {
+			// var defed = new Date()
+			// defed.setDate(defsd.getDate() + 15)
+			// $("input#timeend").val(defed.toISOString().substring(0,10))
+			var timeend = "{{dates.timeend}}"
+			$("input#timeend").val(timeend.substring(0,10))
+		}
+		var container = document.getElementById('popup');
+		var content = document.getElementById('popup-content');
+		var closer = document.getElementById('popup-closer');
+		/**
+		 * Create an overlay to anchor the popup to the map.
+		 */
+		var overlay = new ol.Overlay({
+		  element: container,
+		  autoPan: true,
+		  autoPanAnimation: {
+			duration: 250
+		  }
+		});
+
+
+		/**
+		 * Add a click handler to hide the popup.
+		 * @return {boolean} Don't follow the href.
+		 */
+		closer.onclick = function() {
+		  overlay.setPosition(undefined);
+		  closer.blur();
+		  return false;
+		};
+		
+		var map = new ol.Map({
+			target: 'map',
+			layers: [
+			  //~ new ol.layer.Tile({
+				//~ source: new ol.source.OSM()
+			  //~ })
+			  new ol.layer.Tile({
+				  source: new ol.source.XYZ({
+					  url: "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+				  })
+			  })
+			],
+			overlays: [overlay],
+			view: new ol.View({
+			  center: [-55, -25],  // feature[0].getGeometry().getCoordinates(), // ol.proj.fromLonLat([geom.geometry.coordinates[0],geom.geometry.coordinates[1]]),
+			  projection: 'EPSG:4326',
+			  zoom: 5
+			})
+		});
+
+		{{#if points}}
+			var defaultStyle = new ol.style.Style({
+				image: new ol.style.Circle({
+				  radius: 6,
+				  stroke: new ol.style.Stroke({
+					color: [220,220,220,1]
+				  }),
+				  fill: new ol.style.Fill({
+					color: [250,250,250,1]
+				  })
+				})
+			})
+			var altStyles={}
+			var stylePars = { 
+				'N': {fill:[110,110,110,1], radius: 8, stroke:[220,220,220,0], zIndex: 1},
+				'S': {fill: [110,110,110,1], radius: 7,stroke:[0,220,220,1], zIndex: 2},
+				'H': {fill: [0,128,255,1], radius: 8, stroke: [220,220,220,0], zIndex: 3},
+				'H+S': {fill: [0,128,255,1], radius: 7, stroke:[0,220,220,1], zIndex: 4},
+				'NRT': {fill: [0,102,0,1], radius: 8, stroke: [220,220,220,0], zIndex: 5},
+				'NRT+S': {fill: [0,102,0,1], radius: 7, stroke:[0,220,220,1], zIndex: 6},
+				'RT': {fill: [0,255,0,1], radius: 8, stroke: [220,220,220,0], zIndex: 7},
+				'RT+S': {fill: [0,255,0,1], radius: 7, stroke:[0,220,220,1], zIndex: 8}
+			}
+			function styleFunction(feature, resolution) {
+				var data_availability = feature.get('data_availability')
+				if(!data_availability) {
+					return [defaultStyle]
+				}
+				if(altStyles[data_availability]) {
+					return [altStyles[data_availability]]
+				} else if (stylePars[data_availability]) {
+					altStyles[data_availability] = new ol.style.Style({
+						image: new ol.style.Circle({
+						  radius: stylePars[data_availability].radius,
+						  stroke: new ol.style.Stroke({
+							color: stylePars[data_availability].stroke,
+							width: 3
+						  }),
+						  fill: new ol.style.Fill({
+							color: stylePars[data_availability].fill
+						  })
+						}),
+						zIndex: stylePars[data_availability].zIndex
+					})
+					return [altStyles[data_availability]]
+				} else {
+					return [defaultStyle]
+				}
+			}
+			var points = {{{points}}}
+			var featEstaciones = (new ol.format.GeoJSON()).readFeatures(points)
+			var layerEstaciones = new ol.layer.Vector({
+				source: new ol.source.Vector({
+					projection: 'EPSG:4326',
+					features: featEstaciones
+				}),
+				style: styleFunction,
+				zIndex: 1
+			})
+			
+			map.addLayer(layerEstaciones)
+			var reloadWithPars = function(evt){
+				var ts = $("input#timestart").val()
+				var te = $("input#timeend").val()
+				var series_id = evt.currentTarget.id
+				window.location.search = '?seriesId=' + series_id + ((ts) ? '&timestart=' + ts : '') + ((te) ? '&timeend=' + te : '')
+			}
+			map.on("singleclick", function(evt) {
+				var pixel = evt.pixel
+				var coordinate = evt.coordinate
+				features = map.getFeaturesAtPixel(pixel, {layerFilter:function(layerCandidate) {
+						if(layerCandidate.getZIndex() == 1) {
+							return true
+						} else {
+							return false
+						}
+					}, hitTolerance: 10})
+				content.innerHTML = "<h4>Estaciones</h4><table><tbody><thead><tr><th>id</th><th>nombre</th><th>variable</th><th>series_id</th><th>obs</th><th>sim</th></tr></thead></tbody></table>"
+				features.map(f=>{
+					var data_availability = f.get('data_availability')
+					var bgcolor = "#ffffff"
+					var outline = null
+					var obs = "no"
+					var sim = "no"
+					if(data_availability) {
+						obs = (data_availability.indexOf("H") > -1  || data_availability.indexOf("T") > -1 ) ? data_availability.replace(/\+.*$/,"") : "no"
+						sim = (data_availability.indexOf("S") > -1) ? "sí" : "no"
+						if(stylePars[data_availability]) {
+							bgcolor = "#" + stylePars[data_availability].fill.map(c=> rgbToHex(c)).join("").substring(0,6)
+							outline = '3px solid #' + stylePars[data_availability].stroke.map(c=> rgbToHex(c)).join("").substring(0,6)
+						} 
+					}
+					$("div#popup-content table tbody").append(
+						$("<tr id=" + f.get('series_id') + "><td>" + f.get('estacion_id') + "</td><td>" + f.get('nombre') + "</td><td>" + f.get('var_name') + "</td><td>" + f.get('series_id') + "</td><td>"+obs+"</td><td>"+sim+"</td></tr>").click(reloadWithPars).css({'background-color': bgcolor, 'outline': outline, 'outline-offset':"-3px", 'color': "#ffffff"})
+					)
+				})
+				overlay.setPosition(coordinate)
+			})
+			map.on('pointermove', evt => {
+			  if (!evt.dragging) {
+				map.getTargetElement().style.cursor = map.hasFeatureAtPixel(map.getEventPixel(evt.originalEvent)) ? 'pointer' : '';
+			  }
+			});
+			$("input#tab-two").click(e=>{
+				map.updateSize(); 
+			})
+			// legend
+			$("div#maplegend").show()
+			
+			//~ descarga listado estaciones/var
+			var getMonitoredPointsUrl = "getMonitoredPoints?geojson=true"
+			$("#descargarPoints").attr('href',getMonitoredPointsUrl).html(getMonitoredPointsUrl)
+
+			
+		{{/if}}
+		{{#if geom}}
+			var geom = {{{geom}}}
+			var feature = (new ol.format.GeoJSON()).readFeatures(geom)
+			map.getView().setCenter(feature[0].getGeometry().getCoordinates())
+			map.getView().setZoom(8)
+			var labelStyle = new ol.style.Style({
+			  text: new ol.style.Text({
+				font: '10px Calibri,sans-serif',
+				overflow: true,
+				fill: new ol.style.Fill({
+				  color: '#000'
+				}),
+				stroke: new ol.style.Stroke({
+				  color: '#fff',
+				  width: 2
+				})
+			  })
+			});
+			var pointStyle = new ol.style.Style({
+			  image: new ol.style.Icon({
+				anchor: [0.5, 1],
+				src: '../img/map_pin_small.png',
+				//~ size: 60
+			  })
+			});
+			var layer = new ol.layer.Vector({
+				source: new ol.source.Vector({
+					projection: 'EPSG:4326',
+					features: feature,
+				}),
+				style: function(feature) {
+					labelStyle.getText().setText(feature.get('nombre'));
+					return [labelStyle,pointStyle];
+				},
+				zIndex: 10
+			})
+			map.addLayer(
+			  layer
+			)
+			// Descarga punto
+			 var gjson = JSON.stringify(geom),
+            gblob = new Blob([gjson], {type: "octet/stream"}),
+            gurl = window.URL.createObjectURL(gblob);
+			$("#descargarPoint").attr('href',gurl).html('GeoJSON')
+			
+		{{/if}}
+		{{#if data}}
+			var data = {{{data}}}
+			// loadChart(data, "table_container")
+			loadChart(data, "table_container", "chart_container", {prono_table:"table_container_prono"}, (table_container, chart_container, table_prono)=> {
+				$("section#tabs input[type=radio]#tab-four").click(e=>{
+					chart_container.reflow()
+				})
+				$("section#tabs input[type=radio]#tab-three").click(e=>{
+					table_container.columns.adjust()
+				})
+				if(table_prono) {
+					$("section#tabs input[type=radio]#tab-three-bis").click(e=>{
+						//~ var table = $("#" + table_container_prono).DataTable()
+						table_prono.columns.adjust()
+					})
+				}
+				return
+			})
+			// Descargas
+			//~ console.log(data)
+			var getRequestUrl = "getSeriesBySiteAndVar?estacion_id=" + data.estacion.id + "&var_id=" + data.var.id + "&timestart=" + urlParams.get('timestart') + "&timeend=" + urlParams.get('timeend') + "&includeProno=true";
+			$("#descargarJson").attr('href',getRequestUrl).html(getRequestUrl)
+			var getObsCSVUrl = "getObservaciones?tipo=puntual&series_id=" + urlParams.get('seriesId') + "&timestart=2019-12-12&timeend=2020-02-15&format=csv"
+			$("#descargarCSV").attr('href',getObsCSVUrl).html(getObsCSVUrl)
+				
+
+		{{/if}}
+		
+		
+	  });
+
+	</script>
+
+</section>

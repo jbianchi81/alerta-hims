@@ -1,0 +1,23 @@
+<div class="container p-3 my-3 border">
+	<section id=mainHeading style="display: flex;justify-content: space-between;">
+		<h3>Catálogo</h3>
+		<h2>Clases</h2>
+	</section> 
+	<section>
+		<ul id=clases></ul>
+	</section>
+</div>
+<script type="text/javascript" src="js/metadataElements.js"></script>
+<script>
+	$(document).ready(function(){
+		$("ul#clases").append(
+			Object.keys(metadataElements).map(key=>{
+				var url = "metadatos?element=" + key
+				return $("<li></li>").append(
+					$("<a></a>").attr({href:url,title:url}).text(metadataElements[key].title)
+				)
+			})
+		)
+	})
+</script>
+

@@ -1,0 +1,46 @@
+<div class="d-flex flex-row justify-content-between">
+    <h4>Usuarios</h4>
+    <a href=usuarionuevo title="Crear nuevo usuario">nuevo <i class="fa fa-plus fa-2" aria-hidden="true"></i></a>
+</div>
+<table class=table>
+    <thead>
+        <tr>
+            <th scope=col>id</th>
+            <th scope=col>username</th>
+            <th scope=col>role</th>
+            <th scope=col>actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#each users}}
+        <tr>
+            <th scope=row>{{this.id}}</th>
+            <td scope=row>{{this.username}}</td>
+            <td scope=row>{{this.role}}</td>
+            <td><a href="usuarios/{{this.username}}" title="editar usuario">Editar<i class="fa fa-pencil" aria-hidden="true"></i></a> <a href="" class=delete-user id="{{this.username}}" title="eliminar usuario">Eliminar<i class="fa fa-trash" aria-hidden="true"></i>
+</a></td>
+        </tr>
+        {{/each}}
+    </tbody>
+</table>
+<script>
+    $("a.delete-user").click(event=>{
+        var username = $(event.target).attr("id")
+        var r = confirm("Está seguro que quiere eliminar al usuario " + username + "?")
+        if(r == true) {
+            $.ajax({
+                type: "DELETE",
+                url: "users/" + username,
+                timeout: 10000,
+                success: function(message) {
+                    alert("Usuario eliminado:" + message)
+                    location.reload()
+                },
+                error: function (jqXHR, status, error) {
+                    alert("Delete error:" + status + ". " + ((error) ? error : ""))
+                }
+            })
+        } 
+        return false
+    })
+</script>

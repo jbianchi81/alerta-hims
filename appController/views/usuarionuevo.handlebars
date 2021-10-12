@@ -1,0 +1,75 @@
+<h4>Crear usuario nuevo</h4>
+<form action="" method=PUT id=newuser autocomplete="off">
+    <table class=table>
+        <tr>
+            <th>username</th>
+            <td><input type=text name=username required=true value=""></td>
+        </tr>
+        <tr>
+            <th>role</th>
+            <td>
+                <select id=roleselect name=role default={{role}}  required=true>
+                    <option value=public>public</option>
+                    <option value=reader>reader</option>
+                    <option value=writer>writer</option>
+                    <option value=admin>admin</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <th>password</th>
+            <td><input type=text name=password required=true value=""></td>
+        </tr>
+        <tr>
+            <th>token</th>
+            <td><input type=token name=token></td>
+        </tr>
+        <tr>
+            <td colspan=2><button type=submit>Submit</button></th>
+        </tr>
+    </table>
+</form>
+
+<script>
+	$("form#newuser").submit( event=>{
+		event.preventDefault()
+		$("body").css("cursor","progress")
+        var username = $(event.currentTarget).find("input[name=username]").val()
+        var $form = $(event.currentTarget);
+        var data = getFormData($form);
+        console.log({data:data})
+        // data.username = data.username_new
+        // delete data.username_new
+        // data.password = data.password_new
+        // delete data.password_new
+		$.post("users/" + username,data,function(response) {
+			if(response.length <= 0) {
+				alert("Empty response")
+				$("body").css("cursor","default")
+				return
+			}
+			$("body").css("cursor","default")
+            console.log({response:response})
+			alert("User " + response[0].name + " created")
+            window.location.href="usuarios/" + response[0].name
+			return
+		})			
+		.fail( (xhr, status, error)=>{
+			$("body").css("cursor","default")
+			alert(error.toString())
+		})	
+	})
+	window.onload = (event)=>{
+        $("input[name=username]").val("")
+        $("input[name=password]").val("")
+	}
+    function getFormData($form){
+        var unindexed_array = $form.serializeArray();
+        var indexed_array = {};
+        $.map(unindexed_array, function(n, i){
+            indexed_array[n['name']] = n['value'];
+        });
+
+        return indexed_array;
+    }
+</script>

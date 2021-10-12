@@ -1,0 +1,117 @@
+\documentclass[11pt,spanish] {article}
+\def\spanishoptions{mexico}
+\usepackage{mathptmx}
+\usepackage{mwe,tikz}
+\usepackage[percent]{overpic}
+\usepackage[margin=0.5in]{geometry}
+%~ \usepackage[spanish,es-noshorthands,es-ucroman]{babel}
+\usepackage[spanish]{babel}
+\usepackage{csvsimple}
+\selectlanguage{spanish}
+\usepackage[utf8]{inputenc}
+%~ \usepackage{fancyhdr}
+\usepackage[cm]{fullpage}
+\usepackage{tabu}
+\usepackage{hyperref}
+%~ \pagestyle{fancy}
+\usepackage[section]{placeins}
+\usepackage{titlesec}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{makecell}
+\usepackage{floatrow}
+\usepackage{caption}
+\usepackage{xcolor,colortbl}
+%~ \usepackage{titling}
+%~ \setlength{\droptitle}{-3cm}
+\makeatletter
+\def\input@path{{./public/latex/}}
+%or: \def\input@path{{/path/to/folder/}{/path/to/other/folder/}}
+\makeatother
+\DeclareRobustCommand{\fecha}{\input{fecha}}
+\DeclareRobustCommand{\climatrimestre}{\input{clima_trimestre}}
+\DeclareRobustCommand{\climaproximaactualizacion}{\input{clima_proximaactualizacion}}
+\DeclareRobustCommand{\situacionmeteorologica}{\input{situacion_meteorologica}}
+\DeclareRobustCommand{\synoptext}{\input{synop_text}}
+\DeclareRobustCommand{\situacionhidrologica}{\input{hidro}}
+\DeclareRobustCommand{\comentariofinal}{\input{comentario_final}}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+%~ \headheight 0pt
+\setlength{\footskip}{10pt}
+%~ \headsep 1pt 
+\titlespacing*{\section}{0pt}{0ex}{0ex}
+\graphicspath{{/home/alerta5/44-NODEJS_APIS/informe_complementario/public/latex/}}
+\usepackage{tabularx}
+\begin{document}
+\captionsetup{labelformat=empty}
+%~ \paragraph*{}
+\begingroup
+\begin{center}
+\renewcommand{\arraystretch}{0.8}
+\begin{tabularx}{\textwidth}{|c|>{\centering\arraybackslash}X|c|}
+	\hline
+	\multirow{5}{*}{\includegraphics[height=1.7cm]{escudo_argentina.png}} & \textbf{\small{Ministerio de Obras Públicas}} & \multirow{5}{*}{\includegraphics[width=2.6cm,height=1.3cm]{logo_ina_crop.png}}  \\
+	& \textbf{\small{Secretaría de Infraestructura y Política Hídrica}} & \\
+	& \textbf{\small{Subsecretaría de Obras Hidráulicas}} & \\
+	& \textbf{\small{Instituto Nacional del Agua}} & \\ 
+	& \textbf{\scriptsize{2021 - Año de Homenaje al Premio Nobel de Medicina Dr. César Milstein}} & \\ 
+	\hline
+	   \makecell{\textbf{Informe} \\ \textbf{complementario}} &  \makecell{\textbf{Situación meteorológica e hidrológica} \\ \textbf{Cuenca del Plata}} &  \fecha \\
+	\hline
+\end{tabularx}
+\end{center}
+\endgroup
+%~ \paragraph*{}
+%~ \vspace{1cm}
+\begin{tabularx}{\textwidth}{|X|c|}
+	\hline
+	\multicolumn{2}{|c|}{\cellcolor{blue!25}Escenario Climático} \\
+	\multicolumn{2}{|c|}{\cellcolor{blue!25}\climatrimestre} \\
+	\hline
+	\cellcolor{gray!25}\makecell{Próxima actualización : \\ Reunión mensual de análisis de las perspectivas climáticas en SMN} & \cellcolor{gray!25}\climaproximaactualizacion \\
+	\hline
+		\multicolumn{2}{|c|}{\includegraphics[height=10cm]{tendencia_climatica_file.png}} \\
+		%~ \includegraphics[width=9.3cm]{smn_map_file.png} & \includegraphics[width=9cm]{cptec_map_file.png} \\
+	\hline
+\end{tabularx}
+
+\begin{figure}[H]
+%~ \begin{tabular}{|c|p{8cm}|}
+	%~ \hline
+	\floatbox[{\capbeside\thisfloatsetup{capbesideposition={right,center},capbesidewidth=6cm}}]{figure}[\FBwidth]
+	{\caption{\textbf{Precipitación acumulada semanal}\\\hspace{\textwidth}\\\hspace{\textwidth}\textbf{\synoptext}}\label{synopmap}}
+	{\includegraphics[height=8cm]{synop_semanal_file.png}}
+		%~ \includegraphics[width=10cm]{synop_semanal_file.png} & \textbf{Precipitación acumulada semanal} \textbf{\synoptext} \\  
+	%~ \raisebox{9\normalbaselineskip}[0pt][0pt]
+	%~ \hline
+%~ \end{tabular}
+\end{figure}
+\situacionmeteorologica
+\subsection*{Situación Hidrológica}
+%~ \begin{itemize}
+	\situacionhidrologica
+	%~ \input{hidro}
+%~ \end{itemize}
+
+\center{\textbf{\underline{Se recomienda visitar la página web para observar los productos del monitoreo satelital}}} \\
+\begin{tabular}{c}
+\href{https://alerta.ina.gob.ar/pub/mapa}{https://alerta.ina.gob.ar/pub/mapa} (mapa) \\
+\href{https://alerta.ina.gob.ar/pub/gui}{https://alerta.ina.gob.ar/pub/gui} (listado de servicios) \\
+\href{https://alerta.ina.gob.ar/ina}{https://alerta.ina.gob.ar/ina} (repositorio de mapas, gráficas e informes) \\
+\end{tabular}
+\center{\comentariofinal}
+\subsubsection{Referencias}
+\begin{tabularx}{\textwidth}{|X|c|}
+	\hline
+	Prefectura Naval Argentina & Comisión Técnica Mixta de Salto Grande \\
+	\hline
+	Servicio Meteorológico Nacional & Comisión Regional del Bermejo \\
+	\hline
+	Entidad Binacional Yacyretá & Ministerio de Infraestructura y Transporte de la Provincia de Santa Fe \\
+	\hline
+	ONS (Brasil) & CPRM (Brasil) \\
+	\hline
+\end{tabularx}
+\end{document}
+

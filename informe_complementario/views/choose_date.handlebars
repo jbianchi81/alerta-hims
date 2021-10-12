@@ -1,0 +1,12 @@
+<h2> Informe complementario: Situación meteorológica e hidrológica</h2>
+<h3>Editar informe anterior</h3>
+<form method=GET action="">
+	<label for=fecha>Fecha:</label>
+	<select type=date id=fecha name=fecha>
+	{{#each fechas}}
+		<option value="{{fecha}}">{{fecha}}</option>
+	{{/each}}
+	</select><br>
+	<button type=submit>Submit</button><br>
+</form>
+	

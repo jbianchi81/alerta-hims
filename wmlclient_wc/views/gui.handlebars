@@ -1,0 +1,719 @@
+		<div class=general>
+			<h1>WaterML Client</h1>
+			<p><b>Querying CUAHSI waterML web service at URL:</b>&ensp;<a href={{cuahsiendpoint}}>{{cuahsiendpoint}}</a></p>
+		</div>
+		<div class=general id=mapdiv>
+			<p><b>GetSitesByBox</b></p>
+			<form id=getgeojson method=POST action="wml/getSites">
+				<input hidden name=format value=geojson />
+		<!--
+				<input hidden name=IncludeSeries value=true />
+				
+		-->		
+				<table>
+					<tr>
+						<td style="min-width:300px">
+							<table>
+								<tr><td><label for="north">north</label></td><td><input type=text title="latitude of north bound" name=north value=-30 /></td></tr>
+								<tr><td><label for="south">south</label></td><td><input type=text title="latitude of south bound" name=south value=-35 /></td></tr>
+								<tr><td><label for="east">east</label></td><td><input type=text title="longitude of east bound" name=east value=-52 /></td></tr>
+								<tr><td><label for="west">west</label></td><td><input type=text title="longitude of west bound" name=west value=-59 /></td></tr>
+							</table>
+						</td>
+						<td style="min-width:500px"  class=map id=map></td>
+					</tr>
+				</table>
+				<input type=submit />
+			</form>
+		</div>
+		
+		<div id=sites class=general hidden>
+			<p><b>Sites  </b>&ensp;&ensp;&ensp;&ensp;&ensp; download: <a href="javascript:void(0);" onclick='return downloadSites()'>GeoJSON</a> <a href="javascript:void(0);" onclick='downloadSites("csv")'>CSV</a>&ensp;&ensp;&ensp;&ensp;&ensp; <a href="#mapdiv">Back to map</a></p>
+			<table id=sites class=results>
+
+			</table>
+		</div>
+		<div id=siteinfo class=general hidden>
+			<p><b>Series  </b>&ensp;&ensp;&ensp;&ensp;&ensp; download: <a href="javascript:void(0);" onclick='return downloadSeries()'>JSON</a> <a href="javascript:void(0);" onclick='downloadSeries("csv")'>CSV</a>&ensp;&ensp;&ensp;&ensp;&ensp; <a href="#mapdiv">Back to map</a></p>
+			<table id=siteinfo class=results>
+		
+			</table>
+		</div>
+		<div id=choosedates class=general hidden>
+			<p><b>Choose dates:</b>&ensp;&ensp;&ensp;&ensp;&ensp; <a href="#mapdiv">Back to map</a></p>
+			<form id=getvalues action="">
+				<table>
+					<tr><td><label for=siteCode>siteCode</label></td><td><input name=siteCode id=sitecode type=text /></td></tr>
+					<tr><td><label for=variableCode>variableCode</label></td><td><input name=variableCode id=variablecode type=text /></td></tr>
+					<tr><td><label for="startDate">startDate</label></td><td><input type=datetime-local name=startDate id=startdate title="fecha y hora inicial" /></td></tr>
+					<tr><td><label for="endDate">endDate</label></td><td><input type=datetime-local name=endDate id=enddate title="fecha y hora final" /></td></tr>
+				</table>
+				<input type=submit />
+			</form>
+		</div>
+		<div id=values class=general hidden>
+			<p><b>Values  </b>&ensp;&ensp;&ensp;&ensp;&ensp; download: <a href="javascript:void(0);" onclick='return downloadValues()'>JSON</a> <a href="javascript:void(0);" onclick='downloadValues("csv")'>CSV</a>&ensp;&ensp;&ensp;&ensp;&ensp; <a href="#mapdiv">Back to map</a></p>
+			<div class=general id=chart></div>
+			<table id=values class=results>
+			</table> 
+		</div>
+		<div id="popup" class="ol-popup" hidden>
+			<a href="#" id="popup-closer" class="ol-popup-closer" title="cerrar ventana">x</a>
+			<div id="popup-content"></div>
+		</div>
+
+		<script type="text/javascript">
+			var sites = {}
+			var siteinfo = {}
+			var values = {}
+			var extent
+			$("form#getgeojson").submit(getGeoJSON)
+			$("form#getvalues").submit(getValues)
+			function getGeoJSON(e) {
+				var formdata = {};
+				$(e.target).serializeArray().map(function(x){formdata[x.name] = x.value;});  // $("form#getheatmap")
+				//~ console.log(formdata)
+				e.preventDefault()
+				formdata.bounds = formdata.north + "," + formdata.south + "," + formdata.east + "," + formdata.west
+				delete formdata.north
+				delete formdata.south
+				delete formdata.east
+				delete formdata.west
+				document.body.style.cursor = "progress";
+				$("table#sites").empty().append(
+					$("<tr></tr>").append(
+						$("<th>siteName</th>"),
+						$("<th>siteCode</th>"),
+						$("<th>network</th>"),
+						$("<th>longitude</th>"),
+						$("<th>latitude</th>")
+					)
+				)
+				$.post("getSites", formdata, (data,status) => {
+					if(status !== 'success') {
+						alert("getGeoJSON error! Status:" + status)
+						document.body.style.cursor = "default";
+						return
+					}
+					if(!data.features) {
+						console.log("No features found")
+						alert("No se encontraron estaciones")
+						document.body.style.cursor = "default";
+						return
+					}
+					if(data.features.length <= 0) {
+						console.log("No features found: length<=0")
+						alert("No se encontraron estaciones")
+						document.body.style.cursor = "default";
+						return
+					}
+					sites = data
+					for(var i=0;i<data.features.length;i++) {
+						$("table#sites").append(
+							$("<tr class=results onclick=getsiteinfo('" + data.features[i].properties.siteCode + "') title=\"click to getSiteInfo\"></tr>").append(
+								$("<td></td>").html(data.features[i].properties.siteName),
+								$("<td>" + data.features[i].properties.siteCode + "</td>"),
+								$("<td>" + data.features[i].properties.network + "</td>"),
+								$("<td>" + data.features[i].properties.longitude + "</td>"),
+								$("<td>" + data.features[i].properties.latitude + "</td>")
+							)
+						)
+					}
+					$("div#sites").show()
+					$("div#choosedates").hide()
+					$("div#values").hide()
+					clearAll()
+					//~ document.getElementById('sites').scrollIntoView()
+					document.body.style.cursor = "default";
+					const format = new ol.format.GeoJSON();
+					const features = format.readFeatures(
+						sites, 
+						{ featureProjection: 'EPSG:3857' }
+					)
+					siteslayer.setSource(
+						new ol.source.Vector({
+							features: features
+						})
+					)
+					map.removeInteraction(draw)
+					toggleDraw.checked = false
+					extent = siteslayer.getSource().getExtent().map( it => {return parseFloat(it)})
+					map.getView().fit(extent, {size: map.getSize(), maxZoom:16})
+
+
+				})
+				.fail(function() {
+					alert( "getSites error" );
+					document.body.style.cursor = "default";
+				})
+			}
+			function site2string(site) {
+				return site.properties.siteName + "," + site.properties.siteCode + "," + site.properties.network + "," + site.properties.longitude + "," + site.properties.latitude
+			}
+			//~ $("a#downloadSites").onclick(downloadSites())
+			//~ $("a#downloadSitesCSV").onclick(downloadSites("csv"))
+			function downloadSites(format="json") {
+				var a = document.createElement("a");
+				document.body.appendChild(a);
+				a.style = "display: none";
+				var strdata = ""
+				var fileName
+				if(format == "csv") {
+					strdata = "siteName,siteCode,network,longitude,latitude\n"
+					fileName = "sites.csv"
+					for(var i=0;i<sites.features.length;i++) {
+						strdata+=site2string(sites.features[i]) + "\n"
+						fileName = "sites.geojson"
+					}
+				} else {
+					strdata = JSON.stringify(sites,null,4)
+				}
+				var blob = new Blob([strdata], {type: "octet/stream"}),
+					url = window.URL.createObjectURL(blob);
+				a.href = url;
+				a.download = fileName;
+				a.click();
+				window.URL.revokeObjectURL(url);
+			}
+
+			function getsiteinfo (siteCode) {
+				document.body.style.cursor = "progress";
+				$("table#siteinfo tbody tr.results").remove()
+				$.post("getSiteInfo",{site:siteCode}, (data,status)=> {
+					if(status !== 'success') {
+						alert("getsiteinfo error! Status:" + status)
+						document.body.style.cursor = "default";
+						return
+					}
+					if(!Array.isArray(data)) {
+						console.log("No features found")
+						alert("No se encontraron series")
+						document.body.style.cursor = "default";
+						return
+					}
+					if(data.length <= 0) {
+						console.log("No features found: length<=0")
+						alert("No se encontraron series")
+						document.body.style.cursor = "default";
+						return
+					}
+					siteinfo = data
+					$("table#siteinfo").empty().append(
+						$("<tr>").append(
+							$("<th>siteName</th>"),
+							$("<th>siteCode</th>"),
+							$("<th>network</th>"),
+							$("<th>longitude</th>"),
+							$("<th>latitude</th>"),
+							$("<th>variableCode</th>"),
+							$("<th>variableName</th>"),
+							$("<th>valueType</th>"),
+							$("<th>dataType</th>"),
+							$("<th>generalCategory</th>"),
+							$("<th>sampleMedium</th>"),
+							$("<th>unitName</th>"),
+							$("<th>unitType</th>"),
+							$("<th>unitAbbreviation</th>"),
+							$("<th>unitCode</th>"),
+							$("<th>noDataValue</th>"),
+							$("<th>timeScaleIsRegular</th>"),
+							$("<th>timeScaleUnitName</th>"),
+							$("<th>timeScaleUnitType</th>"),
+							$("<th>timeScaleUnitAbbreviation</th>"),
+							$("<th>timeScaleUnitCode</th>"),
+							$("<th>timeScaleTimeSupport</th>"),
+							$("<th>speciation</th>"),
+							$("<th>valueCount</th>"),
+							$("<th>beginDateTimeUTC</th>"),
+							$("<th>endDateTimeUTC</th>"),
+							$("<th>methodId</th>"),
+							$("<th>methodCode</th>"),
+							$("<th>methodDescription</th>"),
+							$("<th>methodLink</th>"),
+							$("<th>sourceID</th>"),
+							$("<th>organization</th>"),
+							$("<th>citation</th>"),
+							$("<th>qualityControlLevelID</th>"),
+							$("<th>qualityControlLevelCode</th>"),
+							$("<th>qualityControlLevelDefinition</th>")
+						)
+					)
+					for(var i = 0;i<data.length;i++) {
+						$("div#siteinfo table#siteinfo").append(
+							$("<tr class=results onclick=querydates('" + data[i].site.siteCode + "','" + data[i].variable.variableCode + "','" + data[i].beginDateTimeUTC + "','" + data[i].endDateTimeUTC + "') title=\"click to getSiteInfo\"></tr>").append(
+								$("<td></td>").html(data[i].site.siteName),
+								$("<td></td>").html(data[i].site.siteCode),
+								$("<td></td>").html(data[i].site.network),
+								$("<td></td>").html(data[i].site.longitude),
+								$("<td></td>").html(data[i].site.latitude),
+								$("<td></td>").html(data[i].variable.variableCode),
+								$("<td></td>").html(data[i].variable.variableName),
+								$("<td></td>").html(data[i].variable.valueType),
+								$("<td></td>").html(data[i].variable.dataType),
+								$("<td></td>").html(data[i].variable.generalCategory),
+								$("<td></td>").html(data[i].variable.sampleMedium),
+								$("<td></td>").html(data[i].variable.unit.unitName),
+								$("<td></td>").html(data[i].variable.unit.unitType),
+								$("<td></td>").html(data[i].variable.unit.unitAbbreviation),
+								$("<td></td>").html(data[i].variable.unit.unitCode),
+								$("<td></td>").html(data[i].variable.noDataValue),
+								$("<td></td>").html(data[i].variable.timeScale.IsRegular),
+								$("<td></td>").html(data[i].variable.timeScale.unit.unitName),
+								$("<td></td>").html(data[i].variable.timeScale.unit.unitType),
+								$("<td></td>").html(data[i].variable.timeScale.unit.unitAbbreviation),
+								$("<td></td>").html(data[i].variable.timeScale.unitCode),
+								$("<td></td>").html((data[i].variable.timeScale.TimeSupport) ? data[i].variable.timeScale.TimeSupport : data[i].variable.timeScale.timeSupport),
+								$("<td></td>").html(data[i].variable.speciation),
+								$("<td></td>").html(data[i].valueCount),
+								$("<td></td>").html(data[i].beginDateTimeUTC),
+								$("<td></td>").html(data[i].endDateTimeUTC),
+								$("<td></td>").html(data[i].method.methodId),
+								$("<td></td>").html(data[i].method.methodCode),
+								$("<td></td>").html(data[i].method.methodDescription),
+								$("<td></td>").html(data[i].method.methodLink),
+								$("<td></td>").html(data[i].source.sourceID),
+								$("<td></td>").html(data[i].source.organization),
+								$("<td></td>").html(data[i].source.citation),
+								$("<td></td>").html(data[i].qualityControlLevel.qualityControlLevelID),
+								$("<td></td>").html(data[i].qualityControlLevel.qualityControlLevelCode),
+								$("<td></td>").html(data[i].qualityControlLevel.qualityControlLevelDefinition)
+							)
+						)
+					}
+					$("div#siteinfo").show()
+					document.getElementById('siteinfo').scrollIntoView();
+					$("div#choosedates").hide()
+					$("div#values").hide()
+					clearAll()
+					document.body.style.cursor = "default";
+				})
+				.fail(function() {
+					alert( "getSiteInfo error" );
+					document.body.style.cursor = "default";
+				})
+			}
+			function downloadSeries(format = "json") {
+				var a = document.createElement("a");
+				document.body.appendChild(a);
+				a.style = "display: none";
+				var strdata = ""
+				var fileName
+				if(format == "csv") {
+					strdata = "siteName,siteCode,network,longitude,latitude,variableCode,variableName,valueType,dataType,generalCategory,sampleMedium,unitName,unitType,unitAbbreviation,unitCode,noDataValue,timeScaleIsRegular,timeScaleUnitName,timeScaleUnitType,timeScaleUnitAbbreviation,timeScaleUnitCode,timeScaleTimeSupport,speciation,valueCount,beginDateTimeUTC,endDateTimeUTC,methodId,methodCode,methodDescription,methodLink,sourceID,organization,citation,qualityControlLevelID,qualityControlLevelCode,qualityControlLevelDefinition\n"
+					fileName = "siteinfo.csv"
+					for(var i=0; i<siteinfo.length;i++) {
+						strdata += series2string(siteinfo[i]) + "\n"
+					}
+				} else {
+					strdata = JSON.stringify(siteinfo,null,4)
+					fileName = "siteinfo.json"
+				}
+				var blob = new Blob([strdata], {type: "octet/stream"}),
+					url = window.URL.createObjectURL(blob);
+				a.href = url;
+				a.download = fileName;
+				a.click();
+				window.URL.revokeObjectURL(url);
+			}
+			function series2string(series) {
+				return series.site.siteName + "," + series.site.siteCode + "," + series.site.network + "," + series.site.longitude + "," + series.site.latitude + "," + series.variable.variableCode + "," + series.variable.variableName + "," + series.variable.valueType + "," + series.variable.dataType + "," + series.variable.generalCategory + "," + series.variable.sampleMedium + "," + series.variable.unit.unitName + "," + series.variable.unit.unitType + "," + series.variable.unit.unitAbbreviation + "," + series.variable.unit.unitCode + "," + series.variable.noDataValue + "," + series.variable.timeScale.IsRegular + "," + series.variable.timeScale.unit.unitName + "," + series.variable.timeScale.unit.unitType + "," + series.variable.timeScale.unit.unitAbbreviation + "," + series.variable.timeScale.unitCode + "," + series.variable.timeScale.timeSupport + "," + series.variable.speciation + "," + series.valueCount + "," + series.beginDateTimeUTC + "," + series.endDateTimeUTC + "," + series.method.methodId + "," + series.method.methodCode + "," + series.method.methodDescription + "," + series.method.methodLink + "," + series.source.sourceID + "," + series.source.organization + "," + series.source.citation + "," + series.qualityControlLevel.qualityControlLevelID + "," + series.qualityControlLevel.qualityControlLevelCode + "," + series.qualityControlLevel.qualityControlLevelDefinition
+			}
+								
+			function querydates (siteCode,variableCode,startDate,endDate) {
+				$("div#choosedates form input#sitecode").val(siteCode)
+				$("div#choosedates form input#variablecode").val(variableCode)
+				$("div#choosedates form input#startdate").val(startDate.replace(/Z$/,""))
+				$("div#choosedates form input#enddate").val(endDate.replace(/Z$/,""))
+				$("div#choosedates").show()
+				window.location.hash = '#choosedates';
+				document.body.style.cursor = "default";
+			}
+			function getValues (e) {
+				document.body.style.cursor = "progress";
+				var formdata = {}
+				$(e.target).serializeArray().map(function(x){formdata[x.name] = x.value;});  // $("form#getheatmap")
+				//~ console.log(formdata)
+				e.preventDefault()
+				$("table#values").empty().append(
+					$("<tr></tr>").append(
+						$("<th>censorCode</th>"),
+						$("<th>dateTime</th>"),
+						$("<th>qualityControlLevel</th>"),
+						$("<th>methodID</th>"),
+						$("<th>sourceID</th>"),
+						$("<th>sampleID</th>"),
+						$("<th>value</th>")
+					)
+				)
+				$.post("getValues",{site:formdata.siteCode,variable:formdata.variableCode,startdate:formdata.startDate,enddate:formdata.endDate}, (data,status)=> {
+					if(status !== 'success') {
+						alert("getValues error! Status:" + status)
+						document.body.style.cursor = "default";
+						return
+					}
+					if(!data.values) {
+						console.log("No values found")
+						alert("No se encontraron valores")
+						document.body.style.cursor = "default";
+						return
+					}
+					if(!Array.isArray(data.values)) {
+						console.log("No features found")
+						alert("No se encontraron valores")
+						document.body.style.cursor = "default";
+						return
+					}
+					if(data.values.length <= 0) {
+						console.log("No features found: length<=0")
+						alert("No se encontraron valores")
+						document.body.style.cursor = "default";
+						return
+					}
+					values = data
+					$("div#values table#values tbody tr.results").remove()
+					for(var i = 0;i<data.values.length;i++) {
+						$("div#values table#values").append(
+							$("<tr class=results></tr>").append(
+								$("<td></td>").html(data.values[i].censorCode),
+								$("<td></td>").html(data.values[i].dateTime),
+								$("<td></td>").html(data.values[i].qualityControlLevel),
+								$("<td></td>").html(data.values[i].methodID),
+								$("<td></td>").html(data.values[i].sourceID),
+								$("<td></td>").html(data.values[i].sampleID),
+								$("<td></td>").html(data.values[i].value)
+							)
+						)
+					}
+					$("div#values").show()
+					document.getElementById('values').scrollIntoView();
+					document.body.style.cursor = "default";
+					loadChart(data)
+				})
+				.fail(function() {
+					alert( "getValues error" );
+					document.body.style.cursor = "default";
+				})
+			}	
+			function downloadValues(format = "json") {
+				var a = document.createElement("a");
+				document.body.appendChild(a);
+				a.style = "display: none";
+				var strdata = ""
+				var fileName
+				if(format == "csv") {
+					strdata = "censorCode,dateTime,qualityControlLevel,methodID,sourceID,sampleID,value\n"
+					fileName = "values.csv"
+					for(var i=0; i<values.values.length;i++) {
+						strdata += value2string(values.values[i]) + "\n"
+					}
+				} else {
+					strdata = JSON.stringify(values,null,4)
+					fileName = "values.json"
+				}
+				var blob = new Blob([strdata], {type: "octet/stream"}),
+					url = window.URL.createObjectURL(blob);
+				a.href = url;
+				a.download = fileName;
+				a.click();
+				window.URL.revokeObjectURL(url);
+			}
+			function value2string(value) {
+				return value.censorCode + "," + value.dateTime + "," + value.qualityControlLevel + "," + value.methodID + "," + value.sourceID + "," + value.sampleID + "," + value.value
+			}
+			
+			//  ol map
+			
+			var map = new ol.Map({
+				target: 'map',
+				layers: [
+				  new ol.layer.Tile({
+					source: new ol.source.OSM()
+				  })
+				],
+				view: new ol.View({
+				  center: ol.proj.fromLonLat([-55, -25]),
+				  zoom: 4
+				}),
+				
+			});
+			var container = document.getElementById("popup");
+			var content = document.getElementById("popup-content");
+			var closer = document.getElementById("popup-closer");
+			closer.onclick = function() {
+				container.style.display = "none";
+				closer.blur();
+				return false;
+			};
+
+			var overlay = new ol.Overlay({
+				element: container
+			});
+			map.addOverlay(overlay);
+
+			var toggleDraw = document.createElement("input")
+			toggleDraw.type = "checkbox"
+			toggleDraw.id = "toggleDraw"
+			toggleDraw.checked = true
+			toggleDraw.title='enable/disable selection polygon'
+			toggleDraw.classList.add("toggleDraw")
+			var toggleDrawControl = new ol.control.Control({
+				element: toggleDraw
+			});
+			map.addControl(toggleDrawControl);
+			$("input#toggleDraw").on("change",function(e) {
+				if (e.target.checked == false) {
+					map.removeInteraction(draw)
+				} else {
+					map.addInteraction(draw)
+				}
+			})
+			var source = new ol.source.Vector({wrapX: false});
+			var draw; // global so we can remove it later
+			function addInteraction() {
+				value = 'LineString';
+                maxPoints = 2;
+                geometryFunction = function(coordinates, geometry)
+                {
+                    if (!geometry) 
+                    {
+                        geometry = new ol.geom.Polygon(null);
+                    }
+                    console.info(coordinates)
+                    var start = coordinates[0];
+                    var end = coordinates[1];
+                    geometry.setCoordinates([
+                    [start, [start[0], end[1]], end, [end[0], start[1]], start]
+                    ]);
+                    return geometry;
+                };
+            
+				draw = new ol.interaction.Draw({
+					source: source,
+					type: 'Polygon'
+					//~ type: /** @type {ol.geom.GeometryType} */ (value),
+					//~ geometryFunction: geometryFunction,
+					//~ maxpoints: maxPoints
+				});
+				map.addInteraction(draw);
+			}
+			addInteraction();
+			draw.on('drawend',function(e){
+				var extent = e.feature.getGeometry().getExtent()
+				//~ alert(ol.proj.toLonLat([extent[0],extent[1]]));
+				//~ alert(ol.proj.toLonLat([extent[2],extent[3]]));
+				var ll = ol.proj.toLonLat([extent[0],extent[1]])
+				var ur = ol.proj.toLonLat([extent[2],extent[3]])
+				$("form#getgeojson input[name='north']").val(ur[1])
+				$("form#getgeojson input[name='south']").val(ll[1])
+				$("form#getgeojson input[name='east']").val(ur[0])
+				$("form#getgeojson input[name='west']").val(ll[0])
+			});
+			
+			var labelStyle = new ol.style.Style({
+			  text: new ol.style.Text({
+				font: '10px Calibri,sans-serif',
+				overflow: true,
+				fill: new ol.style.Fill({
+				  color: '#000'
+				}),
+				stroke: new ol.style.Stroke({
+				  color: '#fff',
+				  width: 2
+				})
+			  })
+			});
+			var pointStyle = new ol.style.Style({
+			  image: new ol.style.Icon({
+				anchor: [0.5, 1],
+				src: '../img/map_pin_small.png',
+				//~ size: 60
+			  })
+			});
+			var siteslayer = new ol.layer.Vector({
+				source: new ol.source.Vector({
+					features: null
+				}),
+				style: function(feature) {
+					labelStyle.getText().setText(feature.get('siteName'));
+					return [labelStyle,pointStyle];
+				}
+				//~ declutter: true
+
+			})
+			siteslayer.selectable = true
+			map.addLayer(siteslayer)
+			map.on("singleclick", function(evt) {
+				var features = [];
+				map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+					//~ console.log(feature.getProperties().siteCode)
+					features.push({siteCode:feature.get("siteCode"),siteName:feature.get("siteName")})
+				}, {layerFilter: function (layer_candidate)  {
+					//~ console.log(layer_candidate.getProperties())
+					if(layer_candidate.selectable) {
+						return true
+					} else {
+						return false
+					}
+				}})
+				if(features.length > 0) {
+					loadFeatureTab(features,evt)
+				}
+			})
+			function loadFeatureTab (features,evt) {
+				var ftab = $('<table class=query id=popup-table title="Click on the desired site name to query avaliable series"></table>');
+				for(var i=0;i<features.length;i++) {
+					//~ console.log(features[i]);
+					ftab.append('<tr class=popup-row onclick="getsiteinfo(\''+features[i].siteCode+'\')"><td>'+features[i].siteName+'</td></tr>');
+				}
+				$('#popup-content').empty().append(
+					$('<div class=popup-box></div>').append(
+						ftab
+					)
+				);
+				overlay.setPosition(evt.coordinate);
+				container.style.display = "block";
+			}
+			map.on('pointermove', function(e) {
+				//~ if (e.dragging) { popup.hide(); return; }
+				
+				var pixel = map.getEventPixel(e.originalEvent);
+				var hit = map.hasFeatureAtPixel(pixel,{layerFilter: function (layer_candidate)  {
+					//~ console.log(layer_candidate.getProperties())
+					if(layer_candidate.selectable) {
+						return true
+					} else {
+						return false
+					}
+				}})
+				//~ console.log(hit)
+				$("td#map").css({'cursor': ((hit) ? 'pointer' : '')})
+			});
+					
+			// chart //
+			function loadChart(data) {
+				Highcharts.setOptions ({
+				  lang: {
+						months: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+						shortMonths: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+					  },
+					  global: {
+						  timezone: 'Brasilia',
+						  useUTC: false
+					  },
+				}); 
+				
+				var chart = {
+					type: 'spline',
+					zoomType: 'x',
+					exporting: {
+						chartOptions: { // specific options for the exported image
+							plotOptions: {
+								series: {
+									dataLabels: {
+										enabled: true
+									}
+								}
+							}
+						},
+						fallbackToExportServer: false
+					},
+				}; 
+				var title = {
+				   text: 'Values'   
+				};
+				var subtitle = {
+				   text: 'CUAHSI/waterML client'
+				};
+				var xAxis = {
+					type: 'datetime',
+					title: {
+						text: 'Date'
+					},
+					dateTimeLabelFormats: {
+					  day: '%e %b %Y',
+					  month: '%e %b %Y',
+					  year: '%e %b %Y'
+					}, 
+					 minRange: 1 * 24 * 3600000, // 1 days
+					plotLines: [{
+						color: 'black',
+						dashStyle: 'dashdot',
+						value: Date.parse(new Date()),
+						width:1,
+						label: {
+							text: "now"
+						}
+					}] 
+				};
+				var yAxis = {
+				   title: {
+					  text: data.seriesInfo.variable.variableName
+				   },
+				   plotLines: [{
+					  value: 0,
+					  width: 1,
+					  color: '#808080'
+				   }]
+				};   
+
+				var tooltip = {
+				   headerFormat: '<b>{series.name}</b><br>',
+				   pointFormat: '{point.x:%e %b %H:%M}: {point.y:.2f}'
+				};
+				var plotOptions = {
+				   spline: {
+					  marker: {
+						 enabled: true
+					  }
+				  }
+				};
+				var legend = {
+				   layout: 'vertical',
+				   align: 'right',
+				   verticalAlign: 'middle',
+				   borderWidth: 0
+				};
+				var series =  [];
+
+				var json = {};
+				json.chart= chart;
+				json.plotOptions = plotOptions;
+				json.title = title;
+				json.subtitle = subtitle;
+				json.xAxis = xAxis;
+				json.yAxis = yAxis;
+				json.tooltip = tooltip;
+				json.legend = legend;
+				json.series = series;
+				////~ CARGA TABLA DATATABLE
+				//~ var datatable = $("#chart").DataTable();
+				//~ datatable.clear();
+				var seriesdata = data.values.map(it=> {
+					var date = Date.parse(it.dateTime)
+					return [date, parseFloat(it.value)]
+				})
+				var seriesdataformat = data.values.map(it => {
+					return [it.dateTime.substring(0,19), parseFloat(it.value)]
+				})
+				//~ datatable.rows.add(seriesdataformat);
+				//~ datatable.draw();
+				json.series[0] = {
+					data: seriesdata,
+					name: data.seriesInfo.site.siteName + " - " + data.seriesInfo.variable.variableName
+				}
+				$('#chart').highcharts(json);
+			}
+			function clearAll() {
+				if($('#chart').highcharts()) {
+				  var chart = $('#chart').highcharts();
+				  for(var i = chart.series.length -1; i> -1; i--) {
+					  chart.series[i].remove();
+				  }
+				  chart.destroy(); //~ = new Highcharts.Chart();
+				}
+			}
+				
+				
+
+
+		</script>

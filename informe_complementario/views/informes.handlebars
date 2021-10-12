@@ -1,0 +1,36 @@
+<h3>Seleccionar informe</h3>
+<ul>
+	<li>
+		<h3>Informe complementario (circular de los domingos)</h3>
+		<ul>
+		{{#each informe_complementario}}
+			<li>
+				<b>{{fecha_format}}</b><span>   </span><a href="latex/informe_complementario_{{fecha}}.pdf">Ver</a><span>   </span><a href="informe_complementario?fecha={{fecha}}">Editar</a><span>   </span><a href="javascript:;" onclick="delete_informe('{{fecha}}')">Eliminar</a>
+			</li>
+		{{/each}}
+			<li><form action="informe_complementario"><input class=datePicker type=date name=fecha><span>   </span><button value="crear nuevo">crear nuevo vacío</button></form></li>
+		</ul>
+	</li>
+	<li>
+		<h3>Informe Paraguay</h3>
+		<ul>
+		{{#each informe_paraguay}}
+			<li>
+				<b>{{fecha_format}}</b><span>   </span><a href="latex/informe_paraguay_{{fecha}}.pdf">Ver</a><span>   </span><a href="paraguay?fecha={{fecha}}">Editar</a><span>   </span><a href="javascript:;" onclick="delete_informe_paraguay('{{fecha}}')">Eliminar</a>
+			</li>
+		{{/each}}
+			<li><form action="paraguay"><input class=datePicker type=date name=fecha><span>   </span><button value="crear nuevo">crear nuevo vacío</button></form></li>
+		</ul>
+	</li>
+	<li>
+		<h3>Informe Arco Portuario río Paraná</h3>
+		<ul>
+		{{#each informe_arco_portuario}}
+			<li>
+				<b>{{fecha_format}}</b><span>   </span><a href="latex/informe_arco_portuario_{{fecha}}.pdf">Ver</a><span>   </span><a href="arco_portuario_rio_parana?fecha={{fecha}}">Editar</a><span>   </span><a href="javascript:;" onclick="delete_informe_arco_portuario('{{fecha}}')">Eliminar</a><span>   </span><a href="arco_portuario_rio_parana/print?fecha={{fecha}}">Reimprimir</a>
+			</li>
+		{{/each}}
+			<li><form action="arco_portuario_rio_parana"><input class=datePicker type=date name=fecha><span>   </span><button value="crear nuevo">crear nuevo vacío</button></form></li>
+		</ul>
+	</li>
+<ul>

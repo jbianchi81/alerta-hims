@@ -1,0 +1,1042 @@
+{
+  "database":
+	{
+	  "user": "",
+	  "host": "",
+	  "database": "",
+	  "password": "",
+	  "port": 5432
+	},
+  "smn_ftp":
+  {
+	"host": "",
+	"user": "",
+	"password": ""
+  },
+ "rest":
+  {
+	  "port": 3005,
+	  "skip_authentication": true
+  },
+  "verbose": true,
+  "rast":
+  {
+	  "location": "../public/rast"
+  },
+  "grass":
+  {
+	  "location": "~/GISDATABASE/WGS84",
+	  "mapset":"jobs",
+	  "batch_job":"/tmp/grass_batch_job.sh",
+	  "width":1024,
+	  "height":870,
+	  "res":0.25,
+	  "extent":[-10,-40,-70,-40],
+	  "logo": "public/img/logo_ina.png",
+	  "render_file": "/tmp/map.png",
+	  "color_rule": [
+		[0,"255:255:255"],
+		[20,"70:200:98"],
+		[50,"0:150:55"],
+		[70,"0:131:80"],
+		[90,"0:113:105"],
+		[100,"0:94:130"],
+		[130,"0:75:155"],
+		[150,"0:57:180"],
+		[180,"0:38:205"],
+		[200,"0:19:230"],
+		[230,"0:0:255"],
+		[280,"127:0:255"],
+		[1000,"255:0:255"],
+		["nv","255:255:255"]
+	  ],
+	  "color_rule_daily":[
+	    [0,"255:255:255"],
+		[1,"150:245:140"],
+		[5,"55:210:60"],
+		[10,"15:160:15"],
+		[15,"95:189:249"],
+		[20,"40:149:209"],
+		[30,"20:129:189"],
+		[40,"127:112:234"],
+		[50,"57:38:171"],
+		[60,"40:0:159"],
+		[70,"254:191:60"],
+		[80,"255:96:0"],
+		[90,"225:20:0"],
+		[100,"165:0:0"],
+		[130,"0:0:0"]
+	  ]
+  },
+  "gfs": {
+          "3h": {
+                  "location" : "/home/alerta5/34-GFS/mapas/3h"
+          },
+          "diario": {
+                  "location" : "/home/alerta5/34-GFS/mapas/diario"
+          },
+	  "suma": {
+                  "location" : "/home/alerta5/34-GFS/mapas/suma"
+          }
+
+  },
+  "geoserver": {
+	  "url": "",
+	  "user": "",
+	  "password": "",
+	  "workspace": "a5",
+	  "datastore": "a5DB",
+	  "pointslayer": "estaciones",
+	  "areaslayer": "areas_pluvio"
+  },
+  "ons": {
+		"download_dir": "../data/ons",
+		"tmp_dir": "/tmp",
+		"tables_dir": "../data/ons/tables"
+  },
+  "sqpe_smn": {
+	"host": "",
+	"user": "",
+	"password": "",
+	"path": "/SQPE",
+	"download_dir": "../data/sqpe_smn"
+  },
+  "schedule": {
+	  "port": 3006
+  },
+  "alturas_pna": {
+	  "date_row":5,
+	  "data_start_row":8,
+	  "data_columns": [1,2],
+	  "file": "../public/planillas/alturas_pna.xlsx",
+	  "csvFile": "../public/planillas/alturas_pna.csv",
+	  "site_codes": {
+		"Andresito":8,
+		"Iguazú":9,
+		"Libertad":10,
+		"Eldorado":11,
+		"Libertador":12,
+		"Santa Ana":13,
+		"Puerto Mani":131,
+		"Posadas":14,
+		"Ituzaingó":15,
+		"Ita Ibaté":16,
+		"Itatí":17,
+		"Paso dela Patria":18,
+		"Corrientes":19,
+		"Barranqueras":20,
+		"Empedrado":21,
+		"Bella Vista":22,
+		"Goya":23,
+		"Reconquista":24,
+		"Esquina":25,
+		"La Paz":26,
+		"Santa Elena":27,
+		"Hernandarias":28,
+		"Parana":29,
+		"Santa Fe":30,
+		"Diamante":31,
+		"Victoria":32,
+		"San Lorenzo (San Martín)":33,
+		"Rosario":34,
+		"Villa Constitución":35,
+		"San Nicolás":36,
+		"Ramallo":37,
+		"San Pedro":38,
+		"Baradero":39,
+		"Zárate":40,
+		"Campana":41,
+		"Escobar":42,
+		"Paranacito":43,
+		"Canal Nuevo":44,
+		"Ibicuy":45,
+		"Martín García":47,
+		"Guazucito":48,
+		"Tigre":49,
+		"Dique Luján":50,
+		"Chaná Miní":51,
+		"San Fernando":52,
+		"San Isidro":53,
+		"Olivos":54,
+		"Pilcomayo":55,
+		"Bouvier":56,
+		"Formosa":57,
+		"Bermejo":58,
+		"Isla del Cerrito":59,
+		"San Javier":65,
+		"Barra Concepción":66,
+		"Garruchos":67,
+		"Santo Tomé":68,
+		"Alvear":69,
+		"La Cruz":70,
+		"Yapeyú":71,
+		"Paso de los Libres":72,
+		"Bonpland":73,
+		"Monte Caseros":74,
+		"Mocoretá":75,
+		"Federación":76,
+		"Federación Embalse":5430,
+		"Salto Grande Arriba":77,
+		"Salto Grande Abajo":78,
+		"Concordia":79,
+		"Colón":80,
+		"Concep. del Uruguay":81,
+		"Campichuelo":82,
+		"Pto. Gualeguaychú":83,
+		"Boca Gualeguaychú":84,
+		"Pto Ruiz":46,
+		"Buenos Aires":85,
+		"La Plata":86
+	  }
+  },
+  "eby": {
+	  "data_row": 18,
+	  "prono_rows": [25, 26, 27, 28, 29], 
+	  "date_column": 3,
+	  "series_map": {
+		  "afluente": {
+			  "column": 4,
+			  "obs_series_id": 936,
+			  "prono_series_id": 1414,
+			  "prono_cal_id": 224
+		  },
+		  "descargado": {
+			  "column": 5,
+			  "obs_series_id": 937,
+			  "prono_series_id": 1533,
+			  "prono_cal_id": 427
+		  }
+	  },
+	  "file": "../public/planillas/eby.xlsx",
+	  "csvFile": "../public/planillas/eby.csv"
+  },
+  "ctm": {
+	  "date_row": 5,
+	  "data_start_row": 9,
+	  "data_end_row": 30,
+	  "columns": {
+		  "estacion": {
+			  "start_column": 40,
+			  "end_column": 60
+		  },
+		  "nivel_ayer": {
+			  "start_column": 61,
+			  "end_column": 74
+		  },
+		  "caudal_ayer": {
+			  "start_column": 75,
+			  "end_column": 89
+		  },
+		  "nivel_hoy": {
+			  "start_column": 90,
+			  "end_column": 100
+		  },
+		  "caudal_hoy": {
+			  "start_column": 107,
+			  "end_column": 114
+		  }
+	  },
+	  "series_map": {
+		"Pepiri Mini": {
+			"estacion_id": 60,
+			"altura_series_id": 60
+		},
+		"El Soberbio": {
+			"estacion_id": 61,
+			"altura_series_id": 61,
+			"caudal_series_id": 910
+		},
+		"Alicia": {
+			"estacion_id": 62,
+			"altura_series_id": 62
+		},
+		"Alba Pose": {
+			"estacion_id": 63,
+			"altura_series_id": 63
+		},
+		"Panambi": {
+			"estacion_id": 64,
+			"altura_series_id": 64
+		},
+		"San Javier": {
+			"estacion_id": 65,
+			"altura_series_id": 65,
+			"caudal_series_id": 914
+		},
+		"Barra Concepcion": {
+			"estacion_id": 66,
+			"altura_series_id": 66
+		},
+		"Garruchos": {
+			"estacion_id": 67,
+			"altura_series_id": 67
+		},
+		"Santo Tome": {
+			"estacion_id": 68,
+			"altura_series_id": 68,
+			"caudal_series_id": 917
+		},
+		"Alvear": {
+			"estacion_id": 69,
+			"altura_series_id": 69,
+			"caudal_series_id": 918
+		},
+		"La Cruz": {
+			"estacion_id": 70,
+			"altura_series_id": 70
+		},
+		"Yapeyu": {
+			"estacion_id": 71,
+			"altura_series_id": 71
+		},
+		"Paso de los Libres": {
+			"estacion_id": 72,
+			"altura_series_id": 72,
+			"caudal_series_id": 921
+		},
+		"Bompland": {
+			"estacion_id": 73,
+			"altura_series_id": 73
+		},
+		"Monte Caseros": {
+			"estacion_id": 74,
+			"altura_series_id": 74
+		},
+		"Mocoreta": {
+			"estacion_id": 75,
+			"altura_series_id": 75
+		},
+		"Federacion": {
+			"estacion_id": 76,
+			"altura_series_id": 76
+		},
+		"Embalse": {
+			"estacion_id": 77,
+			"altura_series_id": 77
+		},
+		"Restitucion": {
+			"estacion_id": 78,
+			"altura_series_id": 78
+		},
+		"Concordia": {
+			"estacion_id": 79,
+			"altura_series_id": 79
+		},
+		"Aporte": {
+			"estacion_id": 89,
+			"altura_series_id": 89,
+			"caudal_series_id": 938
+		},
+		"Erogado": {
+			"estacion_id": 90,
+			"altura_series_id": 90,
+			"caudal_series_id": 939
+		}
+	  },
+	  "file": "../public/planillas/ctm.pdf",
+	  "txtFile": "../public/planillas/ctm.txt"
+  },
+  "mch_py": {
+	  "url": "https://mch-api.meteorologia.gov.py/api",
+	  "token":"",
+	  "variable_map": {
+		"17": "nubosidad",
+		"11": "direccion_viento",
+		"10": "velocidad_viento",
+		"42": "visibilidad",
+		"43": "temperatura_punto_rocio",
+		"16": "presion_nivel_estacion",
+		"18": "presion_nivel_mar",
+		"27": "precipitacion",
+		"6": "temperatura_maxima",
+		"7": "temperatura_minima",
+		"13": "insolacion",
+		"45": "temperatura_bulbo_humedo"
+	  }
+	},
+	"sissa": {
+		"url": "https://api.crc-sas.org/ws-api",
+		"username": "",
+		"password": "",
+		"variable_map": {
+			"helio":13,
+			"hr":12,
+			"nub":17,
+			"prcp":1,
+			"pres_est":16,
+			"pres_nm":18,
+			"td":43,
+			"tmax":6,
+			"tmed":7,
+			"tmin":5,
+			"vmax_d":11,
+			"vmax_f":9,
+			"vmed":10
+		},
+		"estacion_ids": [ 5431,5432,5433,5434,5435,5436,5437,5438,5439,5440,5441,5442,5443,5444,5445,5446,5447,5448,5449,5450,5451,5452,5453,5454,5455,5456,5457,5458,5459,5460,5461,5462,5463,5464,5465,5466,5467,5468,5469,5470,5471,5472,5473,5474,5475,5476,5477,5478,5479,5480,5481,5482,5483,5484,5485,5486,5487,5488,5489,5490,5491,5492,5493,5494,5495,5496,5497,5498,5499,5500,5501,5502,5503,5504,5505,5506,5507,5508,5509,5510,5511,5512,5513,5514,5515,5516,5517,5518,5519,5520,5521,5522,5523,5524,5525,5526,5527,5528,5529,5530,5531,5532,5533,5535,5536,5537,5538,5539,5540,5541,5542,5543,5544,5545,5546,5547,5548,5549,5550,5551,5552,5553,5554,5555,5556,5557,5558,5559,5560,5561,5562,5563,5564,5580,5581,5582,5583,5584,5585,5586,5587,5588,5589,5590,5591,5592,5593,5594,5595,5596,5597,5598,5599,5600,5601,5602,5603,5604,5605,5606,5607,5608,5609,5610,5611,5612,5613,5614,5615,5616,5617,5618,5619,5620,5621,5622,5623,5624,5625,5626,5627,5628,5629,5630,5631,5632,5633,5634,5635,5636,5637,5638,5639,5640,5641,5642,5643,5644,5645,5646,5647,5648,5649,5650,5651,5652,5653,5654,5655,5656,5657,5658,5659,5660,5661,5662,5663,5664,5665,5666,5667,5668,5669,5670,5671,5672,5673,5674,5675,5676,5677,5678,5679,5680,5681,5682,5683,5684,5685,5686,5687,5688,5689,5690,5691,5692,5693,5694,5695,5696,5697,5698,5699,5700,5701,5702,5703,5704,5705,5706,5707,5708,5709,5710,5711,5712,5713,5714,5715,5716,5717,5718,5719,5720,5721,5722,5723,5724,5725,5726,5727,5728,5729,5730,5731,5732,5733,5734,5735,5736,5737,5738,5739,5740,5741,5749,5750,5751,5752,5753,5754,5755,5756,5758,5759,5760,5761,5762,5763,5764,5765,5766,5767,5768,5769,5770,5771,5772,5773,5774,5775,5777,5778,5779,5797,5802,5803,5806,5807,5808,5809,5810,5811,5812,5813,5814,5816,5817,5818,5819,5820,5821,5822,5823,5824,5825,5826,5827,5828,5829,5830,5831,5833,5834,5835,5836,5837,5838,5839,5840,5841,5842,5843,5844,5845,5846,5847,5848,5849,5850,5851,5852,5853,5854,5855,5856,5857,5858,5859,5861,5862,5863,5864,5865,5866,5867 ]
+	},
+	"pp_cdp": {
+		"estacion_ids": [ 907,908,909,910,911,912,913,914,915,916,917,918,919,920,921,922,923,924,925,926,927,928,929,930,931,932,1015,1016,1017,1018,1019,1020,1021,1022,1023,1024,1025,1026,1027,1028,1029,1030,1031,1032,1033,1034,1035,1036,1037,1038,1039,1040,1041,1042,1043,1044,1045,1046,1047,1048,1049,1050,1051,1052,1053,1054,1055,1056,1057,1058,1059,1060,1061,1062,1063,1064,1065,1066,1067,1068,1069,1070,1071,1072,1073,1074,1075,1076,1077,1078,5385,5391,5395,5399,5403,5406,5407,5408,5409,5411,5412,5413,5414,5416,5417,5418,5419,5420,5422,5423,5426,5427,5428,872,873,874,875,876,877,878,879,880,881,882,883,884,885,886,887,888,889,890,891,892,893,894,895,896,852,853,854,855,856,857,858,859,860,861,862,863,864,865,866,867,868,870,871,2111,2112,2113,2114,2115,2116,2117,2118,2119,2120,2121,2122,2123,2127,2128,2129,2130,2131,2132,2133,2134,2135,2136,2137,2138,2139,2140,2142,2144,2149,2150,2151,2154,2155,2156,2158,2159,2160,2166,2167,2168,2169,2170,2172,2173,2174,2175,2176,2177,2178,2180,2183,2184,2185,2186,2187,2188,2189,2190,2191,2192,2193,2194,2195,2196,2197,2198,2199,2200,2201,2202,2203,2204,2205,2206,2207,2209,2210,2211,2212,2213,2214,2215,2217,2218,2219,2220,2221,2222,2223,2224,2227,2356,2357,2593,2605,2607,2608,2609,2671,2672,2673,2697,2706,2731,2732,2741,2749,2776,2807,2808,2809,2810,2811,2813,2814,2815,2816,2819,2820,2821,2822,2823,2824,2825,2826,2828,2829,2830,2832,2833,2835,2836,2837,2838,2840,2841,2846,2847,2848,2849,2853,2854,2855,2856,2857,5431,5432,5433,5434,5435,5436,5437,5438,5439,5440,5441,5442,5443,5444,5445,5446,5447,5448,5449,5450,5451,5452,5453,5454,5455,5456,5457,5458,5459,5460,5461,5462,5463,5464,5465,5466,5467,5468,5469,5470,5471,5472,5473,5474,5475,5476,5477,5478,5479,5480,5481,5482,5483,5484,5485,5486,5487,5488,5489,5490,5491,5492,5493,5494,5495,5496,5497,5498,5499,5500,5501,5502,5503,5504,5505,5506,5507,5508,5509,5510,5511,5512,5513,5514,5515,5516,5517,5518,5519,5520,5521,5522,5523,5524,5525,5526,5527,5528,5529,5530,5531,5532,5533,5535,5536,5537,5538,5539,5540,5541,5542,5543,5544,5545,5546,5547,5548,5549,5550,5551,5552,5553,5554,5555,5556,5557,5558,5559,5560,5561,5562,5563,5564,5565,5580,5581,5582,5583,5584,5585,5586,5587,5588,5589,5590,5591,5592,5593,5594,5595,5596,5597,5598,5599,5600,5601,5602,5603,5604,5605,5606,5607,5608,5609,5610,5611,5612,5613,5614,5615,5616,5617,5618,5619,5620,5621,5622,5623,5624,5625,5626,5627,5628,5629,5630,5631,5632,5633,5634,5635,5636,5637,5638,5639,5640,5641,5642,5643,5644,5645,5646,5647,5648,5649,5650,5651,5652,5653,5654,5655,5656,5657,5658,5659,5660,5661,5662,5663,5664,5665,5666,5667,5668,5669,5670,5671,5672,5673,5674,5675,5676,5677,5678,5679,5680,5681,5682,5683,5684,5685,5686,5687,5688,5689,5690,5691,5692,5693,5694,5695,5696,5697,5698,5699,5700,5701,5702,5703,5704,5705,5706,5707,5708,5709,5710,5711,5712,5713,5714,5715,5716,5717,5718,5719,5720,5721,5722,5723,5724,5725,5726,5727,5728,5729,5730,5731,5732,5733,5734,5735,5736,5737,5738,5739,5740,5741,5749,5750,5751,5752,5753,5754,5755,5756,5758,5759,5760,5761,5762,5763,5764,5765,5766,5767,5768,5769,5770,5771,5772,5773,5774,5775,5777,5778,5779,5797,5802,5803,5806,5807,5808,5809,5810,5811,5812,5813,5814,5816,5817,5818,5819,5820,5821,5822,5823,5824,5825,5826,5827,5828,5829,5830,5831,5833,5834,5835,5836,5837,5838,5839,5840,5841,5842,5843,5844,5845,5846,5847,5848,5849,5850,5851,5852,5853,5854,5855,5856,5857,5858,5859,5861,5862,5863,5864,5865,5866,5867,363,364,365,366,367,368,369,370,371,372,373,374,375,376,377,378,379,380,381,382,383,384,385,386,387,388,389,390,391,392,393,394,395,396,397,398,399,400,401,402,403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,452,453,454,455,456,462,463,464,465,466,467,468,469,470,471,472,473,474,475,476,477,478,479,480,481,482,483,484,485,486,487,488,489,496,498,499,500,504,505,506,507,509,510,511,512,513,514,515,516,517,518,519,520,521,522,523,524,525,497,527,528,529,530,531,532,533,534,535,536,537,538,539,540,541,542,543,544,545,546,547,548,549,550,551,552,553,554,555,556,557,558,559,560,561,562,563,564,565,566,567,568,569,570,571,572,573,574,575,576,577,578,579,580,581,582,583,584,585,586,587,588,589,590,591,592,593,594,595,596,597,598,599,600,601,602,603,604,605,606,607,608,609,610,611,612,613,614,615,616,617,618,619,620,621,622,623,624,625,626,627,628,629,630,631,632,633,634,635,636,637,638,639,640,641,642,643,644,645,646,647,648,649,650,651,652,653,654,655,656,657,658,659,660,661,662,663,664,665,666,667,668,669,670,671,672,673,674,675,676,677,678,679,680,681,682,683,684,685,686,687,688,689,690,691,692,693,694,695,696,697,698,699,700,701,702,703,704,705,706,707,708,709,710,711,712,713,714,715,716,717,718,719,720,721,722,723,724,725,726,727,728,729,730,731,732,733,734,735,736,742,743,745,746,747,748,750,752,754,755,759,762,763,764,765,768,1794,1796,1797,1798,1799,1800,1802,1803,1804,1805,1813,1814,1815,2381,2382,2383,2384,2385,2386,2387,2388,2389,2390,2391,2392,2393,2394,2395,2396,2397,2398,2399,2400,2401,2402,2403,2404,2405,2406,2407,2408,2409,2410,2411,2412,2413,2414,2415,2416,2417,2418,2419,2420,2421,2422,2423,2424,2425,2426,2427,2428,2429,2430,2431,2432,2433,2434,2435,2436,2437,2438,2439,2440,2441,2442,2443,2444,2445,2446,2447,2448,2449,2450,2451,2452,2453,2454,2455,2456,2457,2458,2459,2460,2461,2462,2463,2464,2465,2468,2469,2470,4977,4971,4961,4687,4880,4174,4298,4126,4247,4096,4229,4319,4402,4215,4346,4457,4616,4535,4597,4847,4691,4807,5006,5375,5023,5063,5078,5046,5371,5004,5035,5142,5346,5064,5243,4709,4746,4870,4888,4892,5115,5087,5192,5317,5366,5358,303,5293,318,4952,4842,4826,4864,4840,4817,4496,4676,4693,5070,5063,5058,4164,5015,4284,4262,4239,4226,4214,4158,4180,4096],
+		"outputdir": "data/pp_cdp",
+		"outputdir_semanal": "data/pp_cdp_semanal",
+		"maskfile": "data/rast/cdp.tif",
+		"nmin": 1,
+		"radius1": 3,
+		"radius2": 3,
+		"out_x": 300,
+		"out_y": 300,
+		"method": "nearest",
+		"target_extent": [[-70,-40],[-40,-10]],
+		"srs": 4326,
+		"roifile": "data/vect/CDP_polygon.shp",
+		"makepng": true,
+		"rules_file": "data/rast/rules_rgba",
+		"rules_file_diario": "data/rast/rules_rgba_diario",
+		"rules_file_semanal": "data/rast/rules_rgba_semanal",
+		"zfield": "valor",
+		"nullvalue": -9999,
+		"series_id": 8
+	},
+	"fdx": {
+		"url": "http://cloud-beta.fdx-ingenieria.com.ar/api_new",
+		"sites": [
+			{
+				"id":7,
+				"user":"",
+				"estacion_id":1257
+			},
+			{
+				"id":24,
+				"user":"",
+				"estacion_id":1696
+			},
+			{
+				"id":6,
+				"user":"",
+				"estacion_id":1698
+			},
+			{
+				"id":22,
+				"user":"",
+				"estacion_id":1701
+			},
+			{
+				"id":3,
+				"user":"",
+				"estacion_id":1743
+			},
+			{
+				"id":5,
+				"user":"",
+				"estacion_id":1744
+			},
+			{
+				"id":28,
+				"user":"",
+				"estacion_id":1877
+			},
+			{
+				"id":25,
+				"user":"",
+				"estacion_id":2230
+			},
+			{
+				"id":29,
+				"user":"",
+				"estacion_id":5873
+			},
+			{
+				"id":8,
+				"user":"",
+				"estacion_id":5874
+			},
+			{
+				"id":30,
+				"user":"",
+				"estacion_id":5876
+			}
+		]
+	},
+	"snih": {
+		"variable_map": {
+		  "1": {
+			"var_id": 2,
+			"unit_id": 11,
+			"descripcion": "Altura"
+		  },
+		  "4": {
+			"var_id": 55,
+			"unit_id": 13,
+			"descripcion": "Velocidad del Viento"
+		  },
+		  "12": {
+			"var_id": 14,
+			"unit_id": 356,
+			"descripcion": "Radiacion Solar"
+		  },
+		  "14": {
+			"var_id": 53,
+			"unit_id": 12,
+			"descripcion": "Temperatura Bulbo Seco"
+		  },
+		  "15": {
+			"var_id": 45,
+			"unit_id": 12,
+			"descripcion": "Temperatura Bulbo Humedo"
+		  },
+		  "16": {
+			"var_id": 6,
+			"unit_id": 12,
+			"descripcion": "Temperatura Máxima"
+		  },
+		  "17": {
+			"var_id": 5,
+			"unit_id": 12,
+			"descripcion": "Temperatura Mínima"
+		  },
+		  "19": {
+			"var_id": 72,
+			"unit_id": 15,
+			"descripcion": "Humedad Max"
+		  },
+		  "20": {
+			"var_id": 27,
+			"unit_id": 9,
+			"descripcion": "Precipitación"
+		  },
+		  "101": {
+			"var_id": 40,
+			"unit_id": 10,
+			"descripcion": "Caudal Medio Diario"
+		  },
+		  "102": {
+			"var_id": 48,
+			"unit_id": 10,
+			"descripcion": "Caudal Medio Mensual"
+		  },
+		  "103": {
+			"var_id": 70,
+			"unit_id": 10,
+			"descripcion": "QMax Instantáneo"
+		  },
+		  "104": {
+			"var_id": 71,
+			"unit_id": 10,
+			"descripcion": "QMin Instantáneo"
+		  },
+		  "105": {
+			"var_id": 68,
+			"unit_id": 10,
+			"descripcion": "Caudal Medio Diario Máximo"
+		  },
+		  "106": {
+			"var_id": 69,
+			"unit_id": 10,
+			"descripcion": "Caudal Medio Diario Mínimo"
+		  },
+		  "206": {
+			"var_id": 73,
+			"unit_id": 12,
+			"descripcion": "TEMPERATURA DEL AGUA"
+		  },
+		  "218": {
+			"var_id": 60,
+			"unit_id": 18,
+			"descripcion": "Presión Atmosférica [mBar]"
+		  },
+		  "300": {
+			"var_id": 7,
+			"unit_id": 12,
+			"descripcion": "Temperatura Media"
+		  },
+		  "301": {
+			"var_id": 10,
+			"unit_id": 13,
+			"descripcion": "Velocidad del viento media"
+		  },
+		  "302": {
+			"var_id": 9,
+			"unit_id": 13,
+			"descripcion": "Velocidad del viento máxima"
+		  },
+		  "351": {
+			"var_id": 60,
+			"unit_id": 357,
+			"descripcion": "Presión Atmosférica [mmHg]"
+		  },
+		  "-1": {
+			"var_id": 19,
+			"unit_id": 21,
+			"descripcion": "Aforo"
+		  }
+		},
+		"asociaciones": "config/SNIH_listaAsociaciones.json",
+		"provincias_map": {
+			"13": "Buenos Aires",
+			"2": "Catamarca",
+			"21": "Chaco",
+			"12": "Chubut", 
+			"22": "Córdoba",
+			"20": "Corrientes",
+			"23": "Entre Ríos",
+			"14": "Formosa",
+			"1": "Jujuy",
+			"19": "La Pampa",
+			"6": "La Rioja",
+			"8": "Mendoza",
+			"18": "Misiones",
+			"11": "Neuquén",
+			"10": "Río Negro",
+			"4": "Salta",
+			"15": "Santa Cruz",
+			"16": "Santa Fe",
+			"5": "Santiago del Estero",
+			"7": "San Juan",
+			"9": "San Luis",
+			"17": "Tierra del Fuego",
+			"3": "Tucumán"
+		}
+	},
+	"crud": {
+		"default_vars": {
+			"hidro": [
+				{ "proc_id": 1, "var_id": [2,4,22,23,24,25,26,33,39,40,48,49,50,51,52,67,68,69,73]},
+				{ "proc_id": 2, "var_id": [4]}, 
+				{ "proc_id":4, "var_id":[32,35,36]},
+				{ "proc_id":5, "var_id": [40,48]}
+			],
+			"meteo": [
+				{ "proc_id":1, "var_id": [1,5,6,7,9,10,11,12,13,14,16,17,18,27,31,34,38,43,53,54,55,56,57,58,59,60,61,62,63] }
+			]
+		}
+	},
+	"conae_gc": {
+		"url": "ftp01.uss.saocom.conae.gov.ar",
+		"user": "",
+		"password": "",
+		"local_dir": "../data/conae_gc",
+		"areas_map": {
+			"1": {
+				"id": 478,
+				"nombre": "Gualeguay @ Federal"
+			},
+			"2": {
+				"id": 479,
+				"nombre": "Gualeguay @ Villaguay"
+			},
+			"3": {
+				"id": 2,
+				"nombre": "Gualeguay @ Rosario Tala"
+			},
+			"4": {
+				"id": 477,
+				"nombre": "Matanza - Riachuelo @ Ricchieri"
+			},
+			"5": {
+				"id": 480,
+				"nombre": "Pergamino @ Pergamino"
+			},
+			"6": {
+				"id": 481,
+				"nombre": "Colón @ Colón"
+			},
+			"7": {
+				"id": 482,
+				"nombre": "Rojas @ Rojas"
+			},
+			"8": {
+				"id": 101,
+				"nombre": "Salto @ Salto"
+			},
+			"9": {
+				"id": 100,
+				"nombre": "Arrecifes @ Arrecifes"
+			},
+			"10": {
+				"id": 103,
+				"nombre": "Salado Norte @ Recreo"
+			},
+			"11": {
+				"id": 483,
+				"nombre": "Lujan @ Mercedes"
+			},
+			"12": {
+				"id": 215,
+				"nombre": "Lujan @ Jauregui"
+			},
+			"13": {
+				"id": 115,
+				"nombre": "Pergamino @ Urquiza"
+			},
+			"14": {
+				"id": 484,
+				"nombre": "Villaguay @ Villaguay"
+			},
+			"15": {
+				"id": 142,
+				"nombre": "Areco @ Carmen de Areco"
+			},
+			"16": {
+				"id": 113,
+				"nombre": "Areco @ San Antonio de Areco"
+			},
+			"17": {
+				"id": 334,
+				"nombre": "Gualeguaychú @ RN136"
+			},
+			"18": {
+				"id": 5,
+				"nombre": "Feliciano @ Paso Medina"
+			},
+			"19": {
+				"id": 118,
+				"nombre": "Carcarañá @ Pueblo Andino"
+			}
+		}
+	},
+	"thin": {
+		"interval_lower_limit": 60
+	},
+	"wof":{
+		"wml_endpoint":"http://whos.geodab.eu/gs-service/services/essi/view/plata/cuahsi_1_1.asmx?WSDL",
+		"request_defaults": {
+			"timeout": 60000,
+			"connection": "keep-alive"
+		}, "wsdl_headers": {
+			"Origin": "https://alerta.ina.gob.ar",
+			"Referer": "https://alerta.ina.gob.ar/a5"
+		}, "database": {
+			"user": "",
+			"host": "",
+			"database": "",
+			"password": "",
+			"port": 5432
+		}, "database_local": {
+			"user": "",
+			"host": "",
+			"database": "",
+			"password": "",
+			"port": 5432
+		}, "variable_map": {
+			"06E5F721CC43E13B6F10E80EADBBECEB86B539B9": {
+			  "var_id": 75,
+			  "unit_id": 9,
+			  "propietario": "brazil-inmet",
+			  "nombre": "EVAPOTRANSPIRAÇAO POTENCIAL, BH MENSAL"
+			},
+			"13C613D77FED7D5863A85AEF47BB9FF710C698E8": {
+			  "var_id": 76,
+			  "unit_id": 15,
+			  "propietario": "brazil-inmet",
+			  "nombre": "UMIDADE RELATIVA DO AR, MEDIA MENSAL"
+			},
+			"17199EB78CD7551D5837FE16EDC1829484A9F434": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "CL (NUVENS BAIXAS)"
+			},
+			"263F949022EDFE183D5C7C9491754C9E8CAFEB05": {
+			  "var_id": 45,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA DO AR - BULBO UMIDO, HORARIA"
+			},
+			"341D7471F198EA8970BC3031086B3A67FF173487": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "CM (NUVENS MEDIAS)"
+			},
+			"3AB804205AF50B72A1C7F5E47057A9D6C852D72C": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "NEBULOSIDADE, MEDIA MENSAL"
+			},
+			"42E0859F19D8D3EEAD80DD47CE7A7B5DC94BB52C": {
+			  "var_id": 1,
+			  "unit_id": 9,
+			  "propietario": "brazil-inmet",
+			  "nombre": "PRECIPITAÇÃO TOTAL, DIARIO"
+			},
+			"44F4FC6ABA9630F65BF07516C47C7B703F065C83": {
+			  "var_id": 77,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA MÁXIMA MEDIA, MENSAL"
+			},
+			"4800D4EC5365CFCD17D47C96CA44BA4A285D110E": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA MÉDIA COMPENSADA, DIARIA"
+			},
+			"49934E86375E010327D50C168DE5EDA6FE12FDF3": {
+			  "var_id": 41,
+			  "unit_id": 9,
+			  "propietario": "brazil-inmet",
+			  "nombre": "PRECIPITAÇÃO TOTAL, MENSAL"
+			},
+			"4DFAAD89E08C086ED9E10FCBC164FFA4206D3D68": {
+			  "var_id": 10,
+			  "unit_id": 13,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VENTO, VELOCIDADE MEDIA DIARIA"
+			},
+			"4FB74D2B3C932B3919E43847ADD93A61866CC143": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "CH (NUVENS ALTAS)"
+			},
+			"5095304878AC98A51DC4C2B3B3CBBAEBEA4963DF": {
+			  "var_id": 6,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA MÁXIMA, DIARIA"
+			},
+			"525F30347BDF30C247D9BA0CD7BA745507DC127D": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "EVAPORACAO DO PICHE, MENSAL"
+			},
+			"54DF3A7E4C8ED47459CDC1E3C81DED8A48797642": {
+			  "var_id": 31,
+			  "unit_id": 9,
+			  "propietario": "brazil-inmet",
+			  "nombre": "PRECIPITAÇÃO TOTAL, HORÁRIO"
+			},
+			"5F482E39DCB002803C6C74712F078A33462CD131": {
+			  "var_id": 61,
+			  "unit_id": 17,
+			  "propietario": "brazil-inmet",
+			  "nombre": "PRESSAO ATMOSFERICA AO NIVEL DA ESTACAO, HORARIA"
+			},
+			"620D0EBA430BFB349CA35F1023C8A4C86EFB629D": {
+			  "var_id": 5,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA MÍNIMA, DIARIA"
+			},
+			"66AFF0CD0387C96D632215A9FDC6DB7A233B6A87": {
+			  "var_id": 64,
+			  "unit_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VENTO, DIREÇÃO HORARIA"
+			},
+			"74925DA8F4319F37AD76FE94BD66AA08C6B5B619": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA MÉDIA COMPENSADA, MENSAL"
+			},
+			"759AC3B73764E85126B987F70DD86F615D80FE69": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "NEBULOSIDADE, HORÁRIA"
+			},
+			"85D9EADE28C102CCE3EDA6474E91864BD6C45601": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "NUMERO DE DIAS COM PRECIP. PLUV, MENSAL"
+			},
+			"8D40E69CDB832C56BE5D8A19DB914B7B2B68217C": {
+			  "var_id": 56,
+			  "unit_id": 13,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VENTO, VELOCIDADE HORARIA"
+			},
+			"8FE056A2CA4D120DFD5B733BE775343DF91C28E5": {
+			  "var_id": 12,
+			  "unit_id": 15,
+			  "propietario": "brazil-inmet",
+			  "nombre": "UMIDADE RELATIVA DO AR, MEDIA DIARIA"
+			},
+			"ADA2CB594BD44C2BD0AE8CF79910F2193EEA3F62": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "DIRECAO PREDOMINANTE DO VENTO, MENSAL"
+			},
+			"AF54A9745DFBF6F2BA0BBCB2CC2195E9AE764EA0": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "INSOLACAO TOTAL, MENSAL"
+			},
+			"B3B8E6347D38454F5AA95875242D5E6B082A4112": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VENTO, VELOCIDADE MAXIMA MENSAL"
+			},
+			"B690A3109EDD52C0B42784F628FF7B7B5628B7C8": {
+			  "var_id": 43,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA DO PONTO DE ORVALHO"
+			},
+			"C553B6B45ED2CF6C01F8D698347D4646637EFBD6": {
+			  "var_id": 59,
+			  "unit_id": 15,
+			  "propietario": "brazil-inmet",
+			  "nombre": "UMIDADE RELATIVA DO AR, HORARIA"
+			},
+			"CC7ED0E040EA1731CA471DD313745FD8B3760600": {
+			  "var_id": 61,
+			  "unit_id": 17,
+			  "propietario": "brazil-inmet",
+			  "nombre": "PRESSAO ATMOSFERICA AO NIVEL DO MAR, HORARIA"
+			},
+			"D7C0A3B78A4CE4EB770FEBE956F3B7645341A8F2": {
+			  "var_id": 78,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA MÍNIMA MEDIA, MENSAL"
+			},
+			"D860E79ECC0BE06902F655157C170FA6B13E2D46": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "EVAPORACAO DO PICHE, DIARIA"
+			},
+			"E10B70E389819872B752881869752EC685E5AE28": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "INSOLACAO TOTAL, DIARIO"
+			},
+			"E1F1E450E7893E405A57FAADE9BFEC35A9B2DFC8": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "EVAPOTRANSPIRAÇAO REAL, BH MENSAL"
+			},
+			"E25B10497AE1D29A5F811BE9454C36842999BAD2": {
+			  "var_id": 54,
+			  "unit_id": 12,
+			  "propietario": "brazil-inmet",
+			  "nombre": "TEMPERATURA DO AR - BULBO SECO, HORARIA"
+			},
+			"E923D35FCA867AD046A6A79F345A61B116B16A19": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VISIBILIDADE, HORARIA"
+			},
+			"EA9033675DF9E593369D80143A88E183366732B6": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VENTO, VELOCIDADE MEDIA MENSAL"
+			},
+			"EAE0A4182158373495BD71A013558C1A3CFE5AB6": {
+			  "var_id": 0,
+			  "propietario": "brazil-inmet",
+			  "nombre": "VISIBILIDADE, MEDIA MENSAL"
+			},
+			"F3C59FE21F90375CABDD6AAE88D73076B36B7DCB": {
+			  "var_id": 79,
+			  "unit_id": 17,
+			  "propietario": "brazil-inmet",
+			  "nombre": "PRESSAO ATMOSFERICA, MEDIA MENSAL"
+			},
+			"5C34E7D199E2643B1AA949D920942C576A406AB4": {
+				"var_id": 4,
+				"unit_id": 10,
+				"propietario": "brazil-ana"
+			},
+			"80B052462E277E0F7D3002CA6C67E481CD953CDC": {
+				"var_id": 2,
+				"unit_id": 11,
+				"propietario": "brazil-ana",
+				"rescale": 0.01
+			},
+			"D2DB8BC2930F82D1E5EFA6B529F0262EB0FFE994": {
+				"var_id": 27,
+				"unit_id": 9,
+				"propietario": "brazil-ana"
+			},
+			"B838A449A5FBC64CBB8A204A5CD614519EB0844A": {
+				"var_id": 1,
+				"unit_id": 9,
+				"propietario": "uruguay-inumet",
+				"nombre": "Precipitation"
+			},
+			"04FCF4AC10BC45AA3F2FA05E153143B1EF8992C3": {
+				"var_id": 5,
+				"unit_id": 12,
+				"propietario": "paraguay-dmh",
+				"nombre": "temperatura mínima"
+			},
+			"15C7C09B0AC64CCD0664CBE8D401D44308836D29": {
+				"var_id": 61,
+				"unit_id": 17,
+				"propietario": "paraguay-dmh",
+				"nombre": "presion nivel estacion"
+			},
+			"1841413E785E4DFD2229F3133C0CCBC6D9E3719A": {
+				"var_id": 6,
+				"unit_id": 12,
+				"propietario": "paraguay-dmh",
+				"nombre": "temperatura maxima"
+			},
+			"49BCF861BB568173E0B02176AA721009C9088D63": {
+				"var_id": 80,
+				"unit_id": 12,
+				"propietario": "paraguay-dmh",
+				"nombre": "temperatura punto rocio"
+			},
+			"5D0C08BE0162119167DA534DDCA2B64DA101A4A2": {
+				"var_id": 0,
+				"propietario": "paraguay-dmh",
+				"nombre": "tiempo presente"
+			},
+			"62080AC18135154736A1C09B85279F3B0A0179A7": {
+				"var_id": 64,
+				"unit_id": 16,
+				"propietario": "paraguay-dmh",
+				"nombre": "direccion viento"
+			},
+			"81739B95E85BE5AEB3ECB838B9C22C3A4B52763A": {
+				"var_id": 0,
+				"propietario": "paraguay-dmh",
+				"nombre": "tiempo pasado"
+			},
+			"86F218C3D884DEA644CBE83972876D6CB1A25C12": {
+				"var_id": 81,
+				"unit_id": 353,
+				"propietario": "paraguay-dmh",
+				"nombre": "nubosidad"
+			},
+			"934CF3015212D5490A0B68D531922D7B76E5D791": {
+				"var_id": 82,
+				"unit_id": 12,
+				"propietario": "paraguay-dmh",
+				"nombre": "temperatura bulbo humedo"
+			},
+			"AD695C354E68C199DB1D21BD1F3F0C3ABC7A2922": {
+				"var_id": 0,
+				"propietario": "paraguay-dmh",
+				"nombre": "visibilidad"
+			},
+			"BB4BD08CDA1D95A222383977E96F4F28F94ED775": {
+				"var_id": 56,
+				"unit_id": 13,
+				"propietario": "paraguay-dmh",
+				"nombre": "velocidad viento"
+			},
+			"DECC8F83BB8711C098DD30D3A57D0C6349D7B416": {
+				"var_id": 0,
+				"propietario": "paraguay-dmh",
+				"nombre": "insolacion"
+			},
+			"EE3C58F498864F5FD97B6187696330B95BFEBFE9": {
+				"var_id": 83,
+				"unit_id": 17,
+				"propietario": "paraguay-dmh",
+				"nombre": "presion nivel mar"
+			},
+			"F4D94E44A1A977278F5ACBC9F94AF02777CF474D": {
+				"var_id": 54,
+				"unit_id": 12,
+				"propietario": "paraguay-dmh",
+				"nombre": "temperatura aire"
+			}
+		},
+		"propietarios_map": {
+			"uruguay-dinagua": "DINAGUA, Recursos Hidricos",
+			"uruguay-inumet": "INUMET",
+			"brazil-ana": "National Water Agency of Brazil",
+			"brazil-inmet": "INMET",
+			"paraguay-dmh": "DMH-DINAC"
+		}
+	}
+}

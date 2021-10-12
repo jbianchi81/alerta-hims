@@ -1,0 +1,35 @@
+<div class="container">
+	<div class="table-wrapper">
+		<div class="table-title row">
+			<div class=""><h4>Observaciones</h4></div>
+			<div class="btn-group col-sm" role=group>
+				<button type="button" class="btn btn-info add-new"><i class="fa fa-plus"></i>Agregar nuevo</button>
+				<button type="button" class="btn btn-info select-all"><i class="fa fa-check"></i>Seleccionar todo</button>
+				<button type="button" class="btn btn-info invert-select"><i class="fa fa-check-circle-o"></i>Invertir selección</button>
+				<button type="button" class="btn btn-info remove-selected" disabled><i class="fa fa-minus"></i>Eliminar selección</button>
+				<button type="button" class="btn btn-info import-csv" data-toggle="tooltip" title="Los campos deben ser: fechainicial,fechafinal,valor. El formato de fecha es AAAA-MM-DDTHH:MM:SS.000Z en huso horario central (+00) (Formato ISO)"><i class="fa fa-upload" aria-hidden="true"></i>Importar CSV</button>
+				<button type="button" class="btn btn-info get-from-source" data-toggle="tooltip" title="Obtiene datos de la fuente" disabled><i class="fa fa-upload" aria-hidden="true"></i>Obtener de fuente</button>
+				<div class="btn-group" role=group>
+					<button id="btnGroupDrop1" type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Exportar</button>
+					<div class="dropdown-menu" aria-labelledby="btnGroupDrop1">
+						<button type="button" class="btn btn-info export-csv dropdown-item" disabled><i class="fa fa-download" aria-hidden="true"></i>selección</button>
+						<button type="button" class="btn btn-info export-csv-all dropdown-item"><i class="fa fa-download" aria-hidden="true"></i>todo</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<table class="obs_edit_table bootstraped"  data-pagination="true" data-search="true" data-unique-id="id" data-height=720 data-multiple-select-row="true" data-maintain-meta-data="true" data-sort-name="timestart" data-page-size=15 data-page-list="[]" data-sort-stable=true>
+		  <thead>
+			<tr>
+			  <th data-checkbox="true" data-field="state"></th>
+			  <th data-sortable="true" data-field="id">id</th>
+			  <th data-sortable="true" data-field="timestart">timestart</th>
+			  <th data-sortable="true" data-field="timeend">timeend</th>
+			  <th data-sortable="true" data-field="valor">valor</th>
+			  <th data-field="action">action</th>
+			</tr>
+		  </thead>
+		</table>
+	</div>
+</div>
+

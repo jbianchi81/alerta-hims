@@ -1,0 +1,475 @@
+<div class="container p-3 my-3 border">
+	<section id=mainHeading style="display: flex;justify-content: space-between;">
+		<h3>Catálogo</h3>
+		<h2></h2>
+		<div>
+			<a id="selectorToggle" class="btn btn-primary" data-toggle="collapse" href=".showHideFilters" role="button" aria-expanded="false" aria-controls="selector" style="display: none;"><i class="fa fa-search" aria-hidden="true"></i></a>
+			<button id="refresh" class="btn btn-info">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+			      <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+			      <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+				</svg>
+			</button>
+		</div>
+	</section> 
+	<section id=selector class="collapse multi-collapse showHideFilters" style="justify-content: space-between;">
+		<form id=selectorform class="container">
+		</form>
+	</section>
+	<section id=lastfilterparams class="collapse multi-collapse showHideFilters hide" style="justify-content: space-between; display: flex; background-color: #88ee6c;">
+	</section>
+	<ul class="nav nav-tabs">
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#general" id=generaltab>Metadatos</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link" data-toggle="tab" href="#mapa" id=maptab>Mapa</a>
+	  </li>
+	  <li class="nav-item">
+		<a class="nav-link active" data-toggle="tab" href="#tabla" id=tabletab>Tabla</a>
+	  </li>
+	</ul>
+	<div class="tab-content" style="display: none">
+		<div class="tab-pane container tabcontent" id="general">
+			Realice una búsqueda y luego seleccione un elemento en la tabla o el mapa
+		</div>
+		<div class="tab-pane container tabcontent" id="mapa">
+			<div class=container style="position: relative">
+				<div id="map" class="map" style="min-width:300px;"></div>
+					<div id=maplegend>
+				</div>
+			</div>
+			<div id="popup" class="ol-popup" style="display: none; min-width: 300px;">
+			  <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+			  <div id="popup-content"></div>
+			</div>
+		</div>
+		<div class="tab-pane active container tabcontent" id="tabla">
+			<div class="container">
+				<div class="table-wrapper">
+					<div class="table-title row" style="justify-content: space-between">
+						<div class=""><h4 id=tableTitle></h4></div>
+						<button id="acciones_toggle" class="btn btn-primary" role="button" href="#acciones_bar"  title="abrir menú de acciones"><i class="fa fa-bars"></i></button>
+						<div class="btn-group btn-group-sm collapse in" role="group" id="acciones_bar" style="" aria-label="grupo de acciones">
+							<button type="button" class="btn btn-info add-new acciones"><i class="fa fa-plus"></i>Crear</button>
+							<button type="button" class="btn btn-info upload-new acciones"><i class="fa fa-upload"></i>Importar</button>
+							<button type="button" class="btn btn-info select-all acciones"><i class="fa fa-check"></i>Seleccionar todo</button>
+							<button type="button" class="btn btn-info invert-select acciones"><i class="fa fa-check-circle-o"></i>Invertir selección</button>
+							<button type="button" class="btn btn-info remove-selected acciones" disabled><i class="fa fa-minus"></i>Eliminar selección</button>
+<!--
+							<button type="button" class="btn btn-info import-csv" data-toggle="tooltip" title=""><i class="fa fa-upload" aria-hidden="true"></i>Importar CSV</button>
+-->
+							<div class="btn-group btn-group-sm" role="group">
+								<button id="btnGroupDrop2" type="button" class="btn btn-secondary dropdown-toggle acciones" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Exportar</button>
+								<div class="dropdown-menu dropdown-menu-sm" aria-labelledby="btnGroupDrop2">
+									<button type="button" class="btn btn-info export-csv dropdown-item acciones" disabled><i class="fa fa-download" aria-hidden="true"></i>selección</button>
+									<button type="button" class="btn btn-info export-csv-all dropdown-item acciones"><i class="fa fa-download" aria-hidden="true"></i>todo</button>
+								</div>
+							</div>
+							<button id=close_acciones type="button" class="btn btn-info" title="cerrar menú de acciones"><i class="fa fa-times" aria-hidden="true"></i></button>
+						</div>
+					</div>
+					<table class="md_edit_table bootstraped"  data-pagination="false" data-search="true" data-unique-id="id" data-height=720 data-multiple-select-row="true" data-maintain-meta-data="true" data-page-size=10 data-page-list="[]" data-sort-stable=true> <!-- data-sort-name="id" -->
+					  <thead>
+						<tr>
+						  <th data-checkbox="true" data-field="state"></th>
+						  <th data-field="action">acción</th>
+						</tr>
+					  </thead>
+					</table>
+				</div>
+			</div>
+		</div>
+<!-- Modal create/edit/delete-->
+		<div id="myModalMetadata" class="modal fade metadata_modal" role="dialog">
+		  <div class="modal-dialog">
+			<!-- Modal content-->
+			<div class="modal-content">
+			  <div class="modal-header">
+				<h4 class="modal-title">Editar metadatos</h4>
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+			  </div>
+			  <div class="modal-body" id=confirm_modal_body>
+				<form id=confirm class=confirm action="" method=PUT target="_blank">
+				</form>
+			  </div>
+			  <div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+			  </div>
+			</div>
+		  </div>
+		</div>
+	</div>
+<!-- Modal download -->
+	<div id="myModalDownload" class="modal fade download_modal" role="dialog">
+	  <div class="modal-dialog">
+		<!-- Modal content-->
+		<div class="modal-content">
+		  <div class="modal-header">
+			<h4 class="modal-title">Descargar metadatos</h4>
+			<button type="button" class="close" data-dismiss="modal">&times;</button>
+		  </div>
+		  <div class="modal-body">
+				<span id=exportcsv style="display: block;">
+					<a download="metadatos.csv" class="download-link"></a><br>
+				</span>
+				<span id=exportjson style="display: none;">
+					<a download="metadatos.json" class="download-link-json"></a><br>
+<!--
+					<input type=text readonly=true class=api-link id=apiLink style="width:200px" disabled="disabled">
+					<button type=button onclick="copyTextToClipboard('apiLink')">Copiar api url (JSON)</button>
+				</span>
+-->
+		  <span id=exportgeojson style="display: none;">
+					<a download="metadatos.geojson" class="download-link-geojson"></a><br>
+		  </span>
+		  <span id=exportmnemos style="display: none;">
+					<a download="metadatos.mnemos.csv" class="download-link-mnemos"></a><br>
+		  </span>
+		  </div>
+		  <div class="modal-footer">
+			<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+		  </div>
+		</div>
+	  </div>
+	</div>
+	<!-- Modal delete -->
+	<div id="myModalDelete" class="modal fade" role="dialog">
+	  <div class="modal-dialog">
+		<!-- Modal content-->
+		<div class="modal-content">
+		  <div class="modal-header">
+			<h4 class="modal-title">Eliminar</h4>
+			<button type="button" class="close" data-dismiss="modal">&times;</button>
+		  </div>
+		  <div class="modal-body">
+			<form id=confirm method=DELETE action="">
+				<button type=submit>confirma</button>
+			</form>
+		  </div>
+		  <div class="modal-footer">
+			<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+		  </div>
+		</div>
+	  </div>
+	</div>
+
+</div>
+<script type="text/javascript" src="js/secciones_functions.js"></script>
+<script type="text/javascript" src="js/metadataElements.js"></script>
+<script>
+	var overlay, map, container2, selectedFeatureLayer, layerEstaciones, draw
+	$("div#maplegend").hide()
+	var global = {}
+	var isWriter = "{{isWriter}}";
+	global.isWriter = (isWriter === "true")
+	$("a[data-toggle=tab]").click(evt=>{
+		window.dispatchEvent(new Event('resize'));
+	})
+	// $("section#selector").on('show.bs.collapse',()=>{
+	//	$("a#selectorToggle").text("ocultar buscador")
+	//})
+	//.on('hide.bs.collapse',()=>{
+	//	$("a#selectorToggle").text("mostrar buscador")
+	//}) 
+	$("section#selector").collapse('show')
+	//$("button#acciones_toggle").click((evt)=>{
+	//	if($("div#acciones_bar").css("display") == "none") {
+	//		$("button#acciones_toggle i").removeClass('fa-pencil').addClass('fa-ban')
+	//	} else {
+	//		$("button#acciones_toggle i").removeClass('fa-ban').addClass('fa-pencil')
+	//	}
+	//})
+	$("button#acciones_toggle").click(()=>{
+		$("div#acciones_bar").toggle()	
+		$("button#acciones_toggle").toggle()
+	})
+	// $("div#acciones_bar").toggle(()=>{
+	//	$("button#acciones_toggle").toggle()
+	//})
+	// .hide(()=>{
+	// 	$("button#acciones_toggle").toggle()
+	// })
+	$("button#close_acciones").click(()=>{
+		$("div#acciones_bar").toggle()
+		$("button#acciones_toggle").toggle()
+	})
+	$("div#myModalMetadata").on('hide.bs.modal',onCloseModalHide)
+	$("div#myModalDownload").on('hide.bs.modal', onCloseModalDownload)
+	$("button#refresh").click(refreshWithFilters)
+	$(document).ready(function(){
+		$("body").css("cursor","wait")
+		$('div.tab-content').show()
+		global.isWriter = {{{writer}}}
+		loadMDElement()
+	    $('a[data-toggle="tab"]').on('show.bs.tab', function(e) {
+			localStorage.setItem('activeTab', $(e.target).attr('href'));
+			window.dispatchEvent(new Event('resize'));
+		});
+		var activeTab = localStorage.getItem('activeTab');
+		if(activeTab){
+			$('a[href="' + activeTab + '"]').tab('show');
+		}
+
+		const urlParams = new URLSearchParams(window.location.search);
+		global.urlParams = urlParams
+		if(!urlParams.get('element')) {
+			alert("falta element")
+			return
+		}
+		const mdKey = urlParams.get('element')
+		global.mdKey = mdKey
+		if(!metadataElements[mdKey]) {
+			console.error("Bad element")
+			alert("Parámetros incorrectos")
+			window.location.assign("metadatos")
+			return
+		}
+		const mdElement = metadataElements[mdKey]
+		global.mdElement = metadataElements[mdKey]
+		Object.keys(global.mdElement.properties).forEach(k=>{
+			if(global.urlParams.get(k)){
+				global.mdElement.properties[k].value = global.urlParams.get(k)
+			}
+		})
+		$("section#mainHeading h2").text(mdElement.title)
+		$("h4#tableTitle").text(mdElement.title)
+		//~ if(mdElement.displayMap) {
+			//~ $("li.nav-item#mapa").show()
+			//~ $("div.tabcontent#mapa").show()
+		//~ }
+		if(mdElement.geomFilter) {
+			document.getElementById('popup').style.display = "block"
+			var container = document.getElementById('popup');
+			var content = document.getElementById('popup-content');
+			var closer = document.getElementById('popup-closer');
+			/**
+			 * Create an overlay to anchor the popup to the map.
+			 */
+			overlay = new ol.Overlay({
+			  element: container,
+			  autoPan: true,
+			  autoPanAnimation: {
+				duration: 250
+			  }
+			});
+			
+
+			/**
+			 * Add a click handler to hide the popup.
+			 * @return {boolean} Don't follow the href.
+			 */
+			closer.onclick = function() {
+			  $('div.popover').remove()
+			  overlay.setPosition(undefined);
+			  closer.blur();
+			  return false;
+			};
+				
+			// instantiate openlayers map object
+			map = new ol.Map({
+				target: 'map',
+				layers: [
+				  //~ new ol.layer.Tile({
+					//~ source: new ol.source.OSM()
+				  //~ })
+				  new ol.layer.Tile({
+					  source: new ol.source.XYZ({
+						  url: "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+					  })
+				  })
+				],
+				overlays: [overlay],
+				view: new ol.View({
+				  center: [-55, -25],  // feature[0].getGeometry().getCoordinates(), // ol.proj.fromLonLat([geom.geometry.coordinates[0],geom.geometry.coordinates[1]]),
+				  projection: 'EPSG:4326',
+				  zoom: 5
+				})
+			});
+			// agrega popup2 hover
+			$("div#map").append(
+				$('<div id="popup2" class="ol-popup-hover" style="display: none;"></div>').append(
+					$('<div id="popup-content2"></div>')
+				)
+			)
+			container2 = new ol.Overlay({
+				element: document.getElementById("popup2")
+			});
+			map.addOverlay(container2)
+			map.on("singleclick", mapOnSingleClick)
+			//add map click interaction: popup table. Then clicking any row loads selected estacion
+			map.on('pointermove', mapOnHover)
+			$('a#maptab[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+				map.updateSize()
+			});
+			var labelStyle = new ol.style.Style({
+			  text: new ol.style.Text({
+				font: '10px Calibri,sans-serif',
+				overflow: true,
+				fill: new ol.style.Fill({
+				  color: '#000'
+				}),
+				stroke: new ol.style.Stroke({
+				  color: '#fff',
+				  width: 2
+				})
+			  })
+			});
+			var pointStyle = new ol.style.Style({
+			  image: new ol.style.Icon({
+				anchor: [0.5, 1],
+				src: '../img/map_pin_small.png',
+				//~ size: 60
+			  })
+			});
+			var polygonStyle = new ol.style.Style({
+			  stroke: new ol.style.Stroke({
+				color: "yellow",
+				width: 3
+			  }),
+			  fill: new ol.style.Fill({
+				color: 'rgba(255, 255, 0, 0.1)'
+			  })
+			});
+			var selectedFeatureSource =  new ol.source.Vector({
+				projection: 'EPSG:4326',
+				features: undefined
+			});
+			selectedFeatureLayer = new ol.layer.Vector({
+				source: selectedFeatureSource,
+				style: function(feature) {
+					labelStyle.getText().setText(feature.get('nombre'));
+					if(feature.getGeometry().getType() == "Polygon") {
+						return [labelStyle,polygonStyle];
+					} else {
+						return [labelStyle,pointStyle];
+					}
+				},
+				zIndex: 10
+			});
+			//~ map.addLayer(selectedFeatureLayer)
+			
+			// toggle Draw 
+			
+			var toggleDraw = document.createElement("input")
+			toggleDraw.type = "checkbox"
+			toggleDraw.id = "toggleDraw"
+			toggleDraw.checked = false
+			toggleDraw.title='enable/disable selection polygon'
+			toggleDraw.classList.add("toggleDraw")
+			var label = document.createElement("label")
+			label.setAttribute("for","bbox")
+			label.textContent = "bbox"
+			var toggleDrawDiv = document.createElement("div")
+			toggleDrawDiv.appendChild(toggleDraw)
+			toggleDrawDiv.appendChild(label)
+			toggleDrawDiv.style.position = "absolute"
+			toggleDrawDiv.style.top = 70
+			var toggleDrawControl = new ol.control.Control({
+				element: toggleDrawDiv
+			});
+			map.addControl(toggleDrawControl);
+			$("input#toggleDraw").on("change",function(e) {
+				if (e.target.checked == false) {
+					map.removeInteraction(draw)
+					map.on("singleclick", mapOnSingleClick)
+					map.on("pointermove", mapOnHover)
+				} else {
+					map.addInteraction(draw)
+					map.removeEventListener("singleclick", mapOnSingleClick)
+					map.removeEventListener("pointermove", mapOnHover)
+				}
+			})
+			var source = new ol.source.Vector({wrapX: false});
+			//~ var draw; // global so we can remove it later
+			function addInteraction() {
+				draw = new ol.interaction.Draw({
+					source: source,
+					type: 'Circle',
+					geometryFunction: ol.interaction.Draw.createBox()
+				});
+				draw.on('drawend',function(e){
+					var extent = e.feature.getGeometry().getExtent().map(e=>parseFloat(e.toFixed(4)))
+					console.log(extent)
+					$("form#selectorform input.bbox").val(extent.join(","))
+				})
+				map.addInteraction(draw);
+			}
+			addInteraction();
+			map.removeInteraction(draw)
+		} else {
+			$('a.nav-link[href="#mapa"]').hide()
+		}
+		makeMDTable(mdElement,$("div.tabcontent#tabla"),{{writer}})
+		.then(()=>{
+			return buildFilter(global.mdElement,$("form#selectorform"))
+		})
+		.then((filterCount)=>{
+			$("body").css("cursor","default")
+			$("a#selectorToggle").show()
+			$("form#selectorform").submit(event=>{
+				$("div.popover").remove()
+				onSubmitMetadataSearch(event,mdElement)
+				.then(content=>{
+					global.features = content
+					if(map) { // mdKey == "estacion") {
+						loadMap(content,$("div.tabcontent#mapa"),{{writer}})
+					}
+					return loadMDTable(content,$("div.tabcontent#tabla"),{{writer}})
+				})
+				.then(()=>{
+					console.log("Table rendered")
+					$("a.nav-link#tabletab").click()
+					showLastFilterParams()
+					$("section#selector").collapse('hide')
+				})
+				.catch(e=>{
+					console.error(e.toString())
+					alert(e.toString())
+				})
+			})
+		//~ })
+		//~ .then(()=>{
+			//~ // build edit/create form
+			buildMetadataForm2(mdElement,mdKey,$("div#myModalMetadata form#confirm"),undefined)
+			$("div#myModalMetadata").on('show.bs.modal', event=>{
+				$("div.popover").remove()
+			})
+			$("div.tabcontent#tabla button.add-new").click(event=>{
+				setMetadataForm(mdElement,mdKey,$("div#myModalMetadata form#confirm"),undefined,'create')
+				$("div#myModalMetadata").modal('show')
+			})
+			$("div.tabcontent#tabla button.upload-new").click(event=>{
+				setMetadataForm(mdElement,mdKey,$("div#myModalMetadata form#confirm"),undefined,'upload')
+				$("div#myModalMetadata").modal('show')
+			})
+			if(filterCount) { // si hay filtros en el URL, submit selector
+				var count_empty = 0
+				$("form#selectorform .form-control:required").each((i,e)=>{
+					if($(e).val() === '') {
+						console.log($(e).attr("name"))
+						count_empty++
+					}
+				})
+				if(count_empty == 0) {
+					$("form#selectorform").submit()
+				} else {
+					console.log(count_empty)
+					alert("Llenar todos los campos de búsqueda obligatorios")
+				}
+			}
+			return
+		})
+		//~ .catch(error=>{
+			//~ alert(error.toString())
+			//~ console.error(error)
+			//~ $("body").css("cursor","default")
+		//~ })
+	})
+	$("div#myModalDelete form#confirm").submit(event=>{
+		onSubmitDelete(event)
+	})
+</script>
+<script type="text/javascript" src="js/bootstrap-table.min.js"></script>
+		
+		

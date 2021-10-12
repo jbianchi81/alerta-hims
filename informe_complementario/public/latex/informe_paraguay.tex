@@ -1,0 +1,130 @@
+\documentclass[11pt,spanish] {article}
+\def\spanishoptions{mexico}
+\usepackage{mathptmx}
+\usepackage{mwe,tikz}
+\usepackage[percent]{overpic}
+\usepackage[margin=0.5in]{geometry}
+%~ \usepackage[spanish,es-noshorthands,es-ucroman]{babel}
+\usepackage[spanish]{babel}
+\usepackage{csvsimple}
+\selectlanguage{spanish}
+\usepackage[utf8]{inputenc}
+%~ \usepackage{fancyhdr}
+\usepackage[cm]{fullpage}
+\usepackage{tabu}
+\usepackage{hyperref}
+%~ \pagestyle{fancy}
+\usepackage[section]{placeins}
+\usepackage{titlesec}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{makecell}
+\usepackage{floatrow}
+\usepackage{caption}
+\usepackage{xcolor,colortbl}
+%~ \usepackage{titling}
+%~ \setlength{\droptitle}{-3cm}
+\makeatletter
+\def\input@path{{./public/latex/}}
+%or: \def\input@path{{/path/to/folder/}{/path/to/other/folder/}}
+\makeatother
+\DeclareRobustCommand{\fecha}{\input{fecha}}
+\DeclareRobustCommand{\fechaformat}{\input{fecha_format}}
+\DeclareRobustCommand{\fechapasada}{\input{fecha_pasada}}
+\DeclareRobustCommand{\pronodiariocomentario}{\input{prono_diario_comentario}}
+\DeclareRobustCommand{\comentariofinal}{\input{comentario_final}}
+\DeclareRobustCommand{\fechaproximo}{\input{fecha_proximo}}
+\DeclareRobustCommand{\synoptext}{\input{synop_text}}
+\DeclareRobustCommand{\pronodiario}{\input{prono_diario}}
+\DeclareRobustCommand{\pronomensual}{\input{prono_mensual}}
+\DeclareRobustCommand{\horizonte}{\input{horizonte}}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+%~ \headheight 0pt
+\setlength{\footskip}{10pt}
+%~ \headsep 1pt 
+\titlespacing*{\section}{0pt}{0ex}{0ex}
+\graphicspath{{/home/alerta5/44-NODEJS_APIS/informe_complementario/public/latex/}}
+\usepackage{tabularx}
+\begin{document}
+\captionsetup{labelformat=empty}
+%~ \paragraph*{}
+%~ \begin{center}
+%~ \begin{tabularx}{\textwidth}{|c|>{\centering\arraybackslash}X|c|}
+	%~ \hline
+	%~ \multirow{3}{*}{\includegraphics[width=5cm]{Logo_MOSP_2020.png}} & \textbf{\large{Instituto Nacional del Agua}} & \multirow{3}{*}{\includegraphics[width=2.6cm,height=1.5cm]{logo_ina_crop.png}}  \\
+	%~ & \textbf{\large{Subgerencia de Sistemas de Información y}} & \\ 
+	%~ & \textbf{\large{Alerta Hidrológico}} & \\
+	%~ \hline
+	   %~ \makecell{\Large{\textbf{Informe de Situación}}} &  \makecell{\Large{\textbf{Cuenca del río Paraguay}}} & \fecha \\
+	%~ \hline
+%~ \end{tabularx}
+
+%~ Ing. Juan Borús, Lic. Maximiliano Vita Sánchez,Dr. Leandro Giordano, Lic. Juan Bianchi
+%~ \end{center}
+\begingroup
+\begin{center}
+\renewcommand{\arraystretch}{0.8}
+\begin{tabularx}{\textwidth}{|c|>{\centering\arraybackslash}X|c|}
+	\hline
+	\multirow{5}{*}{\includegraphics[height=1.7cm]{escudo_argentina.png}} & \textbf{\small{Ministerio de Obras Públicas}} & \multirow{5}{*}{\includegraphics[width=2.6cm,height=1.3cm]{logo_ina_crop.png}}  \\
+	& \textbf{\small{Secretaría de Infraestructura y Política Hídrica}} & \\
+	& \textbf{\small{Subsecretaría de Obras Hidráulicas}} & \\
+	& \textbf{\small{Instituto Nacional del Agua}} & \\ 
+	& \textbf{\scriptsize{2021 - Año de Homenaje al Premio Nobel de Medicina Dr. César Milstein}} & \\ 
+	\hline
+	   \makecell{\textbf{Informe de Situación}} &  \makecell{\Large{\textbf{Cuenca del río Paraguay}}} &  \fecha \\
+	\hline
+\end{tabularx}
+Ing. Juan Borús, Lic. Maximiliano Vita Sánchez, Dr. Leandro Giordano, Mg. Juan Bianchi
+\end{center}
+\endgroup
+%~ \paragraph*{}
+%~ \vspace{1cm}
+\subsection{Acumulados semanales de lluvia}
+\begin{tabular}{|c|c|}
+	\hline
+	\includegraphics[width=8.5cm]{synop_pasada.png} & \includegraphics[width=8.5cm]{synop_presente.png} \\
+	\hline
+	Lluvias semanales acumuladas al \fechapasada & Lluvias acumuladas semanales al \fechaformat \\
+	\hline
+\end{tabular}
+
+Los niveles esperados son (en metros):
+
+\begin{center}
+
+\pronodiario
+
+\emph{En sombreado niveles por encima de los respectivos de alerta (amarillo) o evacuación (rojo)}
+\end{center}
+
+\pronodiariocomentario
+
+Para el recinto de defensa de la ciudad de Formosa se actualiza la condición de las estaciones
+de bombeo en función del nivel fluvial, actualizando la siguiente tabla:
+\begin{center}
+\includegraphics[width=13.5cm]{tabla_bombas.png}
+\end{center}
+Los niveles medios mensuales esperados son (en metros, horizonte \horizonte):
+\begin{center}
+\pronomensual
+\end{center}
+\comentariofinal
+
+El monitoreo permanente continuará en los próximos días y se informará sobre los cambios en la
+expectativa y pronósticos hidrométricos. La actualización es diaria. El mensaje completo será
+preparado el próximo \emph{\fechaproximo} y presentado en la página web.
+
+\pagebreak
+\begin{center}
+\includegraphics[width=17cm]{niveles_bneg.png}
+
+\includegraphics[width=17cm]{niveles_conc.png}
+
+\includegraphics[width=17cm]{niveles_pilc.png}
+
+\includegraphics[width=17cm]{niveles_form.png}
+\end{center}
+\end{document}
+

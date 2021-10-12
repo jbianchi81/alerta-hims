@@ -1,0 +1,753 @@
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<script src="https://code.highcharts.com/highcharts.js"></script>
+		<script src="https://code.highcharts.com/modules/heatmap.js"></script>
+		<script src="https://code.highcharts.com/modules/exporting.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+		<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+		<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+		<style>
+			table.form, table.form tr, table.form tr td {
+				border: 1px solid black;
+				border-collapse: collapse;
+				text-align: left;
+				background-color: #00FFFF ;
+			}
+			h2 {
+				text-align: left;
+				margin: 0 auto;
+			}
+			div#container {
+				text-align: left;
+				min-height: 500px;
+				min-width: 450px;
+				margin: 0 auto;
+				overflow: scroll;
+			}
+			div#control {
+				min-width: 310px;
+				max-width: 100%;
+				margin: 0 left;
+			}
+		</style>
+	</head>
+	<body>
+		<h2>Control cuantitativo de series</h2>
+		<div id="control" >
+			<ul>
+				<li><a href=#fdia>día</a></li>
+				<li><a href=#fmes>mes</a></li>
+				<li><a href=#fanio>año</a></li>
+				<li><a href=#fdensobs>registros por red</a></li>
+			</ul>
+			<div id=fdia>
+				<form class=getheatmap action="">
+					<table class=form>
+						<tr>
+							<td>
+								<label for=tabla>tabla:</label>
+							</td>
+							<td>
+								<select type=text class=tabla name=tabla value="">
+									<option disabled selected value> -- select an option -- </option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=varId>varId:</label>
+							</td>
+							<td>
+								<select type=integer class=varId name=varId value=31 />
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=date>día:</label>
+							</td>
+							<td>
+								<input type=date class=date name=date value="" />
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=date>Intervalo:</label>
+							</td>
+							<td>
+								<input type=time min="00:15" max="12:00" class=dt name=dt value="03:00" step="00:15" />
+							</td>
+						</tr>
+						<tr>
+							<td colspan=2>
+								<button type=submit >Cargar datos</button>
+							</td>
+						</tr>
+					</table>
+				</form>
+				<a id=jsonlink download>Descargar JSON</a>
+				<span>   </span>
+				<a id=fwclink download>Descargar TXT</a>
+				<span>   </span>
+				<a id=csvlink download>Descargar CSV</a>
+			</div>
+			<div id=fmes>
+				<form class=getheatmap action="">
+					<table class=form>
+						<tr>
+							<td>
+								<label for=tabla>tabla:</label>
+							</td>
+							<td>
+								<select type=text class=tabla name=tabla value="">
+									<option disabled selected value> -- select an option -- </option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=varId>varId:</label>
+							</td>
+							<td>
+								<select type=integer class=varId name=varId value="" />
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=mes>mes:</label>
+							</td>
+							<td>
+								<input type=month class=mes name=mes value="" placeholder="YYYY-MM" />
+							</td>
+						</tr>
+						<tr>
+							<td colspan=2>
+								<button type=submit >Cargar datos</button>
+							</td>
+						</tr>
+					</table>
+				</form>
+				<a id=jsonlink download>Descargar JSON</a>
+				<span>   </span>
+				<a id=fwclink download>Descargar TXT</a>
+				<span>   </span>
+				<a id=csvlink download>Descargar CSV</a>
+			</div>
+			<div id=fanio>
+				<form class=getheatmap action="">
+					<table class=form>
+						<tr>
+							<td>
+								<label for=tabla>tabla:</label>
+							</td>
+							<td>
+								<select type=text class=tabla name=tabla value="">
+									<option disabled selected value> -- select an option -- </option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=varId>varId:</label>
+							</td>
+							<td>
+								<select type=integer class=varId name=varId value="" />
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=anio>año:</label>
+							</td>
+							<td>
+								<input type=number min=1900 max=2022 step=1 class=anio name=anio value="" placeholder="YYYY" />
+							</td>
+						</tr>
+						<tr>
+							<td colspan=2>
+								<button type=submit >Cargar datos</button>
+							</td>
+						</tr>
+					</table>
+				</form>
+				<a id=jsonlink download>Descargar JSON</a>
+				<span>   </span>
+				<a id=fwclink download>Descargar TXT</a>
+				<span>   </span>
+				<a id=csvlink download>Descargar CSV</a>
+			</div>
+			<div id=fdensobs>
+				<form class=getdens action="">
+					<table class=form>
+						<tr>
+							<td>
+								<label for=proc_id>procedimiento:</label>
+							</td>
+							<td>
+								<select type=integer class=procId name=proc_id value="">
+									<option selected value> -- any -- </option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=var_id>variable:</label>
+							</td>
+							<td>
+								<select type=integer class=varId name=var_id value="">
+									<option selected value> -- any --</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=unit_id>Unidades:</label>
+							</td>
+							<td>
+								<select type=integer class=unitId name=unit_id value="">
+									<option selected value> -- any --</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=timestart>Fecha inicial:</label>
+							</td>
+							<td>
+								<input type=date min="1900-01-01" class=timestart name=timestart value="{{timestart}}" />
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=timeend>Fecha final:</label>
+							</td>
+							<td>
+								<input type=date min="1900-01-01" class=timeend name=timeend value="{{timeend}}" />
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=dt>Intervalo temporal:</label>
+							</td>
+							<td>
+								<select type=text class=dt name=dt>
+									<option value="1 day" selected>1 día</option>
+									<option value="2 days">2 días</option>
+									<option value="3 days">3 días</option>
+									<option value="7 days">7 días</option>
+									<option value="14 days">14 días</option>
+									<option value="1 month">1 mes</option>
+									<option value="2 months">2 meses</option>
+									<option value="3 months">3 meses</option>
+									<option value="6 months">6 meses</option>
+									<option value="1 year">1 año</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for=count>Realizar conteo de:</label>
+							</td>
+							<td>
+								<select type=text class=count name=count>
+									<option value="observaciones" selected>observaciones</option>
+									<option value="estaciones">estaciones</option>
+								</select>
+							</td>
+						<tr>
+							<td colspan=2>
+								<button type=submit >Cargar datos</button>
+							</td>
+						</tr>
+					</table>
+				</form>
+			</div>
+		</div>
+		<div id="container" hidden></div>
+
+		<script>
+			$( function() {
+				$( "#control" ).tabs();
+			});
+			//~ $("form#getheatmap").submit()
+			$("form.getheatmap").submit(getData)
+			function getData(e) {
+				e.preventDefault()
+				var formdata = {};
+				$(e.target).serializeArray().map(function(x){formdata[x.name] = x.value;});  // $("form#getheatmap")
+				console.log(formdata)
+				var url
+				tabla = formdata.tabla
+				varId = formdata.varId
+				var title = 'Registros por estación y por día'
+				if(formdata.timestart && formdata.timeend) {
+					url = "heatmap?tabla=" + tabla + "&varId=" + varId + "&timestart=" + formdata.timeStart + "&timeend=" + formdata.timeEnd  + "&use_id=ext"
+				} else if (formdata.mes) {
+					url = "heatmap?tabla=" + tabla + "&varId=" + varId + "&mes=" + formdata.mes + "&use_id=ext"
+					title = 'Registros por estación y por día'
+				} else if (formdata.anio) {
+					url = "heatmapanio?tabla=" + tabla + "&varId=" + varId + "&anio=" + formdata.anio  + "&use_id=ext"
+					title = 'Registros por estación y por mes'
+				} else if (formdata.date) {
+					url = "heatmapday?tabla=" + tabla + "&varId=" + varId + "&date=" + formdata.date  + "&use_id=ext"
+					title = 'Registros por estación y por periodo'
+					if(formdata.dt) {
+						url += "&dt=" + formdata.dt
+					}
+				} else {
+					alert("falta timestart+timeend, mes, anio o date")
+					return
+				}
+				document.body.style.cursor = "progress";
+				chart.showLoading();
+				$.get(url, (data,status) => {
+					if(status !== 'success') {
+						chart.hideLoading();
+						alert("get heatmap error! Status:" + status)
+						document.body.style.cursor = "default";
+						return
+					}
+					if(!data.heatmap) {
+						chart.hideLoading();
+						alert("get heatmap error! No heatmap found")
+						document.body.style.cursor = "default";
+						return
+					}
+					if(!data.heatmap.estaciones) {
+						chart.hideLoading();
+						alert("Error! Estaciones no encontradas")
+						document.body.style.cursor = "default";
+						return
+					}
+					var chartheight = (data.heatmap.estaciones.length * 30 > 500) ?  data.heatmap.estaciones.length * 30 : 500
+					var maxvalue = 0
+					data.heatmap.heatmap.map(it=> {
+						if(it[2] > maxvalue) {
+							maxvalue = it[2]
+						}
+					})
+					//~ var chartwidth = (data.heatmap.dates.length *30 > 600) ? data.heatmap.dates.length * 30 : 600
+					var chartwidth = $(window).width() // (data.body.heatmap.dates.length *30 > 600) ? data.body.heatmap.dates.length * 30 : 600
+					chart.update({
+						chart: {
+							height: chartheight,
+							width: chartwidth
+						},
+						title: {
+							text: title
+						},
+						subtitle: {
+							text: "tabla:" + tabla + ", varId: " + varId
+						},
+						xAxis: [{
+							categories: data.heatmap.dates,
+						},{
+							categories: data.heatmap.dates,
+						}],
+						yAxis:{
+							categories: data.heatmap.estaciones,
+							min: 0,
+							max: data.heatmap.estaciones.length-1
+						},
+						colorAxis: {
+							min: 0,
+							max: maxvalue
+						},
+						series: [{
+							name: 'Registros por estación y por día',
+							borderWidth: 0,
+							data: data.heatmap.heatmap,
+							dataLabels: {
+								enabled: true,
+								color: '#000000'
+							}
+						}]
+					})
+					chart.hideLoading();
+					$("div#container").css("overflow","scroll");
+					$("div#container").show();
+					document.body.style.cursor = "default";
+					console.log("chart updated");
+				})
+				.fail( () => {
+					alert("get heatmap failed!");
+					chart.hideLoading();
+					document.body.style.cursor = "default";
+				})
+			}
+			function gettablas() {
+				$("select.tabla").empty().append("<option disabled selected value> -- select an option -- </option>")
+				return $.get("tablas", (data,status) => {
+					data.map(it=> {
+						$("<option></option>", {
+							value: it.tabla_id,
+							text: it.nombre + "(" + it.tabla_id + "[" + it.id + "])",
+							appendTo: $("select.tabla")
+							}
+						)
+					})
+					return 
+				})
+			}
+			function getvar() {
+				$("select.varId").empty().append("<option disabled selected value> -- select an option -- </option>");
+				return $.get("var", (data,status) => {
+					data.map(it=> {
+						$("<option></option>", {
+							value: it.id,
+							text: it.nombre + "(" + it.var + "[" + it.id + "])",
+							appendTo: $("select.varId")
+							}
+						)
+					})
+					return 
+				})
+			}
+			function getproc() {
+				$("select.procId").empty().append("<option selected value> -- any -- </option>");
+				return $.get("proc", (data,status) => {
+					data.map(it=> {
+						$("<option></option>", {
+							value: it.id,
+							text: it.nombre + " (" + it.id + ")",
+							appendTo: $("select.procId")
+							}
+						)
+					})
+					return 
+				})
+			}
+			function getunit() {
+				$("select.unitId").empty().append("<option selected value> -- any -- </option>");
+				return $.get("unit", (data,status) => {
+					data.map(it=> {
+						$("<option></option>", {
+							value: it.id,
+							text: it.nombre + " (" + it.id + ")",
+							appendTo: $("select.unitId")
+							}
+						)
+					})
+					return 
+				})
+			}
+			$("div#container").css("overflow","scroll");
+			$("form.getheatmap input").change( e=> {
+				rewriteurl($(e.target).closest('form'))
+			})
+			$("form.getheatmap select").change( e=> {
+				rewriteurl($(e.target).closest('form'))
+			})
+			function rewriteurl(form) {
+				var formdata = {}
+				$(form).serializeArray().map(function(x){formdata[x.name] = x.value;});  // $("form#getheatmap")
+				var url
+				tabla = formdata.tabla
+				varId = formdata.varId
+				var div = $(form).parent('div')
+				if(!formdata.tabla) {
+					console.log("falta tabla")
+					$(div).children("a").attr("href",null)
+					$(div).children("a").css("color","gray")
+					return
+				}
+				if(!formdata.varId) {
+					console.log("falta varId")
+					$(div).children("a").attr("href",null)
+					$(div).children("a").css("color","gray")
+					return
+				}
+				if(formdata.timestart && formdata.timeend) {
+					url = "heatmap?tabla=" + tabla + "&varId=" + varId + "&timestart=" + formdata.timeStart + "&timeend=" + formdata.timeEnd
+				} else if (formdata.mes) {
+					url = "heatmap?tabla=" + tabla + "&varId=" + varId + "&mes=" + formdata.mes
+					title = 'Registros por estación y por día'
+				} else if (formdata.anio) {
+					url = "heatmapanio?tabla=" + tabla + "&varId=" + varId + "&anio=" + formdata.anio
+					title = 'Registros por estación y por mes'
+				} else if (formdata.date) {
+					url = "heatmapday?tabla=" + tabla + "&varId=" + varId + "&date=" + formdata.date 
+					title = 'Registros por estación y por periodo'
+					if(formdata.dt) {
+						url += "&dt=" + formdata.dt
+					}
+				} else {
+					console.log("falta timestart+timeend, mes, anio o date")
+					$(div).children("a").attr("href",null)
+					$(div).children("a").css("color","gray")
+					return
+				}
+				$(div).children("a#jsonlink").attr("href",url + "&use_id=ext")
+				$(div).children("a#fwclink").attr("href", url + "&use_id=ext&format=fwc")
+				$(div).children("a#csvlink").attr("href", url + "&use_id=ext_only&format=csv")
+				$(div).children("a").css("color","black")
+			}
+			// SUBMIT GET DENSIDAD 
+			$("form.getdens").submit(getDens)
+			function getDens(e) {
+				e.preventDefault()
+				var formdata = $(e.target).serializeArray()
+				console.log({formdata:formdata})
+				var formdict = {}
+				formdata.forEach(it=>{
+					formdict[it.name] = it.value
+				})
+				var url = "densidad/observaciones"
+				var title = 'Registros por red y por intervalo temporal'
+				if(formdict.count && formdict.count == "estaciones") {
+					url = "densidad/estaciones"
+					title = "Estaciones con registros por red e intervalo temporal"
+				}
+				document.body.style.cursor = "progress";
+				chart.showLoading();
+				var chartwidth = $(window).width()
+				$.get("tablas", (tablas,status)=>{
+					var heatmapdata = []
+					var chartheight = (tablas.length * 30 > 500) ?  tablas.length * 30 : 500
+					document.body.style.cursor = "default"
+					var maxvalue = 0
+					chart.update({
+						title: {
+							text: title
+						},
+						subtitle: {
+							text: ""
+						},
+						yAxis:{
+							categories: tablas.map(it=>it.nombre),
+							min: 0,
+							max: tablas.length-1
+						},
+						colorAxis: {
+							min: 0,
+							max: maxvalue
+						},
+						chart: {
+							height: chartheight,
+							width: chartwidth
+						},
+						series: [{
+							name: title,
+							borderWidth: 0,
+							data: [],
+							dataLabels: {
+								enabled: true,
+								color: '#000000'
+							}
+						}]
+					})
+					tablas.forEach((tabla,i)=>{
+						var tabla_id = tabla.tabla_id
+						var thisformdata = [...formdata]
+						thisformdata.push({name:"tabla_id", value: tabla_id})
+						thisformdata.push({name:"include_timestamps", value: true})
+						var querystring = thisformdata.map(x=>{
+							return x.name + "=" + x.value
+						}).join("&")
+						console.log(querystring)
+						$.get(url + "?" + querystring, (data,status) => {
+							if(status !== 'success') {
+								// chart.hideLoading();
+								alert("get densidad error! Status:" + status)
+								document.body.style.cursor = "default";
+								return
+							}
+							if(!data || !data.values || !Array.isArray(data.values)) {
+								// chart.hideLoading();
+								alert("get densidad error! Not found")
+								// document.body.style.cursor = "default";
+								return
+							}
+							heatmapdata = heatmapdata.concat(data.values.map((it,j)=>{
+								if(it > maxvalue) {
+									maxvalue = it
+								}
+								return [j,i,it]
+							}))
+							var chartwidth = $(window).width()
+							chart.series[0].setData(heatmapdata)
+							if(i==0) {  
+								chart.update({
+									xAxis: [{
+										categories: data.timestamps.map(ts=>new Date(ts).toISOString().substring(0,13))
+									},{
+										categories: data.timestamps.map(ts=>new Date(ts).toISOString().substring(0,13))
+									}]
+								})
+							}
+							chart.hideLoading();
+							$("div#container").css("overflow","scroll");
+							$("div#container").show();
+							document.body.style.cursor = "default";
+							console.log("chart updated");
+						})
+						.fail( () => {
+							alert("get densidad failed!");
+							// chart.hideLoading();
+							document.body.style.cursor = "default";
+						})
+					})
+				})
+				.fail( () => {
+					alert("get tablas failed!");
+					chart.hideLoading();
+					document.body.style.cursor = "default";
+				})
+			}			
+			//  Start exec
+			//~ $(document).ready(function() {
+			var def_timestart = new Date()
+			def_timestart = new Date(def_timestart.getFullYear(),def_timestart.getMonth(),def_timestart.getDay())
+			def_timestart.setMonth(def_timestart.getMonth()-1)
+			var def_timeend = new Date()
+			$("form.getdens input[name=timestart]").val(def_timestart.toISOString().substring(0,10))
+			$("form.getdens input[name=timeend]").val(def_timeend.toISOString().substring(0,10))
+			var urlParams = new URLSearchParams(location.search);
+			gettablas()
+			.fail((e) => {
+				alert("Falla al intentar obtener listado de redes");
+			})
+			.done(()=> {
+				console.log("Listado de tablas obtenido");
+				if(urlParams.has('tabla')) {
+					$("select.tabla").val(urlParams.get('tabla'));
+				}
+				$("select.tabla").change();
+			})
+			getvar()
+			.fail((e) => {
+				alert("Falla al intentar obtener listado de variables")
+			})
+			.done(()=> {
+				console.log("Listado de variables obtenido")
+				if(urlParams.has('varId')) {
+					$("select.varId").val(urlParams.get('varId'));
+				}
+				if(urlParams.has('var_id')) {
+					$("select[name=var_id]").val(urlParams.get('var_id'));
+				}
+				$("select.tabla").change();
+			})
+			getproc()
+			.fail((e) => {
+				alert("Falla al intentar obtener listado de procedimientos")
+			})
+			.done(()=> {
+				console.log("Listado de procedimientos obtenido")
+				if(urlParams.has('proc_id')) {
+					$("select[name=proc_id]").val(urlParams.get('proc_id'));
+				}
+				// $("select.tabla").change();
+			})
+			getunit()
+			.fail((e) => {
+				alert("Falla al intentar obtener listado de unidades")
+			})
+			.done(()=> {
+				console.log("Listado de unidades obtenido")
+				if(urlParams.has('unit_id')) {
+					$("select[name=unit_id]").val(urlParams.get('unit_id'));
+				}
+				// $("select.tabla").change();
+			})
+			if(urlParams.has('anio')) {
+				$("input.anio").val(urlParams.get('anio'));
+			}
+			if(urlParams.has('mes')) {
+				$("input.mes").val(urlParams.get('mes'));
+				$("input.anio").val(urlParams.get('mes').replace(/\-.*$/,""));
+			}
+			if(urlParams.has('date')) {
+				$("input.date").val(urlParams.get('date'));
+				var d = new Date(urlParams.get('date'));
+				console.log(d)
+				$("input.mes").val(d.getFullYear() + '-' + (d.getMonth()+1));
+				$("input.anio").val(d.getFullYear());
+			}
+			$("select.tabla").change( e=> {
+				var value = $(e.target).val()
+				$("select.tabla").val(value)
+				$("select.tabla").not(e.target).map((i,s)=> {
+					rewriteurl($(s).closest('form'))
+				})
+			})
+			$("select.varId").change( e=> {
+				var value = $(e.target).val()
+				$("select.varId").val(value)
+				$("select.tabla").not(e.target).map((i,s)=> {
+					rewriteurl($(s).closest('form'))
+				})
+			})
+			var chart = Highcharts.chart('container', {
+
+				chart: {
+					type: 'heatmap',
+					marginTop: 150,
+					marginBottom: 80,
+					plotBorderWidth: 0,
+					height: 600
+				},
+				title: {
+					text: 'Registros por estación y por día'
+				},
+
+				xAxis: [{
+					categories: [],
+				},{
+					categories: [],
+					linkedTo:0,
+					opposite:true
+				}],
+				yAxis: {
+					categories: [],
+					title: null,
+					labels: {
+						x: -10,
+						align:'left',
+						reserveSpace: true
+					}
+				},
+
+				colorAxis: {
+					min: 0,
+					max: 1,
+					minColor: '#FFFFFF',
+					maxColor: '#0000FF',
+					minorTickInterval:1
+				},
+
+				legend: {
+					align: 'right',
+					layout: 'vertical',
+					margin: 0,
+					verticalAlign: 'top',
+					y: 25,
+					symbolHeight: 280
+				},
+
+				tooltip: {
+					formatter: function () {
+						return '<b>' + this.series.yAxis.categories[this.point.y] + '</b> tiene <br><b>' +
+							this.point.value + '</b> registros en <br><b>' + this.series.xAxis.categories[this.point.x] + '</b>';
+					}
+				},
+				series: [{
+					name: 'Registros por estación y por día',
+					borderWidth: 0,
+					data: [],
+					dataLabels: {
+						enabled: true,
+						color: '#000000'
+					}
+				}]
+
+			});
+
+
+			
+			//~ }); 
+			
+				
+			
+		</script>
+	</body>
+</html>

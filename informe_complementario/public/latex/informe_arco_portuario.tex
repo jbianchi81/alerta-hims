@@ -1,0 +1,120 @@
+\documentclass[11pt,spanish,a4paper] {article}
+\def\spanishoptions{mexico}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\usepackage{mwe,tikz}
+\usepackage[percent]{overpic}
+\usepackage[margin=1.27cm,a4paper]{geometry}
+%~ \usepackage[spanish,es-noshorthands,es-ucroman]{babel}
+\usepackage[spanish]{babel}
+\usepackage{csvsimple}
+\selectlanguage{spanish}
+\usepackage[utf8]{inputenc}
+%~ \usepackage{fancyhdr}
+%~ \usepackage[cm]{fullpage}
+\usepackage{tabu}
+\usepackage{hyperref}
+\pagestyle{empty}
+\usepackage[section]{placeins}
+\usepackage{titlesec}
+\titlespacing*{\subsection}{0pt}{0pt}{0pt}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{makecell}
+\usepackage{floatrow}
+\usepackage{caption}
+\usepackage{xcolor,colortbl}
+\definecolor{Black}{gray}{0.1}
+
+\makeatletter
+\g@addto@macro{\endtabular}{\rowfont{}}% Clear row font
+\makeatother
+\newcommand{\rowfonttype}{}% Current row font
+\newcommand{\rowfont}[1]{% Set current row font
+\gdef\rowfonttype{#1}#1\ignorespaces%
+}
+\makeatother
+
+%~ \usepackage{titling}
+%~ \setlength{\droptitle}{-3cm}
+%~ \setlength{\parindent}{0mm}
+\makeatletter
+\def\input@path{{./public/latex/}}
+%or: \def\input@path{{/path/to/folder/}{/path/to/other/folder/}}
+\makeatother
+\DeclareRobustCommand{\fecha}{\input{fecha}}
+\DeclareRobustCommand{\fechaformat}{\input{fecha_format}}
+\DeclareRobustCommand{\fechapasada}{\input{fecha_pasada}}
+\DeclareRobustCommand{\situaciongeneral}{\input{situacion_general}}
+\DeclareRobustCommand{\textomapasemanal}{\input{texto_mapa_semanal}}
+\DeclareRobustCommand{\tendenciaclimatica}{\input{tendencia_climatica}}
+\DeclareRobustCommand{\pronosticometeorologico}{\input{pronostico_meteorologico}}
+\DeclareRobustCommand{\perspectivahidrometrica}{\input{perspectiva_hidrometrica}}
+\DeclareRobustCommand{\pronosemanal}{\input{prono_semanal}}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+%~ \headheight 0pt
+\setlength{\footskip}{10pt}
+%~ \headsep 1pt 
+\titlespacing*{\section}{0pt}{0ex}{0ex}
+\graphicspath{{/home/leyden/44-NODEJS_APIS/informe_complementario/public/latex/}}
+\usepackage{tabularx}
+\begin{document}
+\captionsetup{labelformat=empty}
+%~ \paragraph*{}
+\begingroup
+\begin{center}
+\renewcommand{\arraystretch}{0.8}
+\begin{tabularx}{\textwidth}{|c|>{\centering\arraybackslash}X|c|}
+	\hline
+	\multirow{5}{*}{\includegraphics[height=1.7cm]{escudo_argentina.png}} & \textbf{\small{Ministerio de Obras Públicas}} & \multirow{5}{*}{\includegraphics[width=2.6cm,height=1.3cm]{logo_ina_crop.png}}  \\
+	& \textbf{\small{Secretaría de Infraestructura y Política Hídrica}} & \\
+	& \textbf{\small{Subsecretaría de Obras Hidráulicas}} & \\
+	& \textbf{\small{Instituto Nacional del Agua}} & \\ 
+	& \textbf{\small{2021 - Año de Homenaje al Premio Nobel de Medicina Dr. César Milstein}} & \\ 
+	\hline
+	   \makecell{\large{\textbf{Informe de}} \\ \large{\textbf{Actualización}}} &  \makecell{\large{\textbf{ARCO PORTUARIO RÍO PARANÁ}}  \\ \textbf{Pronósticos de Alturas Medias Semanales}} & Fecha: \fechaformat \\
+	\hline
+\end{tabularx}
+\end{center}
+\endgroup
+%~ \paragraph*{}
+%~ \vspace{1cm}
+\subsection*{Situación General}
+\situaciongeneral
+
+%~ \begin{center}
+%~ \begin{tabular}{|p{0.5\linewidth}|p{0.5\linewidth}|}
+	%~ \hline
+	%~ \includegraphics[height=6cm]{synop_pasada.png} & \textomapasemanal \\
+	%~ Lluvias semanales acumuladas al \fecha & \\
+	%~ \hline
+%~ \end{tabular}
+%~ \end{center}
+\begin{figure}[H]
+	\floatbox[{\capbeside\thisfloatsetup{capbesideposition={right,center},capbesidewidth=8cm}}]{figure}[\FBwidth]
+	{\caption{Lluvias semanales acumuladas al \fechaformat\\\hspace{\textwidth}\\\hspace{\textwidth}\textomapasemanal}\label{synopmap}}
+	{\includegraphics[height=8cm]{synop_presente.png}}
+\end{figure}
+
+%~ \subsection*{Tendencia Climática}
+%~ \begin{center}
+%~ \begin{tabular}{|c|c|}
+	%~ \hline
+	%~ \includegraphics[height=7cm]{smn_map_file.png} & \tendenciaclimatica \\
+	%~ \hline
+%~ \end{tabular}
+%~ \end{center}
+\begin{figure}[H]
+	\floatbox[{\capbeside\thisfloatsetup{capbesideposition={right,center},capbesidewidth=8cm}}]{figure}[\FBwidth]
+	{\caption{\large{\textbf{Tendencia Climática}}\\\hspace{\textwidth}\\\hspace{\textwidth}\tendenciaclimatica}\label{smnmap}}
+	{\includegraphics[width=8cm]{smn_map_file.png}}
+\end{figure}
+\subsection*{Pronóstico meteorológico}
+\pronosticometeorologico
+\subsection*{Perspectiva hidrométrica}
+\perspectivahidrometrica
+
+\pronosemanal
+\end{document}
+

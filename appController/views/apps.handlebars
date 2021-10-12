@@ -1,0 +1,142 @@
+<div class="d-flex flex-row justify-content-between">
+    <h3>App status list</h3>
+    <div id=last_update></div>
+    <div>
+        <button id=refresh title="refresh"><i class="fa fa-refresh" aria-hidden="true"></i></button>
+    </div>
+</div>
+<table id=apps_table class=table>
+    <thead>
+        <tr>
+            <th scope="col">name</th>
+            <th scope="col">port</th>
+            <th scope="col">localpath</th>
+            <th scope="col">remotepath</th>
+            <th scope="col">status</th>
+            <th scope="col">actions</th>
+        </tr>
+    </thead>
+    {{!-- <tbody>
+    {{#each app_status}}
+        <tr>
+            <th scope="row">{{this.app_name}}</th>
+            <td>{{app_list.[this.app_name].port}}</td>
+            <td>{{app_list.[this.app_name].webdir}}</td>
+            {{#if this.status}}
+                {{#if this.message}}
+                    <td>ACTIVE</td>
+                    <td>
+                        <a href="restart/{{this.app_name}}?redirect=/apps">restart</a>
+                        <a href="stop/{{this.app_name}}?redirect=/apps">stop</a>
+                        <a href="hard_restart/{{this.app_name}}?redirect=/apps">hard_restart</a>
+                        <a href="hard_stop/{{this.app_name}}?redirect=/apps">hard_stop</a>
+                    </td>
+                {{else}}
+                    <td>INACTIVE</td>
+                    <td>
+                        <a href="start/{{this.app_name}}?redirect=/apps">start</a>
+                    </td>
+                {{/if}}
+            {{else}}
+                <td>{{this.message}}</td>
+                <td></td>
+            {{/if}}
+        </tr>
+    {{/each}} 
+    </tbody> --}}
+    <tr class=all_apps>
+        <th scope="row">ALL</td>
+        <td colspan=5>
+            <a class=app-action href="start?redirect=../apps">start</a>
+            <a class=app-action href="restart?redirect=../apps">restart</a>
+            <a class=app-action href="stop?redirect=../apps">stop</a>
+            <a class=app-action href="hard_restart?redirect=../apps">hard_restart</a>
+            <a class=app-action href="hard_stop?redirect=../apps">hard_stop</a>
+        </td>
+    </tr>
+</table>
+<script>
+    var global = {
+        time_old: 60000, // ms
+        check_interval: 15000
+    }
+    $(document).ready(function() {
+        $.ajaxSetup({ cache: false });
+        $("table#apps_table").css("cursor","progress")
+        $("button#refresh").click()
+        setTimeout(()=>{
+            $.getJSON("checkStatus",(data)=>{
+                reloadAppTable(data)
+                $("table#apps_table").css("cursor","default")
+            })
+        },5000)
+        var intervalId = window.setInterval(()=>{
+            if(global.last_update && global.last_update.getTime() < new Date().getTime() - global.time_old) {
+                $("div#last_update").css("color","red")
+            }
+            $("button#refresh").click()
+        }, global.check_interval)
+        // clearInterval(intervalId)
+    });
+    $("button#refresh").click(()=>{
+        // location.reload()
+        return $.getJSON("checkStatus",(data)=>{
+            reloadAppTable(data)
+        })
+    })
+    function reloadAppTable(data) {
+        var rows = data.map(app=>{
+            var row =  '<tr class=app>\
+                <th scope="row">' + app.app_name + '</th>\
+                <td>' + app.port + '</td>\
+                <td><a target=_blank href="http://localhost:' + app.port + app.initpath + '">' + app.initpath + '</a></td>\
+                <td><a target=_blank href="' + window.location.protocol + "//" + window.location.host + app.webdir + '">' + app.webdir + '</a></td>'
+            if (app.status) {
+                switch(app.message.statusCode) {
+                    case "ECONNREFUSED":
+                        row += '<td style="color: red;">INACTIVE</td>\
+                            <td>\
+                                <a class=app-action href="start/' + app.app_name + '?redirect=../apps">start</a>\
+                            </td>'
+                        break;
+                    case 504:
+                        row += '<td style="color: yellow;">NOT RESPONDING</td>\
+                            <td>\
+                                <a class=app-action href="hard_restart/' + app.app_name + '?redirect=../apps">hard_restart</a>\
+                                <a class=app-action href="hard_stop/' + app.app_name + '?redirect=../apps">hard_stop</a>\
+                            </td>'
+                        break;
+                    case 200:
+                        row += '<td style="color: green;">ACTIVE</td>\
+                            <td>\
+                                <a class=app-action href="restart/' + app.app_name + '?redirect=../apps">restart</a>\
+                                <a class=app-action href="stop/' + app.app_name + '?redirect=../apps">stop</a>\
+                                <a class=app-action href="hard_restart/' + app.app_name + '?redirect=../apps">hard_restart</a>\
+                                <a class=app-action href="hard_stop/' + app.app_name + '?redirect=../apps">hard_stop</a>\
+                            </td>'
+                        break;
+                    default:
+                        row += '<td style="color: red;">INACTIVE</td>\
+                            <td>\
+                                <a class=app-action href="start/' + app.app_name + '?redirect=../apps">start</a>\
+                            </td>'
+                        break;
+                } 
+            } else {
+                row +='<td>' + app.message + '</td>\
+                <td></td>'
+            }
+            row += '</tr>'
+            return row
+        })
+        // console.log("rows:"+rows.length)
+        $("table#apps_table tbody tr.app").remove()
+        $("table#apps_table tbody").prepend(rows.join("\n"))
+        global.last_update = new Date()
+        $("div#last_update").text("Última actualización: " + global.last_update.toLocaleTimeString()).css("color","green")
+        return
+    }
+    // $("a.app-action").click(evt=>{
+       // $('body').css('cursor', 'progress');
+    // })
+</script>

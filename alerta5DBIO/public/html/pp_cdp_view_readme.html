@@ -1,0 +1,129 @@
+<style>
+	tbody tr td {
+		border: 1px solid black;
+	}
+</style>
+<h1 id="sistema-de-información-del-siyah-ina">Sistema de Información del SIyAH-INA</h1>
+<h2 id="mapa-de-precipitaciones-cdp-interfaz-de-generación-visualización-y-descarga">Mapa de precipitaciones CDP: Interfaz de generación, visualización y descarga</h2>
+<h4 id="url-httpsalertainagobara5pp_cdp_view">url: <a href="https://alerta.ina.gob.ar/a5/pp_cdp_view">https://alerta.ina.gob.ar/a5/pp_cdp_view</a></h4>
+<h3 id="descripción-general">Descripción general</h3>
+<p>Consiste en una página web cuyo propósito es permitir a los usuarios generar el mapa de precipitación de la Cuenca del Plata (CDP) a paso diario y semanal a partir de los datos de estaciones pluviométricas almacenados en la Base de Datos (DB) para su utilización en informes así como el cálculo de la precipitación media areal diaria (PMAD) de los sistemas hídricos monitoreados. De esta manera los usuarios pueden realizar un control de calidad sobre los datos de entrada para dar como resultado un producto consistido.</p>
+<h4 id="datos-de-entrada">Datos de entrada</h4>
+<ul>
+<li>Registros de precipitación acumulada diaria 12Z (09 AM hora Argentina) de diversas fuentes, como el SMN, el CRC-SAS, ANA (Brasil), ACUMAR, entre otras. El listado completo de estaciones es definido por el Administrador del Sistema.</li>
+</ul>
+<h4 id="productos-generados">Productos generados</h4>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>procedimiento</th>
+<th>formato</th>
+<th>patrón nombre</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>imagen</td>
+<td>splines</td>
+<td>png</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;_surf.png</td>
+</tr>
+<tr>
+<td>ráster</td>
+<td>splines</td>
+<td>tif</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;_surf.tif</td>
+</tr>
+<tr>
+<td>texto(puntos)</td>
+<td>-</td>
+<td>geojson</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;.json</td>
+</tr>
+<tr>
+<td>texto(puntos)</td>
+<td>-</td>
+<td>csv</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;.csv</td>
+</tr>
+<tr>
+<td>imagen</td>
+<td>thiessen</td>
+<td>png</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;_nearest.png</td>
+</tr>
+<tr>
+<td>ráster</td>
+<td>thiessen</td>
+<td>tif</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;_nearest.tif</td>
+</tr>
+<tr>
+<td>imagen</td>
+<td>media areal</td>
+<td>png</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;_areas.png</td>
+</tr>
+<tr>
+<td>texto(áreas)</td>
+<td>media areal</td>
+<td>geojson</td>
+<td>pp_&lt;dt&gt;_&lt;fecha&gt;_areas.geojson</td>
+</tr>
+</tbody></table>
+<p>donde: &lt;dt&gt; es el intervalo de agregación: diario o semanal
+       &lt;fecha&gt; es la fecha inicial del periodo de agregación en formato AAAAMMDD</p>
+<h3 id="estructura-de-la-página">Estructura de la página</h3>
+<ol>
+<li>Encabezado. Posee los vínculos a las otras páginas del sistema de información y a la página de login</li>
+<li>Formulario principal: aquí se selecciona el tipo de producto (<em>diario</em> o <em>semanal</em>) y la fecha inicial. Luego se ejecuta la búsqueda y/o la generación de producto</li>
+<li>Pestañas<ol>
+<li>PNG: Muestra el producto imagen splines png</li>
+<li>Mapa: presenta un mapa navegable con las siguientes capas correspondientes al producto seleccionado/generado:<ol>
+<li>Contorno de la cuenca del Plata</li>
+<li>Registros de precipitaciones puntuales</li>
+<li>Registros de precipitaciones medias areales (capa medias areales)</li>
+<li>imagen splines png (capa splines)</li>
+<li>imagen thiessen png (capa Thiessen)
+El usuario puede navegar el mapa, y al cliquear sobre las estaciones se despliega una tabla que muestra los datos y metadatos y permite seleccionar (deseleccionar) las estaciones para incluirlas (excluirlas) de la generación de los productos. Los cambios en la selección de estaciones realizados aquí repercuten sobre la tabla de la 3ra pestaña, y viceversa.</li>
+</ol>
+</li>
+<li>Tabla: presenta una tabla con los registros de precipitaciones puntuales junto con sus metadatos. Al cliquear en la casilla de la primera fila se selecciona/deselecciona la estación. Además, la segunda casilla presenta dos acciones posibles: 
+<img src="../img/tabla_icons.png" alt="tabla_icons"><ol>
+<li>ir a la interfaz de series temporales (<em>/secciones</em>) para visualizar y/o editar los registros</li>
+<li>ir al mapa para ver la ubicación de la estación</li>
+</ol>
+</li>
+<li>Archivos: presenta vínculos de descarga de los productos generados</li>
+</ol>
+</li>
+<li>Ventana diálogo de <em>generar producto</em> : se despliega cuando el usuario oprime el botón <em>generar</em> en el formulario principal. Muestra el tipo de producto y fecha seleccionados y permite seleccionar las siguientes opciones:<ol>
+<li><em>sólo estaciones seleccionadas</em>: al marcar esta opción excluimos de la generación de los productos a las estaciones que hayan sido deseleccionadas mediante el mapa o la tabla. Por defecto esta opción se encuentra marcada.</li>
+<li><em>actualiza medias areales</em>: al marcar esta opción incluimos el cálculo de medias areales (sólo disponible para el producto diario). Por defecto esta opción se encuentra marcada.</li>
+<li><em>cantidad mínima de registros diarios (sólo semanal)</em>: opción para excluir estaciones que no tengan el mínimo de registros indicado. Valor por defecto: 6.</li>
+</ol>
+</li>
+</ol>
+<p><img src="../img/pp_cdp_view_captura.png" alt="componentes de pp_cdp_view"></p>
+<h3 id="procedimiento-de-uso">Procedimiento de uso</h3>
+<ol>
+<li>Realizar login. Para poder generar productos el usuario debe tener permiso de escritura. </li>
+<li>En el encabezado, dirigirse a <em>Herramientas-&gt;mapa de precipitaciones CDP</em></li>
+<li>En el formulario, seleccionar tipo y fecha y oprimir <em>Buscar</em></li>
+<li>Si el producto ya existe se cargará en las pestañas. El usuario puede revisar el producto navegando el mapa o viendo la tabla, y puede descargar los archivos. Si detecta algún posible dato erróneo, puede:<ul>
+<li>dirigirse a la interfaz de series temporales, corregir o eliminar el registro erróneo, regresar y volver a generar los productos, o</li>
+<li>deseleccionar la estación y volver a generar los productos seleccionando la opción <em>sólo estaciones seleccionadas</em> en la ventana de diálogo</li>
+</ul>
+</li>
+<li>Si el producto no existe, va a desplegarse la ventana de diálogo <em>generar producto</em>. Oprima el botón <em>generar</em> para generar el producto o <em>salir</em> para cerrar la ventana de diálogo</li>
+<li>La generación de los productos puede demorar 30 segundos aproximadamente. Una vez finalizada la generación de los productos, los mismos serán desplegados en las pestañas. Si lo desea, el usuario puede repetir la revisión o buscar otro tipo y/o fecha mediante el formulario.<h3 id="notas">Notas</h3>
+</li>
+</ol>
+<ul>
+<li>Los productos generados a partir de esta interfaz son ingresados a la Base de Datos del Sistema de Información sobreescribiendo los productos preexistentes. Esto debe ser tenido en cuenta por el/los usuario/s asignado/s a esta tarea ya que los productos generados impactan sobre diversos informes así como también sobre la componente de modelación hidrológica.</li>
+<li>Los datos de entrada (registros puntuales de precipitación diaria) se actualizan entre las 9 y las 11 AM hora Argentina. Los productos no se generarán al menos que estén actualizados los registros de la red SYNOP SMN (tablas <em>stations</em> y <em>stations_cdp</em>). </li>
+<li>Para las PMAD deben generarse todos los productos diarios correspondientes al periodo deseado (generar el producto semanal no actualiza las PMAD).</li>
+<li>Si se desea incluir/excluir una estación en forma permanente debe solicitarse al Administrador del Sistema.</li>
+<li>Ídem para cambiar los parámetros de interpolación.</li>
+<li>Todos los productos se pueden descargar desde el repositorio HTTP del Sistema de Información: <a href="https://alerta.ina.gob.ar/ina/13-SYNOP/mapas_diarios_">mapas_diarios</a> <a href="https://alerta.ina.gob.ar/ina/13-SYNOP/mapas_semanales_">mapas_semanales</a> </li>
+</ul>

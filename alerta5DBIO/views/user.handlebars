@@ -1,0 +1,62 @@
+<script>
+	{{#if unauthorized}}
+		{{#if message}}
+				alert("{{message}}");
+		{{else}}	
+			alert("Usuario no autorizado");
+		{{/if}}
+		
+	{{/if}}
+</script>
+<h4>Propiedades del usuario</h4>
+<table>
+	<tr>
+		<td>username</td>
+		<td>{{username}}</td>
+	</tr>
+	<tr>
+		<td>role</td>
+		<td>{{role}}</td>
+	</tr>
+	<tr>
+		<td>id</td>
+		<td>{{id}}</td>
+	</tr>
+</table>
+<h4>Modificación de contraseña</h4>
+<form id=change_password method="POST" action="userChangePassword">
+	<div id=submit>
+		<table id=submit>
+			<tr>
+				<td><label for=newpassword>Nueva contraseña</label></td>
+				<td><input type=password name=newpassword placeholder="nueva contraseña"></td>
+			</tr>
+			<tr>
+				<td colspan=2 style="align: centered"><button>Enviar</button></td>
+			</tr>
+		</table>
+	</div>
+	<input hidden name=username value={{username}}>
+</form>
+
+<script>
+	$("form#change_password").submit( event=>{
+		event.preventDefault()
+		$("body").css("cursor","progress")
+		$.post($(event.currentTarget).attr('action'),$(event.currentTarget).serialize(),function(response) {
+			if(response.length <= 0) {
+				alert("Empty response")
+				$("body").css("cursor","default")
+				return
+			}
+			$("body").css("cursor","default")
+			alert(response)
+			return
+		})			
+		.fail( (xhr, status, error)=>{
+			$("body").css("cursor","default")
+			alert(error.toString())
+			$("div#chartModal").hide()
+		})	
+	})
+</script>

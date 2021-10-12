@@ -1,0 +1,80 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<style>
+			body {
+				background-color: darkseagreen;
+			}
+   			.main-header .container {
+				display: flex;
+				align-items: center;
+				justify-content: space-around;
+				flex-wrap: wrap;
+			}
+			.main-nav ul {
+				margin: 1em 0 .5em;
+				text-align: center;
+			}
+			.main-nav li {
+				display: inline;
+			}
+			.main-nav a {
+				display: inline-block;
+				padding: .5em 1.5em;
+			}
+			.navbar {
+				background-color: #dbedff;
+		    }
+        </style>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+		<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+		{{#if base_url}}
+			<base href="{{base_url}}">
+		{{/if}}
+    </head>
+    <body>
+    	<nav class="navbar navbar-expand-lg navbar-light">
+			<a class="navbar-brand" href="#">
+				<img src="https://www.ina.gob.ar/img/Logo_ina_chico.png" width="70" height="40" alt="INA-SIyAH">
+			</a>
+            <div id="navbar" class="collapse navbar-collapse">
+			    <h2 class="navbar-nav mr-auto">app controller</h2>
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item mx-3">
+                        <a href="apps">apps</a>
+                    </li>
+                    <li class="nav-item mx-3">
+                        <a href="usuarios">usuarios</a>
+                    </li>
+                </ul>
+                <ul class="nav navbar-nav navbar-right" id="login_bar">
+				    <li><a href="login">Login</a></li>
+			    </ul>
+            </div>
+        </nav>   
+            
+        {{{body}}}
+
+        {{!-- {{#if loggedAs}}
+            <script>
+                var path = "logout?path=" + window.location.pathname.replace(/^\//,"") + "&" + window.location.search.replace(/^\?/,"")
+                $("ul#login_bar").html('<li>Sesión iniciada como <b>{{loggedAs}}</b>. <a href="' + path + '">Cerrar sesión</a></li>')
+            </script>
+        {{else}}
+            <script>
+                var path = "login?path=" + window.location.origin + "/" + window.location.pathname.replace(/^\//,"") + "&" + window.location.search.replace(/^\?/,"")
+                $("ul#login_bar").html('<li>Sesión no iniciada. <a href="' + path + '">Iniciar sesión</a></li>')
+            </script>
+        {{/if}} --}}
+		{{#if loggedAs}}
+			<script>
+				$("ul#login_bar li").empty().html(
+					'Sesión iniciada como <b>{{loggedAs}}</b>. <a href="logout">Salir</form>'
+				)
+			</script>
+		{{/if}}
+	</body>
+</html>
