@@ -1,8 +1,6 @@
 'use strict'
 
-const request = require('request')
 const program = require('commander')
-const inquirer = require('inquirer')
 const fs = require('fs')
 var sprintf = require('sprintf-js').sprintf, vsprintf = require('sprintf-js').vsprintf
 const { Pool, Client } = require('pg')
@@ -15,14 +13,21 @@ const pool = new Pool(config.database)
 const CRUD = require('./CRUD')
 const crud = new CRUD.CRUD(pool)
 var accessors = require('./accessors')
-var gfs = new accessors.gfs_smn(config.smn_ftp, '/tmp/gfs_local-copy.grb', 'data/gfs/gtiff')
+var gfs = new accessors.gfs_smn({ftp_connection_pars:config.smn_ftp,localcopy: '/tmp/gfs_local-copy.grb', outputdir: 'data/gfs/gtiff'})
 const readline = require("readline");
 
 //~ const gdal = require('gdal')
 
 const { exec } = require('child_process');
-//~ var ogr2ogr = require('ogr2ogr')
+const spawn = require('child_process').spawn;
+var ogr2ogr = require('ogr2ogr') // .default
 
+// file_indexer
+const file_indexer = require('./file_indexer')
+const indexer = new file_indexer.file_indexer(pool)
+
+const path = require('path')
+const tmp = require('tmp')
 
 program
   .version('0.0.1')
@@ -41,16 +46,20 @@ program
   .option('-P, --pretty','pretty-print JSON')
   .option('-C, --csv', 'print as CSV')
   .option('-L, --csvless', 'print as CSVless')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action(options => {
 	crud.getRedes({nombre:options.nombre, tabla_id:options.tabla, public:options.public,public_his_plata:options.hisplata})
 	.then(result=>{
 		pool.end()
 		console.log("Results: " + result.length)
-		print_output(options,result)
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
+	})
+	.finally(()=>{
 		pool.end()
+		process.exit(0)
 	})
   });
   
@@ -67,12 +76,15 @@ program
 	crud.upsertRed(new CRUD.red({tabla_id:tabla_id, nombre:nombre, public: is_public, public_his_plata: public_his_plata}))
 	.then(upserted=>{
 		console.log("Upserted 1 red")
-		print_output(options,upserted)
-		pool.end()
+		return print_output(options,upserted)
 	})
 	.catch(e=>{
 		console.error(e)
 		pool.end()
+	})
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
 	})
   })
 
@@ -100,12 +112,14 @@ program
 		crud.upsertRedes(redes)
 		.then(upserted=>{
 			console.log("upserted " + upserted.length + " registros")
-			print_output(options,upserted)
-			pool.end()
+			return print_output(options,upserted)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -127,12 +141,14 @@ program
 		} else {
 			console.log("Deleted red.id:" + deleted.id + ", tabla_id:" + deleted.tabla_id)
 		}
-		print_output(options,deleted)
-		pool.end()
+		return print_output(options,deleted)
 	})
 	.catch(e=>{
 		console.error(e)
+	})
+	.finally(()=>{
 		pool.end()
+		process.exit(0)
 	})
   })
 
@@ -155,12 +171,14 @@ program
 		crud.upsertEstaciones(estaciones)
 		.then(upserted=>{
 			console.log("Results: " + upserted.length)
-			print_output(options,upserted)
-			pool.end()
+			return print_output(options,upserted)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -183,6 +201,7 @@ program
   .option('-q, --quiet','no output')
   .option('-o, --output <value>','output file')
   .option('-P, --pretty','pretty-print JSON')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action(options => {
 	var filter = {}
 	if(options.geom) {
@@ -191,14 +210,16 @@ program
 	crud.getEstaciones({nombre:options.nombre, tabla_id:options.tabla, public:options.public,public_his_plata:options.hisplata, geom: filter.geom, unid: options.unid, id_externo:options.id_externo, id: options.id})
 	.then(result=>{
 		console.log("Results: " + result.length)
-		print_output(options,result)
-		pool.end()
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
   
 program
   .command('getEstacionByID <id>')
@@ -214,14 +235,16 @@ program
 	crud.getEstacion(id)
 	.then(estacion=>{
 		console.log("Results: " + estacion.nombre)
-		print_output(options,estacion)
-		pool.end()
+		return print_output(options,estacion)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('insertAreas <input>')
@@ -242,12 +265,14 @@ program
 		crud.upsertAreas(areas)
 		.then(upserted=>{
 			console.log("Results: " + upserted.length)
-			print_output(options,upserted)
-			pool.end()
+			return print_output(options,upserted)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -263,15 +288,23 @@ program
   .option('-q, --quiet','no output')
   .option('-o, --output <value>','output file')
   .option('-P, --pretty','pretty-print JSON')
-  .action((input,options) => {
-	var ogr = ogr2ogr(input).format("geoJSON")
-	ogr.exec(function (er, data) {
-	  if (er) {
-		  console.error(er)
-		  pool.end()
-		  return
+  .action(async (input,options) => {
+	  try {
+		var areas = await ogr2ogr(input).promise()
+		// var stream = await ogr2ogr(data,{format:"geoJSON"})
+		// console.log(data)
+		// var areas = JSON.parse(data.toString())
+	} catch (e) {
+		  console.error(e)
+		  process.exit(1)
 	  }
-	  var areas = JSON.parse(data.toString())
+
+	// ogr.exec(function (er, data) {
+	//   if (er) {
+	// 	  console.error(er)
+	// 	  pool.end()
+	// 	  return
+	//   }
 	  if(!areas.features) {
 		  console.error("No features found")
 		  pool.end()
@@ -308,15 +341,16 @@ program
 		  }
 	  })
 	  .then(result=>{
-		  print_output(options,result)
-		  pool.end()
+		  return print_output(options,result)
 	  })
 	  .catch(e=>{
 		console.error(e)
-		pool.end()
 	  })
-	})
-  });
+	  .finally(()=>{
+		pool.end()
+		process.exit(0)
+	  })
+  })
 
 program
   .command('getAreas')
@@ -332,6 +366,7 @@ program
   .option('-q, --quiet','no output')
   .option('-o, --output <value>','output file')
   .option('-P, --pretty','pretty-print JSON')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action(options => {
 	var filter = {}
 	if(options.geom) {
@@ -343,14 +378,16 @@ program
 	crud.getAreas({nombre:options.nombre, unid:options.id, geom: filter.geom, exutorio: filter.exutorio})
 	.then(result=>{
 		console.log("Results: " + result.length)
-		print_output(options,result)
-		pool.end()
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('getAreaByID <id>')
@@ -362,6 +399,7 @@ program
   .option('-q, --quiet','no output')
   .option('-o, --output <value>','output file')
   .option('-P, --pretty','pretty-print JSON')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action( (id, options) => {
 	var filter = {}
 	crud.getArea(id)
@@ -372,14 +410,16 @@ program
 			return
 		}
 		console.log("Results: " + estacion.nombre)
-		print_output(options,estacion)
-		pool.end()
+		return print_output(options,estacion)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 
 program
@@ -406,12 +446,14 @@ program
 		crud.upsertSeries(series,options.all)
 		.then(result=>{
 			//~ console.log("Upserted: " + result.length + " series")
-			print_output(options,result)
-			pool.end()
+			return print_output(options,result)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -437,6 +479,7 @@ program
   .option('-S, --string', 'print as one-line string')
   .option('-P, --pretty','pretty-print JSON')
   .option('-o, --output <value>','output file')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action(options => {
 	var filter = {}
 	var tipo = (options.tipo) ? (/^areal/.test(options.tipo.toLowerCase())) ? "areal" : (/^rast/.test(options.tipo.toLowerCase())) ? "rast" : "puntual" : "puntual"
@@ -455,14 +498,16 @@ program
 	crud.getSeries(tipo, filter, opts)
 	.then(result=>{
 		console.log("Results: " + result.length)
-		print_output(options,result)
-		pool.end()
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('getSerieByID <tipo> <id>')
@@ -476,19 +521,22 @@ program
   .option('-S, --string', 'print as one-line string')
   .option('-P, --pretty','pretty-print JSON')
   .option('-o, --output <value>', 'output filename')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action((tipo, id,options) => {
 	var tipo = (/^areal/.test(tipo.toLowerCase())) ? "areal" : (/^rast/.test(tipo.toLowerCase())) ? "rast" : "puntual"
 	crud.getSerie(tipo, parseInt(id),options.timestart,options.timeend,options)
 	.then(serie=>{
 		console.log("Got series tipo: " + serie.tipo + ", id:" + serie.id)
-		print_output(options,serie)
-		pool.end()
+		return print_output(options,serie)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('deleteSerie <tipo> <id>')
@@ -514,21 +562,23 @@ program
 					return crud.deleteSerie(tipo,series_id)
 					.then(deletedserie=>{
 						deletedserie.observaciones = deletedobs
-						print_output(options,deletedserie)
-						pool.end
+						return print_output(options,deletedserie)
 					})
 				})
 			} else {
 				console.log("Abortando")
-				pool.end()
+				return
 			}
 			rl.close()
 		})
 	}).catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  })
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+})
 			
 		
 
@@ -541,19 +591,114 @@ program
   .option('-S, --string', 'print as one-line string')
   .option('-P, --pretty','pretty-print JSON')
   .option('-o, --output <value>', 'output filename')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action( (tipo, series_id, timestart, timeend, options) => {
 	var tipo = (/^areal/.test(tipo.toLowerCase())) ? "areal" : (/^rast/.test(tipo.toLowerCase())) ? "rast" : "puntual"
 	crud.getObservaciones(tipo, {series_id:series_id, timestart:timestart, timeend:timeend})
 	.then(observaciones=>{
 		console.log("Got observaciones: " + observaciones.length + " records.")
-		print_output(options,observaciones)
-		pool.end()
+		return print_output(options,observaciones)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
+
+
+program
+  .command('getObsCount <tipo> [filter] [group_by]')
+  .alias('o')
+  .description('Get Observaciones Count with filter and grouped by')
+  .option('-C, --csv', 'print as CSV')
+  .option('-L, --csvless', 'print as CSVless')
+  .option('-S, --string', 'print as one-line string')
+  .option('-P, --pretty','pretty-print JSON')
+  .option('-o, --output <value>', 'output filename')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
+  .action( (tipo, filter, group_by, options) => {
+	var tipo = (/^areal/.test(tipo.toLowerCase())) ? "areal" : (/^rast/.test(tipo.toLowerCase())) ? "rast" : "puntual"
+	var filter_obj = parseCSKVP(filter)
+	var group_by_arr = parseCSV(group_by)
+	console.log(JSON.stringify({filter:filter_obj,group_by:group_by_arr},null,2))
+	crud.getObservacionesCount(tipo, filter_obj, {group_by:group_by_arr})
+	.then(result=>{
+		console.log("Got observaciones count: " + result + " records.")
+		// return print_output(options,result)
+	})
+	.catch(e=>{
+		console.error(e)
+	})
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
+
+program
+  .command('backupObs <tipo> [filter]')
+  .alias('o')
+  .description('Backup Observaciones with filter and grouped by')
+  .option('-C, --csv', 'print as CSV')
+  .option('-L, --csvless', 'print as CSVless')
+  .option('-S, --string', 'print as one-line string')
+  .option('-P, --pretty','pretty-print JSON')
+  .option('-o, --output <value>', 'output filename (default backup/obs/{tipo}/series/{id}/obs.json)')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
+  .option('-D, --delete', 'Eliminar observaciones de la base de datos')
+  .action( (tipo, filter, options) => {
+	var tipo = (/^areal/.test(tipo.toLowerCase())) ? "areal" : (/^rast/.test(tipo.toLowerCase())) ? "rast" : "puntual"
+	var filter_obj = parseCSKVP(filter)
+	// console.log(JSON.stringify({filter:filter_obj,group_by:group_by_arr},null,2))
+	crud.backupObservaciones(tipo, filter_obj,options)
+	.then(result=>{
+		console.log("Backed up observaciones: " + result + " series.")
+		// return print_output(options,result)
+	})
+	.catch(e=>{
+		console.error(e)
+	})
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
+
+
+function parseCSKVP(kvp_string) {
+	if(kvp_string && kvp_string.length) {
+		var kvp_obj = {}
+		var kvp_arr = kvp_string.split(",")
+		for(var f of kvp_arr) {
+			if(!f.includes("=")) {
+				console.error("invalid kvp: " + f)
+				process.exit(1)
+			}
+			var kvp = f.split("=")
+			if(kvp.length < 2) {
+				console.error("invalid kvp: " + f)
+				process.exit(1)
+			}
+			kvp_obj[kvp[0]] = kvp[1]
+		}
+		return kvp_obj
+	} else {
+		return
+	}
+}
+
+function parseCSV(v_string) {
+	if(v_string && v_string.length) {
+		var v_arr = v_string.split(",")
+		return v_arr
+	} else {
+		return
+	}
+}
+
 
 program
   .command('deleteObs <tipo> <series_id> <timestart> <timeend>')
@@ -569,15 +714,16 @@ program
 	crud.deleteObservaciones(tipo, {series_id:series_id, timestart:timestart, timeend:timeend})
 	.then(observaciones=>{
 		console.log("Deleted observaciones: " + observaciones.length + " records.")
-		print_output(options,observaciones)
-		var output = ""
-		pool.end()
+		return print_output(options,observaciones)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('insertObs <input>')
@@ -638,12 +784,14 @@ program
 		crud.upsertObservaciones(observaciones)
 		.then(upserted=>{
 			console.log("upserted " + upserted.length + " registros")
-			print_output(options,upserted)
-			pool.end()
+			return print_output(options,upserted)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -794,6 +942,7 @@ program
   .option('-P, --pretty','pretty-print JSON')
   .option('-q, --quiet', 'no imprime regisros en stdout')
   .option('-O, --only_obs', 'imprime solo observaciones (no metadatos)')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   //~ .option('-m, --multi', 'output as a multi-band raster file')
   .action( (series_id, timestart, timeend, area, options) => {
 	if(!options.insert) {
@@ -820,22 +969,26 @@ program
 			} else {
 				console.log("Got observaciones: " + result.observaciones.length + " records.")
 			}
-			print_output(options,result)
-			pool.end()
+			return print_output(options,result)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	} else {
 		crud.rast2areal(series_id,timestart,timeend,area,options) 
 		.then(observaciones=>{
-			print_output(options,observaciones)
-			pool.end()
+			return print_output(options,observaciones)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	}
   });
@@ -855,6 +1008,7 @@ program
   .option('-o, --output <value>', 'output filename')
   .option('-P, --pretty','pretty-print JSON')
   .option('-q, --quiet', 'no imprime regisros en stdout')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action( (series_id, timestart, timeend, options) => {
 	var point = (options.estacion_id) ? options.estacion_id : (options.geom) ? new CRUD.geometry("Point",options.geom.split(",")) : undefined
 	if(!point) {
@@ -875,14 +1029,16 @@ program
 			return
 		}
 		console.log("Got observaciones: " + serie.observaciones.length + " records.")
-		print_output(options,serie)
-		pool.end()
+		return print_output(options,serie)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('getRegularSeries <tipo> <series_id> <dt> <timestart> <timeend>')
@@ -899,43 +1055,66 @@ program
   .option('-o, --output <value>', 'output filename')
   .option('-P, --pretty','pretty-print JSON')
   .option('-q, --quiet', 'no imprime regisros en stdout')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action((tipo,series_id,dt,timestart,timeend,options) => {
 	crud.getRegularSeries(tipo,series_id,dt,timestart,timeend,options) // options: t_offset,aggFunction,inst,timeSupport,precision
 	.then(result=>{
 		//~ console.log(JSON.stringify(result))
-		print_output(options,result)
-		pool.end()
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
-		pool.end()
 	})
-  });
+	.finally(()=>{
+		pool.end()
+		process.exit(0)
+	})
+});
 
 program
   .command('runAsociaciones <source_tipo> <source_series_id> <timestart> <timeend>')
   .description('actualiza series regulares derivadas')
+  .option('-i, --id <value>', 'id de asociacion')
   .option('-d, --dt <value>', 'time interval (interval)')
   .option('-t, --t_offset <value>', 'time offset (interval)')
   .option('-a, --agg_func <value>', 'aggregation function (acum, mean, sum, min, max, count, diff, nearest, defaults to mean para series no instantáneas y nearest para series instantáneas)')
+  .option('-T, --dest_tipo <value>', 'tipo de serie de destino')
+  .option('-s, --dest_series_id <value>', 'id de serie de destino')
   .option('-C, --csv', 'input/output as CSV')
   .option('-L, --csvless', 'print as CSVless')
   .option('-S, --string', 'output as one-line strings')
   .option('-o, --output <value>', 'output filename')
   .option('-P, --pretty','pretty-print JSON')
   .option('-q, --quiet', 'no imprime regisros en stdout')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action((source_tipo,source_series_id,timestart,timeend,options) => {
-	crud.runAsociaciones({source_tipo:source_tipo,source_series_id:source_series_id,timestart:timestart,timeend:timeend},options) // options: t_offset,dt,agg_func
-	.then(result=>{
+	  var filter = {source_tipo:source_tipo,source_series_id:source_series_id,timestart:timestart,timeend:timeend}
+	  if(options.dest_series_id) {
+		  filter.dest_series_id = options.dest_series_id
+		  delete options.dest_series_id
+	  }
+	  if(options.dest_tipo) {
+		filter.dest_tipo = options.dest_tipo
+		// delete options.dest_tipo
+	  }
+	  if(options.id) {
+		filter.id = options.id
+		delete options.id
+	  }
+	  crud.runAsociaciones(filter,options) // options: t_offset,dt,agg_func
+	//   crud.runAsociaciones({source_tipo:"raster",dest_tipo:"areal",source_series_id:14,timestart:"2021-10-24",timeend:"2021-10-26"})
+	  .then(result=>{
 		//~ console.log(JSON.stringify(result))
-		print_output(options,result)
-		pool.end()
-	})
-	.catch(e=>{
+		return print_output(options,result)
+	  })
+	  .catch(e=>{
 		console.error(e)
+	  })
+	  .finally(()=>{
 		pool.end()
+		process.exit(0)
 	})
-  });
+});
 
   
 
@@ -988,19 +1167,21 @@ program
 				console.error("upsert/get error")
 				throw new Error("gfs2db: no forecasts found")
 			}
-			console.log("result:"+result.length + " rows found/upserted")
+			console.log("result:" + result.length + " rows found/upserted")
 			if (options.print_color_map) {
-				var timestart = result[0].timestart
-				var timeend= result[0].timeend
-				for(var i=0;i<result.length;i++) {
-					if(result[i].timestart<timestart) {
-						timestart = result[i].timestart
-					}
-					if(result[i].timeend>timeend) {
-						timeend = result[i].timeend
-					}
-				}
-				crud.getSerie("rast",options.series_id,timestart.toISOString(),timeend.toISOString(),{format:"gtiff"})
+				// var timestart = result[0].timestart
+				// var timeend= result[0].timeend
+				var timeupdate = result[0].timeupdate
+				// for(var i=0;i<result.length;i++) {
+				// 	if(result[i].timestart<timestart) {
+				// 		timestart = result[i].timestart
+				// 	}
+				// 	if(result[i].timeend>timeend) {
+				// 		timeend = result[i].timeend
+				// 	}
+				// }
+				// crud.getSerie("rast",options.series_id,timestart.toISOString(),timeend.toISOString(),{format:"gtiff"})
+				crud.getSerie("rast",options.series_id,undefined,undefined,{format:"gtiff"},undefined,timeupdate)
 				.then(serie=>{
 					var promises=[]
 					for(var i=0;i<serie.observaciones.length;i++) {
@@ -1112,12 +1293,14 @@ program
 		.then(result=>{
 			console.log("Inserted " + result[1].length + " registros areales diarios")
 			console.log("Inserted " + result[0].length + " registros areales 3horarios")
-			print_output(options,result)
-			pool.end()
+			return print_output(options,result)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
   })
  
@@ -1148,7 +1331,110 @@ program
 		  console.error(e)
 	  })
   })
-  
+
+  program
+  .command('getAccessorsList [name]')
+  .description('Obtener lista de accessors')
+  .option('-o, --output <value>', 'output filename')
+  .option('-P, --pretty','pretty-print JSON')
+  .action((name, options)=>{
+	if(name) {
+		pool.query("SELECT * from accessors where name=$1",[name])
+		.then(result=>{
+			print_output(options,result.rows)
+			process.exit()
+		})
+		.catch(e=>{
+			console.error(e)
+			process.exit(1)
+		})
+	} else {
+		pool.query("SELECT * from accessors order by name")
+		.then(result=>{
+			print_output(options,result.rows)
+			process.exit()
+		})
+		.catch(e=>{
+			console.error(e)
+			process.exit(1)
+		})
+	}
+  })
+
+
+program
+  .command("testAccessor <name>")
+  .description('Probar accessor')
+  .action((name, options)=> {
+	accessors.new(name)
+	.then(accessor=>{
+		return accessor.engine.test()
+	})
+	.then(result=>{
+		if(result) {
+			console.log({message:"accessor test ok"})
+		} else {
+			console.log({message:"accessor test failed"})
+		}
+		process.exit(0)
+	})
+	.catch(e=>{
+		console.error({"testAccessor error": e})
+		process.exit(1)
+	})
+  })
+
+program
+  .command("getFromAccessor <name>")
+  .description('Obtener datos usando accessor')
+  .option('-f, --filter <value>','filter como pares key=value separados por coma. Ejemplo: -f "timestart=2021-01-01,timeend=2022-01-01,var_id=2"')
+  .option('-O, --kvopt <value>','filter como pares key=value separados por coma. Ejemplo: -O "time=6,no_download=true"')
+  .option('-i, --insert','Upsert into db')
+  .option('-C, --csv', 'input/output as CSV')
+  .option('-L, --csvless', 'print as CSVless')
+  .option('-S, --string', 'output as one-line strings')
+  .option('-o, --output <value>', 'output filename')
+  .option('-P, --pretty','pretty-print JSON')
+  .option('-q, --quiet', 'no imprime regisros en stdout')
+  .action((name, options)=> {
+	var filter_obj = {} 
+	var options_obj = {}
+	if(options.filter) {
+		filter_obj = parseCSKVP(options.filter)
+	}
+	if(options.kvopt) {
+		options_obj = parseCSKVP(options.kvopt)
+	} 
+	accessors.new(name)
+	.then(accessor=>{
+		if(options.insert) {
+			return accessor.engine.update(filter_obj,options_obj)
+		} else {
+			return accessor.engine.get(filter_obj,options_obj)
+		}
+	})
+	.then(result=>{
+		if(result) {
+			print_output(options,result)
+			process.exit()
+		} else {
+			console.error("getFromAccesor: no se encontraron observaciones")
+			process.exit()
+		}
+	})
+	.catch(e=>{
+		if(config.verbose) {
+			console.error(e)
+		} else {
+			console.error(e.toString())
+		}
+		process.exit(1)
+	})
+  })
+
+
+/////////////
+
 program
   .command('getParaguay09')
   .option('-s, --timstart <value>','start date (defaults to start of file)')
@@ -1169,17 +1455,19 @@ program
 			  //~ console.log(obs.toString())
 			  return obs
 		  })
-		  print_output(options,observaciones)
-		  if(options.insert) {
-			return crud.upsertObservaciones(observaciones)
-			.then(observaciones=>{
-				console.log({upsertCount: observaciones.length})
-				pool.end()
-			})
-			.catch(e=>{
-				  console.error(e)
-			})
-		  }
+		  return print_output(options,observaciones)
+		  .then(()=>{
+			  if(options.insert) {
+				return crud.upsertObservaciones(observaciones)
+				.then(observaciones=>{
+					console.log({upsertCount: observaciones.length})
+					pool.end()
+				})
+				.catch(e=>{
+					console.error(e)
+				})
+			  }
+		  })
 	  })
 	  .catch(e=>{
 		  console.error(e)
@@ -1235,6 +1523,7 @@ program
   .option('-n, --interval <value>', 'time interval (interval string)','1 hours')
   .option('-D, --delete_skipped','delete skipped observations (boolean)',false)
   .option('-S, --return_skipped','return skipped observations (boolean)',false)
+  .option('-N, --no_send_data','don\'t return observations, only count (boolean)',false)
   .option('-o, --output <value>','output to file (string)')
   .action(options => {
     //   console.log(JSON.stringify([options.tipo,options.series_id,options.timestart,options.timeend,options.interval,options.delete_skipped]))
@@ -1276,6 +1565,70 @@ program
                 }
                 return
             })
+        } else if(options.no_send_data) {
+			console.log(result.length)
+			return  
+		} else {
+            console.log(JSON.stringify(result,null,2))
+            return
+        }
+    })
+    .catch(e=>{
+        console.error(e.toString())
+        return
+    })
+  })
+
+program
+  .command("pruneObs")
+  .description("delete obs using filter")
+  .option('-t, --tipo <value>', 'tabla ID (string)','puntual')
+  .option('-i, --series_id <value>', 'series_id (int[,int,...])')
+  .option('-s, --timestart <value>', 'timestart (date string)')
+  .option('-e, --timeend <value>', 'timeend (date string)')
+  .option('-v, --var_id <value>', 'var_id (int)')
+  .option('-f, --fuentes_id <value>', 'fuentes_id (int)')
+  .option('-p, --proc_id <value>', 'proc_id (int)')
+  .option('-u, --unit_id <value>', 'unit_id (int)')
+  .option('-S, --no_send_data','no send deleted observations (boolean)',false)
+  .option('-o, --output <value>','output to file (string)')
+  .action(options => {
+    if(options.series_id && typeof options.series_id == "string") {
+        if(options.series_id.indexOf(",") >= 0) {
+            options.series_id = options.series_id.split(",").map(i=>parseInt(i))
+        }
+    }
+    var filter = {series_id:options.series_id,timestart:options.timestart,timeend:options.timeend}
+    if(options.proc_id) {
+        filter.proc_id = options.proc_id
+    }
+    if(options.var_id) {
+        filter.var_id = options.var_id
+    }
+    if(options.unit_id) {
+        filter.unit_id = options.unit_id
+    }
+    if(options.fuentes_id) {
+		if(options.tipo == "puntual") {
+	        filter.red_id = options.fuentes_id
+		} else {
+			filter.fuentes_id = options.fuentes_id
+		}
+    }
+    var opt = {
+		no_send_data: options.no_send_data
+    }
+    crud.pruneObs(options.tipo,filter,opt)
+    .then(result=>{
+        if(options.output) {
+            fs.writeFile(options.output,JSON.stringify(result,null,2),(err)=>{
+                if(err) {
+                    console.error(err)
+                } else {
+                    console.log("wrote output:" + options.output)
+                }
+                return
+            })
         } else {
             console.log(JSON.stringify(result,null,2))
             return
@@ -1291,6 +1644,7 @@ program
 
 function print_output(options,data) {
 	var output=""
+	var postfix = (options.csvless || options.csv) ? ".csv" : (options.string) ? ".txt" : (options.pretty) ? ".json" : (options.geojson) ? ".geojson" : ".json"
 	if(options.csvless || options.csv || options.string) {
 		if(Array.isArray(data)) {
 			for(var i=0; i < data.length; i++) {
@@ -1362,12 +1716,23 @@ function print_output(options,data) {
 	} else {
 		output = JSON.stringify(data)
 	}
-	if(options.output) {
+	if(options.zip) {
+		return zipAndSave(output,options.zip,{postfix:postfix})
+		.then(size=>{
+			console.log(options.zip + " created of " + size + " bytes")
+			return
+		})
+		// .catch(e=>{
+		// 	console.error(e)
+		// })
+	} else if(options.output) {
 		fs.writeFileSync(options.output,output)
+		return Promise.resolve()
 	} else {
 		if(!options.quiet) {
 			console.log(output)
 		}
+		return Promise.resolve()
 	}
 }
 
@@ -1387,12 +1752,14 @@ program
 		crud.upsertModelos(modelos)
 		.then(upserted=>{
 			console.log("Results: " + upserted.length)
-			print_output(options,upserted)
-			pool.end()
+			return print_output(options,upserted)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -1424,11 +1791,12 @@ program
 			return crud.deleteModelos(options.id,options.tipo)
 			.then(result=>{
 				console.log("Se eliminaron " + result.length + " modelos")
-				print_output(options,result)
-				process.exit(0)
+				return print_output(options,result)
 			})
 			.catch(e=>{
 				console.error(e)
+			})
+			.finally(()=>{
 				pool.end()
 				process.exit(0)
 			})
@@ -1456,11 +1824,12 @@ program
 			process.exit(1)
 		}
 		console.log("Se encontraron " + result.length + " modelos")
-		print_output(options,result)
-		process.exit(0)
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
+	})
+	.finally(()=>{
 		process.exit(0)
 	})
   })
@@ -1493,12 +1862,14 @@ program
                 upserted = [upserted]
             }
 			console.log("Results: " + upserted.length)
-			print_output(options,upserted)
-			pool.end()
+			return print_output(options,upserted)
 		})
 		.catch(e=>{
 			console.error(e)
+		})
+		.finally(()=>{
 			pool.end()
+			process.exit(0)
 		})
 	})
   });
@@ -1532,14 +1903,15 @@ program
 				process.exit(0)
 			}
             var cal_id = result.map(c=>c.id)
-			return crud.deleteCalibrados(cal_id)
+			return crud.deleteCalibrados({id:cal_id})
 			.then(result=>{
 				console.log("Se eliminaron " + result.length + " calibrados")
-				print_output(options,result)
-				process.exit(0)
+				return print_output(options,result)
 			})
 			.catch(e=>{
 				console.error(e)
+			})
+			.finally(()=>{
 				pool.end()
 				process.exit(0)
 			})
@@ -1570,8 +1942,9 @@ program
   .option('-g, --grupo_id <value>', 'id de grupo (grupo_id)')
   .option('-m, --model_id <value>', 'id de modelo')
   .option('-o, --output <value>','output file')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
   .action(options=>{
-    crud.getCalibrados(options.estacion_id,options.var_id,options.include_corr,options.timestart,options.timeend,options.id,options.model_id,options.qualifier,options.is_public,options.grupo_id,options.no_metadata,options.group_by_cal,options.forecast_date,options.include_inactive)
+    crud.getCalibrados_(options.estacion_id,options.var_id,options.include_corr,options.timestart,options.timeend,options.id,options.model_id,options.qualifier,options.is_public,options.grupo_id,options.no_metadata,options.group_by_cal,options.forecast_date,options.include_inactive)
 	.then(result=>{
 	    if(!result || result.length == 0) {
 			console.log("no se encontraron calibrados. Saliendo.")
@@ -1579,21 +1952,429 @@ program
 			process.exit(1)
 		}
 		console.log("Se encontraron " + result.length + " calibrados")
-		print_output(options,result)
-		process.exit(0)
+		return print_output(options,result)
 	})
 	.catch(e=>{
 		console.error(e)
+	})
+	.finally(()=>{
+		pool.end()
 		process.exit(0)
 	})
   })
+  
+// PRONOSTICOS
+
+program
+  .command('getPronosticos')
+  .description("lee pronosticos (corridas)")
+  .option('-i, --id <value>','id (cor_id)')
+  .option('-c, --cal_id <value>','cal_id')
+  .option('-S, --forecast_timestart <value>','forecast timestart')
+  .option('-E, --forecast_timeend <value>','forecast timeend')
+  .option('-f, --forecast_date <value>','forecast date')
+  .option('-s, --timestart <value>','timestart')
+  .option('-e, --timeend <value>','timeend')
+  .option('-q, --qualifier <value>','qualifier')
+  .option('-t, --estacion_id <value>','estacion_id')
+  .option('-v, --var_id <value>','var id')
+  .option('-p, --includeProno','include prono')
+  .option('-P, --public','is public')
+  .option('-r, --series_id <value>','series id')
+  .option('-m, --series_metadata','include series metadata')
+  .option('-g, --cal_grupo_id <value>','cal grupo id')
+  .option('-o, --output <value>','archivo de salida')
+  .option('-z, --zip <value>','comprimir y crear archivo zip')
+  .action(options=>{
+	  crud.getPronosticos(options.cor_id,options.cal_id,options.forecast_timestart,options.forecast_timeend,options.forecast_date,options.timestart,options.timeend,options.qualifier,options.estacion_id,options.var_id,options.includeProno,options.public,options.series_id,options.series_metadata,options.cal_grupo_id)
+	  .then(result=>{
+		if(!result || result.length == 0) {
+			console.log("no se encontraron pronosticos. Saliendo.")
+			pool.end()
+			process.exit(1)
+		}
+		console.log("Se encontraron " + result.length + " pronosticos")
+		return print_output(options,result)
+	  })
+	  .catch(e=>{
+	  	console.error(e)
+	  })
+	  .finally(()=>{
+		pool.end()
+		process.exit(0)
+	  })
+  })
+
+// PRONOSTICOS GUARDADOS	
+
+program
+.command('getPronosticosGuardados')
+.description("lee pronosticos guardados (corridas)")
+.option('-i, --id <value>','id (cor_id)')
+.option('-c, --cal_id <value>','cal_id')
+.option('-S, --forecast_timestart <value>','forecast timestart')
+.option('-E, --forecast_timeend <value>','forecast timeend')
+.option('-f, --forecast_date <value>','forecast date')
+.option('-s, --timestart <value>','timestart')
+.option('-e, --timeend <value>','timeend')
+.option('-q, --qualifier <value>','qualifier')
+.option('-t, --estacion_id <value>','estacion_id')
+.option('-v, --var_id <value>','var id')
+.option('-p, --includeProno','include prono')
+.option('-P, --public','is public')
+.option('-r, --series_id <value>','series id')
+.option('-m, --series_metadata','include series metadata')
+.option('-g, --cal_grupo_id <value>','cal grupo id')
+.option('-Q, --group_by_qualifier','agrupar por qualifier')
+.option('-o, --output <value>','archivo de salida')
+.option('-z, --zip <value>','comprimir y crear archivo zip')
+.action(options=>{
+	crud.getCorridasGuardadas(options.cor_id,options.cal_id,options.forecast_timestart,options.forecast_timeend,options.forecast_date,options.timestart,options.timeend,options.qualifier,options.estacion_id,options.var_id,options.includeProno,options.public,options.series_id,options.series_metadata,options.cal_grupo_id,options.group_by_qualifier)
+	.then(result=>{
+	  if(!result || result.length == 0) {
+		  console.log("no se encontraron pronosticos guardados. Saliendo.")
+		  pool.end()
+		  process.exit(1)
+	  }
+	  console.log("Se encontraron " + result.length + " pronosticos guardados")
+	  return print_output(options,result)
+	})
+	.catch(e=>{
+		console.error(e)
+	})
+	.finally(()=>{
+	  pool.end()
+	  process.exit(0)
+	})
+})
 
 
+  // GPM
+
+function getGPMRast3h(timestart,timeend,no_send_data=true,skip_download=false) {
+    if(!timestart) {
+        timestart = new Date()
+        timestart.setTime(timestart.getTime() - 5*24*3600*1000)
+    }
+    if(!timeend) {
+        timeend = new Date()
+        timeend.setTime(timeend.getTime() - 24*3600*1000)
+    }
+	if(skip_download) {
+		if(no_send_data) {
+			return
+		} else {
+			return crud.getObservaciones("raster",{series_id:4, timestart:timestart, timeend:timeend})
+		}
+	}
+    return accessors.new("gpm_3h")
+    .then(accessor=>{
+        return accessor.engine.update({timestart:timestart,timeend:timeend},{no_send_data:no_send_data})
+    })
+}
+
+// "http://localhost:3005/obs/asociaciones/7924?run=true&timestart=$sd&timeend=$ed&no_send_data=true" -o responses/upd_gpm_dia.json
+function getGPMRastDia(timestart,timeend,no_send_data=true) {
+    if(!timestart) {
+        timestart = new Date()
+        timestart.setTime(timestart.getTime() - 5*24*3600*1000)
+    }
+    if(!timeend) {
+        timeend = new Date()
+        timeend.setTime(timeend.getTime() - 24*3600*1000)
+    }
+    return crud.runAsociacion(7924,{timestart:timestart,timeend:timeend},{no_send_data:no_send_data})
+}
+
+// "http://localhost:3005/obs/asociaciones?source_series_id=13&source_tipo=raster&dest_tipo=areal&run=true&timestart=$sd&timeend=$ed&no_send_data=true"
+function getGPMArealDia(timestart,timeend,no_send_data=true) {
+    if(!timestart) {
+        timestart = new Date()
+        timestart.setTime(timestart.getTime() - 5*24*3600*1000)
+    }
+    if(!timeend) {
+        timeend = new Date()
+        // timeend.setTime(timeend.getTime() - 24*3600*1000)
+    }
+    return crud.runAsociaciones({source_series_id:13,source_tipo:"raster",dest_tipo:"areal",timestart:timestart,timeend:timeend},{no_send_data:true})
+}
+
+// "http://localhost:3005/obs/asociaciones?source_series_id=4&source_tipo=raster&dest_tipo=areal&run=true&timestart=2021-07-31&timeend=2021-08-03&no_send_data=true"
+function getGPMAreal3h(timestart,timeend,no_send_data=true) {
+    if(!timestart) {
+        timestart = new Date()
+        timestart.setTime(timestart.getTime() - 5*24*3600*1000)
+    }
+    if(!timeend) {
+        timeend = new Date()
+        // timeend.setTime(timeend.getTime() - 24*3600*1000)
+    }
+    return crud.runAsociaciones({source_series_id:4,source_tipo:"raster",dest_tipo:"areal",timestart:timestart,timeend:timeend},{no_send_data:true})
+}
+
+function getGPMDiaMaps(timestart,timeend) {
+    if(!timestart) {
+        timestart = new Date()
+        timestart.setTime(timestart.getTime() - 5*24*3600*1000)
+    }
+    if(!timeend) {
+        timeend = new Date()
+        timeend.setTime(timeend.getTime() - 24*3600*1000)
+    }
+    return accessors.new("gpm_3h")
+    .then(accessor=>{
+        return accessor.engine.getDiario({timestart:timestart,timeend:timeend})
+        .then(result=>{
+            return accessor.engine.printMaps(timestart,timeend)
+        })
+    })
+}
+
+function printGPMMapSemanal(timestart,timeend) {
+	if(timestart) {
+        timestart = new Date(timestart)
+    } else {
+        timestart = new Date()
+        timestart.setTime(timestart.getTime() - 14*24*3600*1000)
+    }
+    timestart = new Date(Date.UTC(timestart.getUTCFullYear(),timestart.getUTCMonth(),timestart.getUTCDate(),12,0,0))
+    if(timeend) {
+        timeend = new Date(timeend)
+        timeend = new Date(Date.UTC(timeend.getUTCFullYear(),timeend.getUTCMonth(),timeend.getUTCDate(),12,0,0))
+    } else {
+        timeend = new Date(timestart.getTime())
+        timeend.setUTCDate(timeend.getUTCDate() + 7)
+    }
+    return accessors.new("gpm_3h")
+    .then(accessor=>{
+        return accessor.engine.printMapSemanal(timestart,timeend)
+    })
+}
+
+function gpm_batch(timestart,timeend,skip_download) {
+    return getGPMRast3h(timestart,timeend,false,skip_download)
+    .then(result=>{
+        return fsPromise.writeFile("cron/responses/getGPMRast3h.json", result)
+    })
+    .then(()=>{
+        return getGPMRastDia(timestart,timeend)
+    })
+    .then(result=>{
+        return fsPromise.writeFile("cron/responses/getGPMRastDia.json", result)
+    })
+    .then(()=>{
+        return getGPMArealDia(timestart,timeend)
+    })
+    .then(result=>{
+        return fsPromise.writeFile("cron/responses/getGPMArealDia.json", result)
+    })
+    .then(()=>{
+        return getGPMAreal3h(timestart,timeend)
+    })
+    .then(result=>{
+        return fsPromise.writeFile("cron/responses/getGPMAreal3h.json", result)
+    })
+    .then(()=>{
+        return getGPMDiaMaps(timestart,timeend)
+    })
+    .then(result=>{
+        return fsPromise.writeFile("cron/responses/getGPMDiaMaps.json", result)
+    })
+    .then(result=>{
+        return printGPMMapSemanal(timestart,timeend)
+    })
+    .then(result=>{
+        return fsPromise.writeFile("cron/responses/printMapSemanal.json", result)
+    })
+}
+
+program
+  .command('gpm_batch')
+  .description('descarga gpm 3h, actualiza base de datos y genera mapas 3h y diarios')
+  .option('-s, --timestart <value>', 'fecha de inicio')
+  .option('-e, --timeend <value>', 'fecha final')
+  .option('-S, --skip_download',"no descargar")
+  .action(options => {
+      gpm_batch(options.timestart,options.timeend,options.skip_download)
+      .catch(e=>{
+          console.error(e)
+          process.exit(1)
+    })
+
+   })
+
+program
+   .command('gpm_mapas_diarios')
+   .description('genera mapas diarios')
+   .option('-s, --timestart <value>', 'fecha de inicio')
+   .option('-e, --timeend <value>', 'fecha final')
+   .action(options => {
+       getGPMDiaMaps(options.timestart,options.timeend)
+       .catch(e=>{
+           console.error(e)
+           process.exit(1)
+     })
+ 
+    })
+    
+program
+   .command('gpm_mapas_semanales')
+   .description('genera mapas semanales')
+   .option('-s, --timestart <value>', 'fecha de inicio')
+   .option('-e, --timeend <value>', 'fecha final')
+   .action(options => {
+	 printGPMMapSemanal(options.timestart,options.timeend)
+       .catch(e=>{
+           console.error(e)
+           process.exit(1)
+     })
+ 
+    })
+
+// file_indexer
+
+program
+  .command('getGridded')
+  .description('get from gridded')
+  .option('-c, --col_id <value>', 'id de colecciones_raster (int)')
+  .option('-r, --reference <value>', 'reference (regex)')
+  .option('-p, --path <value>', 'path (int)')
+  .option('-w, --row <value>', 'row (int)')
+  .option('-t, --timestart <value>', 'timestart (date)')
+  .option('-e, --timeend <value>', 'timeend (date)')
+  .option('-d, --date <value>', 'date: fecha de elaboración (date)')
+  .option('-v, --version <value>', 'version (int)')
+  .option('-i, --id <value>', 'id (int)')
+  .option('-o, --output <value>', 'output (file)')
+  .option('-N --no_metadata','no metadata (flat result)',false)
+  .action(options => {
+    var filter = {}
+    Object.keys(options).forEach(key=>{
+        filter[key] = options[key]
+    })
+    return indexer.getGridded(filter,undefined,{no_metadata:options.no_metadata})
+    .then(result=>{
+        if(options.output) {
+            fs.writeFileSync(options.output,JSON.stringify(result,null,2))
+            process.exit(0)
+        } else {
+            console.log(JSON.stringify(result,null,2))
+            process.exit(0)
+        }
+    })
+    .catch(e=>{
+        console.error("get error:" + e)
+        process.exit(1)
+    })
+  })
+	
+  program
+  .command('runFileIndexer')
+  .description('indexa rasters')
+  .option('-c, --col_id <value>', 'id de colecciones_raster')
+  .option('-S, --skip_update','no actualiza gridded',false)
+  .option('-o, --output <value>', 'salida')
+  .action(options => {
+    indexer.runGridded(options.col_id,{no_update:options.skip_update})
+    .then(result=>{
+        if(options.output) {
+            fs.writeFileSync(options.output,JSON.stringify(result,null,2))
+        } else {
+            console.log(JSON.stringify(result,null,2))
+        }
+        process.exit(0)
+    })
+    .catch(e=>{
+        console.error(e)
+        process.exit(0)
+    })
+  })
+
+program
+	.command('getColeccionesRaster')
+	.description('devuelve listado de colecciones raster')
+	.option('-i, --id <value>', 'id de colección (col_id)')
+	.option('-o, --output <value>', 'archivo de salida')
+	.action(options=>{
+		indexer.getColeccionesRaster(options.id)
+		.then(result=>{
+			if(options.output) {
+				return fsPromise.writeFile(options.output,JSON.stringify(result,null,2))
+			} else {
+				console.log(JSON.stringify(result,null,2))
+			}
+		})
+		.then(()=>{
+			process.exit()
+		})
+		.catch(e=>{
+			console.error(e.toString())
+			process.exit(1)
+		})
+	})
+
+
+
+function runGridded (req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	indexer.runGridded(filter.col_id,options)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		res.status(400).send(e.toString())
+	})
+}
+
+// CUBE TO SERIES_RAST
+
+
+program
+  .command('getRastFromCube <fuentes_id>')
+  .description('convierte de cubo raster a observaciones_rast. Si se provee -i --series_id, inserta observaciones en la serie indicada')
+  .option('-s, --timestart <value>', 'fecha de inicio')
+  .option('-e, --timeend <value>', 'fecha final')
+  .option('-f, --forecast_date <value>', 'fecha final')
+  .option('-i, --series_id <value>', 'id de serie de destino (de series_rast)')
+  .option('-o, --output <value>', 'guardar salida en archivo')
+  .option('-f, --format <value>', 'formato de archivo de salida')
+  .action((fuentes_id,options) => {
+	  var action
+	  if(options.series_id) {
+		  action = crud.upsertRastFromCube(fuentes_id,options.timestart,options.timeend,options.forecast_date,undefined,options.series_id)
+	  } else {
+		  action = crud.getRastFromCube(fuentes_id,options.timestart,options.timeend,options.forecast_date,undefined)
+	  }
+	  action.then(async results=>{
+		  if(options.output) {
+			//   fs.writeFileSync(options.output,JSON.stringify(results))
+			for(var i in results) {
+				await print_rast(options,{id:options.series_id,tipo:"raster"},results[i])
+			} 
+		  } else {
+		    console.log("results: " + results.length)
+		  }
+		  process.exit()
+	  })
+	  .catch(e=>{
+		  console.error(e)
+		  process.exit()
+	  })
+	})
 
 // AUX FUNCS //
 	
 function print_rast(options,serie,obs) {
 	options.format = (options.format) ? options.format : "GTiff"
+	obs.series_id  = (obs.series_id) ? obs.series_id : 0
+	console.log([options.output, obs.series_id, obs.timestart.toISOString().substring(0,10), obs.timeend.toISOString().substring(0,10), options.format])
 	const filename = (options.filename) ? options.filename : sprintf("%s_%05d_%s_%s\.%s", options.output, obs.series_id, obs.timestart.toISOString().substring(0,10), obs.timeend.toISOString().substring(0,10), options.format)
 	return fsPromise.writeFile(filename, obs.valor)
 	.then (()=>{
@@ -1673,5 +2454,35 @@ function execShellCommand(cmd) {
  });
 }
 
+// 	IF SUCCESSFUL RETURNS SIZE OF ZIP FILE
+function zipAndSave(content,output,options) {
+	var prefix = (options && options.prefix) ? options.prefix : "content" 
+	var postfix = (options && options.postfix) ? options.postfix : ".json" 
+	console.log("zipping " + content.length + " chars into " + path.resolve(output))
+	var tmpobj = tmp.fileSync({prefix:prefix,postfix:postfix})
+	fs.writeFileSync(tmpobj.name,content.toString())
+	return new Promise( (resolve,reject)=>{
+		var zip = spawn('zip',['-FSrj', path.resolve(output), tmpobj.name])
+		zip.stderr.on('data',data=>{
+			console.error(data.toString())
+		})
+		zip.on('error',err=>{
+			console.error(err)
+		})
+		zip.on('exit', (code)=>{
+			tmpobj.removeCallback();
+			if(code !== 0) {
+				reject('zip process exited with code ' + code);
+			} else {
+				var stats = fs.statSync(path.resolve(output))
+				var size = stats.size
+
+				resolve(size);
+			}
+		})
+		// zip.stdin.write(content.toString() + "\n")
+		// zip.stdin.end()
+	})
+}
 
 program.parse(process.argv);

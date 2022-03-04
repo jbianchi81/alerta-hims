@@ -47,7 +47,7 @@ internal.coleccion = class {
                 }
             }
         }
-        this.search = new RegExp(this.search.replace(/\?/g,"\\d"))
+        this.search = new RegExp(this.search.replace(/\?/g,"\\d") + "$")
         return 
     }
 }

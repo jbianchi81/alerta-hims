@@ -10,9 +10,10 @@ var bodyParser = require('body-parser')
 const { body } = require('express-validator');
 const querystring = require('querystring');
 
-const { Pool, Client } = require('pg')
-const readline = require("readline");
-const { exec } = require('child_process');
+const { Pool } = require('pg')
+// const readline = require("readline");
+// const { exec } = require('child_process');
+const spawn = require('child_process').spawn
 
 const crypto = require('crypto')
 
@@ -27,12 +28,12 @@ const accessors = require('./accessors')
 
 var default_rast_location = (config.rast) ? (config.rast.location) ? config.rast.location : "public" : "public"
 
-const basicAuth = require('express-basic-auth')
-var flash = require('express-flash')
-var cookieParser = require('cookie-parser')
+// const basicAuth = require('express-basic-auth')
+// var flash = require('express-flash')
+// var cookieParser = require('cookie-parser')
 var session = require('express-session')
-const FileStore = require('session-file-store')(session);
-const uuid = require('uuid/v4')
+// const FileStore = require('session-file-store')(session);
+// const uuid = require('uuid')
 
 var path = require('path');
 const tar = require('tar');
@@ -6583,9 +6584,28 @@ function send_output(options,data,res) {
 		}
 		contentType="application/json"
 	}
-	console.log("about to send " + output.length + " characters of data")
-	res.setHeader('Content-Type', contentType);
-    res.end(output);
+	if(options.zip) {
+		contentType="zip"
+		var zip = spawn('zip',['-rj', '-', '-'])
+		zip.stdout.on('data',(data)=>{
+			res.write(data)
+		})
+		zip.on('exit', (code)=>{
+			if(code !== 0) {
+				res.statusCode = 500;
+				console.log('zip process exited with code ' + code);
+				res.end();
+			} else {
+				res.end();
+			}
+		})
+		zip.stdin.write(output + "\n")
+		zip.stdin.end()
+	} else {
+		console.log("about to send " + output.length + " characters of data")
+		res.setHeader('Content-Type', contentType);
+		res.end(output);
+	}
 }
 	
 // function print_rast(options,serie,obs) {
@@ -7154,6 +7174,9 @@ function getOptions(req) {
 		if(req.body.returnSkipped) {
 			options.returnSkipped = (req.body.returnSkipped.toString().toLowerCase() == 'true')
 		}
+		if(req.body.zip) {
+			options.zip = (req.body.zip.toString().toLowerCase() == 'true')
+		}
 		["agg_func","dt","t_offset","id_grupo","get_raster","min_count","group_by_cal","interval"].forEach(k=>{
 			if(req.body[k]) {
 				options[k] = req.body[k]
@@ -7257,6 +7280,9 @@ function getOptions(req) {
 		}
 		if(req.query.returnSkipped) {
 			options.returnSkipped = (req.query.returnSkipped.toString().toLowerCase() == 'true')
+		}
+		if(req.query.zip) {
+			options.zip = (req.query.zip.toString().toLowerCase() == 'true')
 		}
 		["agg_func","dt","t_offset","get_raster","min_count","group_by_cal","interval"].forEach(k=>{
 			if(req.query[k]) {

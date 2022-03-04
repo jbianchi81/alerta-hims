@@ -279,6 +279,13 @@ internal.date2tste = function(date) {
 // 	}
 // })
 
+internal.doy2month = function(doy) {
+    var date = new Date(2022,0,1)
+    date.setUTCDate(doy)
+    return date.getUTCMonth()
+}
+
+
 module.exports = internal
 
 
