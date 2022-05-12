@@ -1,0 +1,12 @@
+informe_test = require('./test/informe_semanal_test.js')
+tests = new informe_test.Tests()
+// tests.test_15().then(r=>console.log(r))
+// tests.test_16().then(r=>console.log(r))
+// tests.results
+// tests.test_17().then(r=>console.log(r))
+// tests.test_18().then(r=>console.log(r))
+// tests.test_19().then(r=>console.log(r))
+tests.test_20().then(r=>console.log(r))
+tests.test_21().then(r=>console.log(r))
+tests.test_7().then(r=>console.log(r))
+tests.test_9().then(r=>console.log(r))
