@@ -124,12 +124,7 @@ internal.crud = class {
         var result
         if(id) {
             if(Array.isArray(id)) {
-                for (var i in id) {
-                    if(/[';]/.test(id[i])) {
-                        throw("Invalid characters in id filter")
-                    }
-                }
-                var id_list = id.map(i=>`'${i.toString()}'`).join(",")
+                var id_list = stringOrArrayFilter(id)
                 try {
                     result = await this.pool.query(`DELETE FROM informe_semanal_regiones WHERE id IN (${id_list}) RETURNING *`)
                 } catch(e) {
@@ -249,7 +244,7 @@ internal.crud = class {
         var result
         if(!fecha) { // DELETE last
             try {
-                result = await this.pool.query("WITH last AS (SELECT max(fecha) as fecha FROM informe_semanal)DELETE FROM informe_semanal USING last WHERE informe_semanal.fecha=last.fecha RETURNING *",[fecha])
+                result = await this.pool.query("WITH last AS (SELECT max(fecha) as fecha FROM informe_semanal) DELETE FROM informe_semanal USING last WHERE informe_semanal.fecha=last.fecha RETURNING *",[fecha])
             } catch(e) {
                 throw(e)
             }
@@ -267,7 +262,36 @@ internal.crud = class {
     }
 
     async deleteInformes(fecha_inicio,fecha_fin) {
-        // TO DO
+        var result
+        if(fecha_inicio && fecha_fin) {
+            try {
+                result = await this.pool.query("DELETE FROM informe_semanal WHERE informe_semanal.fecha BETWEEN $1 AND $2 RETURNING *",[fecha_inicio,fecha_fin])
+            } catch(e) {
+                throw(e)
+            }
+        } else if(fecha_inicio) {
+            try {
+                result = await this.pool.query("DELETE FROM informe_semanal WHERE informe_semanal.fecha >= $1 RETURNING *",[fecha_inicio])
+            } catch(e) {
+                throw(e)
+            }
+        } else if(fecha_fin) {
+            try {
+                result = await this.pool.query("DELETE FROM informe_semanal WHERE informe_semanal.fecha <= $1 RETURNING *",[fecha_fin])
+            } catch(e) {
+                throw(e)
+            }
+        } else {
+            try {
+                result = await this.pool.query("DELETE FROM informe_semanal RETURNING *")
+            } catch(e) {
+                throw(e)
+            }
+        }
+        if(!result.rows.length) {
+            throw("deleteInformes: Nonthing deleted")
+        }
+        return result.rows
     }
 
     async createContenido(fecha,contenido,client) {
@@ -316,7 +340,80 @@ internal.crud = class {
         }
         return inserted_contenido
     }
+    async readContenido(fecha,region_id) {
+        var result
+        if(!fecha) { // LAST FECHA
+            if(!region_id) { // ALL REGIONS
+                try {
+                    result = await this.pool.query("WITH last AS (SELECT max(fecha) as fecha FROM informe_semanal) SELECT informe_semanal_contenido.fecha,informe_semanal_contenido.region_id,informe_semanal_contenido.texto FROM informe_semanal_contenido, last WHERE informe_semanal_contenido.fecha = last.fecha ORDER BY region_id")
+                } catch(e) {
+                    throw(e)
+                }
+            } else {
+                var region_id_list = stringOrArrayFilter(region_id)
+                try {
+                    result = await this.pool.query(`WITH last AS (SELECT max(fecha) as fecha FROM informe_semanal) SELECT informe_semanal_contenido.fecha,informe_semanal_contenido.region_id,informe_semanal_contenido.texto FROM informe_semanal_contenido, last WHERE informe_semanal_contenido.fecha = last.fecha AND region_id IN (${region_id_list}) ORDER BY region_id`)
+                } catch(e) {
+                    throw(e)
+                }
+            }
+        } else {
+            if(!region_id) { // ALL REGIONS
+                try {
+                    result = await this.pool.query("SELECT informe_semanal_contenido.fecha,informe_semanal_contenido.region_id,informe_semanal_contenido.texto FROM informe_semanal_contenido WHERE informe_semanal_contenido.fecha::date = $1 ORDER BY region_id",[fecha])
+                } catch(e) {
+                    throw(e)
+                }
+            } else {
+                var region_id_list = stringOrArrayFilter(region_id)
+                try {
+                    result = await this.pool.query(`SELECT informe_semanal_contenido.fecha,informe_semanal_contenido.region_id,informe_semanal_contenido.texto FROM informe_semanal_contenido WHERE informe_semanal_contenido.fecha = $1 AND region_id IN (${region_id_list}) ORDER BY region_id`,[fecha])
+                } catch(e) {
+                    throw(e)
+                }
+            }
+        }
+        if(!result.rows.length) {
+            throw("readContenido: nothing found")
+        }
+        return result.rows
+    }
 
+    // DELETE CONTENIDO
+    async deleteContenido(fecha,region_id) {
+        var result
+        if(region_id) {
+            region_id = stringOrArrayFilter(region_id)
+            try {
+                result = await this.pool.query(`DELETE FROM informe_semanal_contenido WHERE fecha::date=$1 AND region_id IN (${region_id}) RETURNING *`,[fecha])
+            } catch(e) {
+                throw(e)
+            }
+        } else {
+            try {
+                result = await this.pool.query(`DELETE FROM informe_semanal_contenido WHERE fecha::date=$1 RETURNING *`,[fecha])
+            } catch(e) {
+                throw(e)
+            }
+        }
+        if(!result.rows.length) {
+            throw("deleteContenido: nothing deleted")
+        }
+        return result.rows
+    } 
+
+}
+
+function stringOrArrayFilter(arg) {
+    if(!Array.isArray(arg)) {
+        arg = [arg]
+    }
+    return arg.map(i=> {
+        if(/[';]/.test(i)) {
+            throw("Invalid characters in string filter")
+        }
+        return `'${i.toString()}'`
+    }).join(",")
 }
 
 module.exports = internal

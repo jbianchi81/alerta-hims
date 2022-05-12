@@ -50,6 +50,10 @@ pool.on('connect', client=>{
 const file_indexer = require('./file_indexer')
 const indexer = new file_indexer.file_indexer(pool)
 
+//mareas
+const Mareas = require('./mareas')
+const mareas = new Mareas.CRUD(pool)
+
 // print_rast
 const printRast = require('./print_rast')
 const print_rast = printRast.print_rast
@@ -104,6 +108,7 @@ const LocalStrategy = require('passport-local').Strategy;
 //~ const BasicStrategy = require('passport-http').BasicStrategy
 
 const formidable = require('formidable')
+const { makeBrowseAsync } = require('./print_rast')
 
 
 // CONTROLLER //
@@ -473,6 +478,7 @@ app.get('/obs/asociaciones',auth.isWriter,(req,res)=>{
 	}
 })
 app.post('/obs/asociaciones',auth.isAdmin,upsertAsociaciones)
+app.delete('/obs/asociaciones',auth.isAdmin,deleteAsociaciones)
 app.get('/obs/asociaciones/:id',auth.isWriter,(req,res)=>{
 	if(req.query.run) {
 		runAsociacion(req,res)
@@ -490,6 +496,14 @@ app.get('/obs/:tipo/series/:series_id/estadisticosDiariosSuavizados',auth.isPubl
 	}
 })
 app.post('/obs/:tipo/series/:series_id/estadisticosDiariosSuavizados',auth.isWriter,upsertCuantilesDiariosSuavizados)
+app.get('/obs/:tipo/series/:series_id/estadisticosMensuales',auth.isPublic,(req,res)=>{
+	if(req.query.run) {
+		isWriter(req,res,()=> upsertMonthlyStats(req,res))
+	} else {
+		getMonthlyStats(req,res)
+	}
+})
+app.post('/obs/:tipo/series/:series_id/estadisticosMensuales',auth.isWriter,upsertMonthlyStats)
 app.get('/obs/:tipo/series/:series_id/estadisticosDiariosSuavizados/:cuantil',auth.isAuthenticated,getCuantilDiarioSuavizado)
 app.get('/obs/:tipo/series/:series_id/percentilesDiarios',auth.isPublic,getPercentilesDiarios)
 app.post('/obs/:tipo/series/:series_id/percentilesDiarios',auth.isWriter,upsertPercentilesDiarios)
@@ -523,7 +537,8 @@ app.get('/file_index/colecciones',auth.isPublic,getColeccionesRaster)
 app.get('/file_index/colecciones/:id',auth.isPublic,getColeccionesRaster)
 app.get('/file_index/colecciones/:col_id/productos',auth.isPublic,getGridded)
 app.put('/file_index/colecciones/:col_id/productos',auth.isAdmin,runGridded)
-
+// MAREAS
+app.get('/obs/mareas_rdp',auth.isAuthenticated,getAlturasMareaFull)
 // LOGIN
 app.get('/login',(req,res)=>{
 	//~ console.log(req)
@@ -726,6 +741,126 @@ app.post('/userChangePassword',auth.isAuthenticated, (req,res)=>{
 			})
 		//~ }
 	//~ })
+})
+
+// informe_semanal
+var Informe_semanal = require('./informe_semanal.js').crud
+var informe_semanal = new Informe_semanal(pool,config)
+
+app.get('/web/semanal/region', (req,res)=>{ // todas
+	var geojson = true
+	if(req.query && req.query.no_geom) {
+		geojson = false
+	}
+	informe_semanal.readRegiones(undefined,geojson)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.get('/web/semanal/region/id/:region_id', (req,res)=>{ // todas
+	var geojson = true
+	if(req.query && req.query.no_geom) {
+		geojson = false
+	}
+	informe_semanal.readRegiones(req.params.region_id,geojson)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.get('/web/semanal/informe', (req,res)=>{ // last full 
+	informe_semanal.readInforme()
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.get('/web/semanal/informe/fecha/:fecha', (req,res)=>{ // all regions
+	informe_semanal.readInforme(req.params.fecha)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.get('/web/semanal/informe/fecha/:fecha/region/:region_id', (req,res)=>{
+	informe_semanal.readContenido(req.params.fecha,req.params.region_id)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.get('/web/semanal/informe/region/:region_id', (req,res)=>{ // last date, 1 region
+	informe_semanal.readContenido(undefined,req.params.region_id)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.post('/web/semanal/informe', auth.isWriter, (req,res)=>{
+	if(!req.body) {
+		res.status(400).send({message:"La solicitud es incorrecta. Falta el cuerpo del mensaje (JSON)"})
+		res.end()
+		return
+	}
+	if(!req.body.fecha || ! req.body.texto_general) {
+		res.status(400).send({message:"La solicitud es incorrecta. El cuerpo del mensaje (JSON) 		debe contener: fecha, texto_general, contenido (opcional)"})
+		res.end()
+		return
+	}
+	informe_semanal.createInforme(req.body.fecha, req.body.texto_general, req.body.contenido)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
+})
+
+app.post('/web/semanal/informe/fecha/:fecha', auth.isWriter, (req,res)=>{
+	if(!req.body) {
+		res.status(400).send({message:"La solicitud es incorrecta. Falta el cuerpo del mensaje (JSON)"})
+		res.end()
+		return
+	}
+	if(!req.params.fecha || ! req.body.texto_general) {
+		res.status(400).send({message:"La solicitud es incorrecta. El cuerpo del mensaje (JSON) 		debe contener: texto_general, contenido (opcional)"})
+		res.end()
+		return
+	}
+	informe_semanal.createInforme(req.params.fecha, req.body.texto_general, req.body.contenido)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({"message":e.toString()})
+	})
 })
 
 // CRUD FUNCTION CALLERS //
@@ -1109,16 +1244,18 @@ function upsertVariables(req,res) {
 		res.status(400).send({message:"query error",error:e.toString()})
 		return
 	}
-	if(!req.body.variables) {
+	var variables
+	if(req.body.variables) {
+		variables = req.body.variables
+	} else if(Array.isArray(req.body)) {
+			variables = req.body
+	} else {
 		res.status(400).send({message:"query error",error:"Falta atributo 'variables'"})
 		return
 	}
-	var variables
-	if(typeof req.body.variables == "string") {
-		variables = JSON.parse(req.body.variables.trim())
-	} else {
-		variables = req.body.variables
-	}
+	if(typeof variables == "string") {
+		variables = JSON.parse(variables.trim())
+	} 
 	if(!Array.isArray(variables)) {
 		res.status(400).send({message:"query error",error:"Atributo 'variables debe ser un array'"})
 		return
@@ -2348,6 +2485,7 @@ function deleteSeries(req,res) {
 	var count_filters=countValidFilters(valid_filters,filter)
 	if(count_filters == 0) {
 		res.status(400).send({message:"bad request. filters missing"})
+		return
 	}
 	crud.deleteSeries(filter)
 	.then(result=>{
@@ -3214,11 +3352,16 @@ function upsertAsociaciones(req,res) {
 		res.status(400).send({message:"missing request body"})
 		return
 	}
-	if(!req.body.asociaciones) {
+	var asociaciones
+	if(req.body.asociaciones) {
+		asociaciones = req.body.asociaciones
+	} else if (Array.isArray(req.body)) {
+		asociaciones = req.body
+	} else {
 		res.status(400).send({message:"missing object asociaciones in request body"})
 		return
 	}
-	crud.upsertAsociaciones(req.body.asociaciones,options)
+	crud.upsertAsociaciones(asociaciones,options)
 	.then(result=>{
 		res.send(result)
 	})
@@ -3344,6 +3487,32 @@ function deleteAsociacion(req,res) {
 	})
 }
 
+function deleteAsociaciones(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	} 
+	var valid_filters = {id:{type:"number"},source_tipo: {type: "string"}, source_series_id: {type: "number"}, source_estacion_id: {type: "number"}, source_fuentes_id: {type: "string"}, source_var_id: {type: "number"},  source_proc_id: {type: "number"}, dest_tipo: {type: "string"}, dest_series_id: {type: "number"}, dest_var_id: {type: "number"}, dest_proc_id: {type: "number"}, agg_func: {type: "string"}, dt: {type: "interval"}, t_offset: {type: "interval"},habilitar: {type: "boolean"}}
+	var count_filters = countValidFilters(valid_filters,filter)
+	if(count_filters == 0) {
+		res.status(400).send({message:"bad request. filters missing"})
+		return
+	}
+	// console.log({filter:filter})
+	crud.deleteAsociaciones(filter)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		res.status(404).send(e.toString())
+	})
+}
+
+
 // SECCIONES view backend
 
 function getSeriesBySiteAndVar(req,res) {  //	estacion_id,var_id,timestart,timeend,includeProno=true)
@@ -3378,21 +3547,42 @@ function getSeriesBySiteAndVar(req,res) {  //	estacion_id,var_id,timestart,timee
 		timeend = new Date(filter.timeend)
 	}
 	var includeProno = (typeof options.includeProno == "undefined") ? true : options.includeProno
+	// var stats = (options.stats) ? options.stats : "monthly"
 	//~ console.log({estacion_id: filter.estacion_id, var_id: filter.var_id, timestart: timestart, timeend: timeend, includeProno: includeProno})
 	crud.getSeriesBySiteAndVar(filter.estacion_id, filter.var_id, timestart, timeend, includeProno, undefined, undefined, filter.proc_id,filter.public,filter.forecast_date)
 	.then(result=>{
 		if(!result) {
 			res.status(400).send({error:"serie no encontrada",message:"serie no encontrada"})
 		} else {
-			crud.getDailyDoyStats("puntual",result.id)
-			.then(dailystatslist=>{
-				// console.log("got dailyDoyStats at:" + Date())
-				result.dailyDoyStats = dailystatslist.values
+			if(options.stats) {
+				if(options.stats.toLowerCase() == "daily" ) {
+					crud.getDailyDoyStats("puntual",result.id)
+					.then(dailystatslist=>{
+					// console.log("got dailyDoyStats at:" + Date())
+						result.dailyDoyStats = dailystatslist.values
+						res.send(result)
+					})
+					.catch(e=>{
+						console.error(e)
+						res.send(result)
+					})
+				} else if(options.stats.toLowerCase() == "monthly") {
+					crud.getMonthlyStats("puntual",result.id)
+					.then(monthlystatslist=>{
+						// console.log("got dailyDoyStats at:" + Date())
+						result.monthlyStats = monthlystatslist.values
+						res.send(result)
+					})
+					.catch(e=>{
+						console.error(e)
+						res.send(result)
+					})
+				} else {
+					res.status(400).send("bad option: stats:" + options.stats)
+				}
+			} else {
 				res.send(result)
-			})
-			.catch(e=>{
-				res.send(result)
-			})
+			}
 		}
 	})
 	.catch(e=>{
@@ -3780,6 +3970,30 @@ function getCuantilesDiariosSuavizados(req,res) {
 	})
 }
 
+function getMonthlyStats(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	crud.getMonthlyStats(filter.tipo,filter.series_id,filter.public)
+	.then(result=>{
+		if(filter.format == "csv") {
+			res.setHeader('content-type','text/plain')
+			res.send(result.toCSV())
+		} else {
+			res.send(result)
+		}
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send(e)
+	})
+}
+
 function getCuantilDiarioSuavizado(req,res) {
 	try {
 		var filter = getFilter(req)
@@ -3940,6 +4154,29 @@ function getPercentilesDiariosBetweenDates(req,res) {
 	})	
 }
 
+function upsertMonthlyStats(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	crud.upsertMonthlyStats(filter.tipo,filter.series_id)
+	.then(result=>{
+		if(filter.format == "csv") {
+			res.setHeader('content-type','text/plain')
+			res.send(result.toCSV())
+		} else {
+			res.send(result.values)
+		}
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send(e)
+	})
+}
 function upsertCuantilesDiariosSuavizados(req,res) {
 	try {
 		var filter = getFilter(req)
@@ -4562,11 +4799,13 @@ function renderAccessorUploadForm(req,res) {
 	accessors.new(req.query.class)
 	.then(accessor=>{
 		var upload_fields = (accessor.upload_fields) ? Object.keys(accessor.upload_fields).map(key=>{
+			var default_value = (accessor.upload_fields[key].default) ? (accessor.upload_fields[key].type && accessor.upload_fields[key].type == "date") ? (typeof accessor.upload_fields[key].default == "number") ? new Date(new Date().getTime() - accessor.upload_fields[key].default * 24 * 3600 * 1000).toISOString().substring(0,10) : new Date(accessor.upload_fields[key].default).toISOString().substring(0,10) :  accessor.upload_fields[key].default : undefined
 			return {
 				name: key,
 				description: accessor.upload_fields[key].description,
 				type: accessor.upload_fields[key].type,
-				required: accessor.upload_fields[key].required
+				required: accessor.upload_fields[key].required,
+				default: default_value
 			}
 		}) : undefined
 		var params = {"class":accessor.clase, "title": accessor.title, "upload_fields": upload_fields}
@@ -5734,6 +5973,28 @@ function thinObs(req,res) {
 	})
 }
 
+// PRUNE
+
+function pruneObs(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	pruneObs(filter.tipo,filter, options={})
+	.then(result=>{
+		send_output(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send(e.toString())
+	})
+
+}
+
 
 // 2mnemos
 
@@ -6382,6 +6643,27 @@ function runGridded (req,res) {
 	})
 }
 
+// mareas
+
+function getAlturasMareaFull(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	mareas.getAlturasMareaFull(filter)
+	.then(result=>{
+		send_output(options,result,res)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+	})
+}
+
 // aux functions
 
 function arr2csv(arr) {
@@ -6566,6 +6848,33 @@ function send_output(options,data,res) {
 					console.error(e)
 					res.status(400).send({message:"query error",error:e.toString()})
 				})
+			} else if (options.format.toLowerCase() == 'waterml2') {
+				if(!Array.isArray(data)) {
+					data = [data]
+				}
+				for(var item of data) {
+					var is_serie = (item instanceof CRUD.serie)
+					if(!is_serie) {
+						console.error("Formato solicitado válido sólo para series")
+						res.status(400).send("Formato solicitado válido sólo para series")
+						return	
+					}
+				}
+				return crud.series2waterml2(data)
+				.then(result=>{
+					output = result
+					contentType = "application/xml"
+					console.log("about to send " + output.length + " characters of data")
+					res.setHeader('Content-Type', contentType);
+					res.end(output);
+					return
+				})
+				.catch(e=>{
+					console.error(e)
+					res.status(500).send({message:e.toString()})
+					return
+	
+				})
 			} else {
 				console.error("Formato solicitado inválido: opciones: json, geojson, mnemos, csv, string")
 				res.status(400).send("Formato solicitado inválido: opciones: json, geojson, mnemos, csv, string")
@@ -6694,7 +7003,7 @@ function getFilter(req) {
 			}
 		}
 		if(req.body.unid) {
-			filter.unid = req.body.unid
+			filter.unid = parseIntList(req.body.unid)
 		}
 		if(req.body.id_externo) {
 			filter.id_externo = parseStringList(req.body.id_externo)
@@ -6868,7 +7177,7 @@ function getFilter(req) {
 			}
 		}
 		if(req.query.unid) {
-			filter.unid = req.query.unid
+			filter.unid = parseIntList(req.query.unid)
 		}
 		if(req.query.id_externo) {
 			filter.id_externo = parseStringList(req.query.id_externo)
@@ -7177,7 +7486,7 @@ function getOptions(req) {
 		if(req.body.zip) {
 			options.zip = (req.body.zip.toString().toLowerCase() == 'true')
 		}
-		["agg_func","dt","t_offset","id_grupo","get_raster","min_count","group_by_cal","interval"].forEach(k=>{
+		["agg_func","dt","t_offset","id_grupo","get_raster","min_count","group_by_cal","interval","stats","pivot"].forEach(k=>{
 			if(req.body[k]) {
 				options[k] = req.body[k]
 			}
@@ -7284,7 +7593,7 @@ function getOptions(req) {
 		if(req.query.zip) {
 			options.zip = (req.query.zip.toString().toLowerCase() == 'true')
 		}
-		["agg_func","dt","t_offset","get_raster","min_count","group_by_cal","interval"].forEach(k=>{
+		["agg_func","dt","t_offset","get_raster","min_count","group_by_cal","interval","stats","pivot"].forEach(k=>{
 			if(req.query[k]) {
 				options[k] = req.query[k]
 			}
@@ -7376,7 +7685,7 @@ function guess_tipo (data) {
 		var tipo_guess = data[0].tipo
 		var count = 0
 		for(var i in data) {
-			if (data[i].tipo != tipo_guess) {
+			if (data[i] && data[i].tipo != tipo_guess) {
 				break
 			}
 			count++
