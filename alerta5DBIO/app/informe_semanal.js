@@ -294,6 +294,21 @@ internal.crud = class {
         return result.rows
     }
 
+    async createContenidoRegion(fecha,region,texto) {
+        var contenido = {
+            region_id: region,
+            texto: texto
+        }
+        if(fecha) {
+            return this.createContenido(fecha,contenido)
+        } else {
+            return this.readInforme()
+            .then(informe=>{
+                return this.createContenido(informe.fecha,contenido)
+            })
+        }
+    } 
+
     async createContenido(fecha,contenido,client) {
         var flag_commit_at_end = false
         if(!client) {
@@ -402,6 +417,153 @@ internal.crud = class {
         return result.rows
     } 
 
+}
+
+internal.rest = class {
+    constructor(pool,config) {
+        // console.log("Instantiating informe_semanal.rest")
+        this.crud = new internal.crud(pool,config)
+    }
+    getRegiones (req,res) { // todas
+        var geojson = true
+        if(req.query && req.query.no_geom) {
+            geojson = false
+        }
+        this.crud.readRegiones(undefined,geojson)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    getRegionById (req,res) {
+        var geojson = true
+        if(req.query && req.query.no_geom) {
+            geojson = false
+        }
+        this.crud.readRegiones(req.params.region_id,geojson)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    getInforme (req,res) { // last full 
+        this.crud.readInforme()
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    getInformeByFecha (req,res) { // all regions
+        this.crud.readInforme(req.params.fecha)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    getContenidoByFechaByRegion (req,res) {
+        this.crud.readContenido(req.params.fecha,req.params.region_id)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    getContenidoByRegion (req,res) { // last date, 1 region
+        this.crud.readContenido(undefined,req.params.region_id)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    postInforme (req,res) {
+        if(!req.body) {
+            res.status(400).send({message:"La solicitud es incorrecta. Falta el cuerpo del mensaje (JSON)"})
+            res.end()
+            return
+        }
+        if(!req.body.fecha || ! req.body.texto_general) {
+            res.status(400).send({message:"La solicitud es incorrecta. El cuerpo del mensaje (JSON) 		debe contener: fecha, texto_general, contenido (opcional)"})
+            res.end()
+            return
+        }
+        this.crud.createInforme(req.body.fecha, req.body.texto_general, req.body.contenido)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    postInformeFecha (req,res) {
+        if(!req.body) {
+            res.status(400).send({message:"La solicitud es incorrecta. Falta el cuerpo del mensaje (JSON)"})
+            res.end()
+            return
+        }
+        if(!req.params.fecha || ! req.body.texto_general) {
+            res.status(400).send({message:"La solicitud es incorrecta. El cuerpo del mensaje (JSON) 		debe contener: texto_general, contenido (opcional)"})
+            res.end()
+            return
+        }
+        this.crud.createInforme(req.params.fecha, req.body.texto_general, req.body.contenido)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    postContenidoRegion(req,res) { // última fecha de informe o toma de body.fecha o params.fecha
+        if(!req.params.region_id) {
+            res.status(400).send({message:"La solicitud es incorrecta. Falta region_id"})
+            res.end()
+            return
+        }
+        // console.log({body:req.body})
+        if(!req.body || !req.body.texto) {
+            res.status(400).send({message:"La solicitud es incorrecta. Falta texto"})
+            res.end()
+            return
+        }
+        this.crud.createContenidoRegion((req.params && req.params.fecha) ? req.params.fecha : (req.body.fecha) ? req.body.fecha : undefined,req.params.region_id,req.body.texto)
+        .then(result=>{
+            res.send(result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
+    renderForm(req,res) {
+        this.crud.readInforme()
+        .then(result=>{
+            result.fecha = result.fecha.toISOString().substring(0,10)
+            res.render('informe_semanal_form',result)
+        })
+        .catch(e=>{
+            console.error(e)
+            res.status(400).send({"message":e.toString()})
+        })
+    }
 }
 
 function stringOrArrayFilter(arg) {

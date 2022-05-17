@@ -191,9 +191,6 @@ internal.gfs_smn = class {
 		var time = (options.time) ? options.time : 6
 		var series_id = (filter.series_id) ? filter.series_id : 2
 		return this.gfs2db(crud,series_id,time,options)
-		.then(observaciones=>{
-			return observaciones.map(o=> new CRUD.observacion(o))
-		})
 	}
 	async getGFS(time,output=this.config.localcopy,options={}) {
 		var url = sprintf("vila/precip_%02d_gfs.grb", time)
@@ -411,9 +408,6 @@ internal.wrf_smn = class { // WRF_SMN
 		.then(observaciones=>{
 			return crud.upsertObservaciones(observaciones)
 		})
-		.then(observaciones=>{
-			return observaciones.map(o=>new CRUD.observacion(o))
-		})
 	}
 
 	async connect(ftp_connection_pars) {
@@ -448,7 +442,7 @@ internal.wrf_smn = class { // WRF_SMN
 			var output = local_path + "/" + filename
 			var warped_filename = local_path + "/" + filename + "_geo.tif"
 			if(!skip_download) {
-				var stream = await this.ftp.get(this.config.path + "/" + filename)
+				stream = await this.ftp.get(this.config.path + "/" + filename)
 				console.log("got file " + this.config.path + "/" + filename)
 				await this.writeStreamToFile(stream,output)
 				await this.warp(output,"/tmp/wrf_b2.tif",warped_filename)
@@ -669,9 +663,6 @@ internal.ecmwf_mensual = class {
 				})
 			}
 			return crud.upsertObservaciones(obs)
-		})
-		.then(observaciones=>{
-			return observaciones.map(o=>new CRUD.observacion(o))
 		})
 	}
 	
@@ -2534,7 +2525,7 @@ internal.ana = class {
 				.then(response=>{
 					response.data.pipe(writer)
 					//~ return new Promise( (resolve, reject) => {
-					writer.on('finish', resolve)
+					writer1.on('finish', resolve)
 					//~ })
 				})
 				.catch(e=>{
@@ -2580,7 +2571,7 @@ internal.ana = class {
 								pais: "Brasil",
 								automatica: true,
 								tipo: "A",
-								has_obs: (e.StatusEstacao) ? (e.StatusEstacao[0] == "Ativo") ? true : false : false,
+								has_obs: (e.StatusEstacao) ? (e.StatusEstacao[0] == "Ativo") ? 1 : 0 : 0,
 								url: "http://telemetriaws1.ana.gov.br/serviceANA.asmx/ListaEstacoesTelemetricas",
 								habilitar: true,
 								real: true
@@ -3058,8 +3049,12 @@ internal.mch_py = class {
 		})
 	}
 	getSites() {
-		return axios.get(this.config.url + "/stations",{headers: { Authorization: `Bearer ${this.config.token}`},accept:"application/json"})
-		.then((result)=>{
+		const sites = []
+		return this.getSitesPage(this.config.url + "/stations",undefined,sites)
+	}
+	getSitesPage(url,params,sites=[]) {
+		return axios.get(url,{headers: { Authorization: `Bearer ${this.config.token}`},accept:"application/json"})
+		.then(result=>{
 			if(!result) {
 				throw("getSites failed. Empty response from source")
 			}
@@ -3070,7 +3065,7 @@ internal.mch_py = class {
 			if(!result.data.payload || !result.data.payload.stations || !result.data.payload.stations.data) {
 				throw("getSites failed: payload.stations.data missing from response")
 			}
-			var sites = result.data.payload.stations.data.map(station=>{
+			sites.push(...result.data.payload.stations.data.map(station=>{
 				return new CRUD.estacion({
 					nombre: station.name,
 					id_externo: station.code,
@@ -3081,10 +3076,14 @@ internal.mch_py = class {
 					altitud: station.altitude,
 					tabla: "MCH_DMH_PY"
 				})
-			})
-			return sites
+			}))
+			if(result.data.payload.stations.next_page_url) {
+				return this.getSitesPage(result.data.payload.stations.next_page_url,undefined,sites)
+			} else {
+				return sites
+			}
 		})
-	}	
+	}
 	async get(filter,options={},update=false) {
 		if(!filter.estacion_id) {
 			return Promise.reject("Falta estacion_id")
@@ -3204,6 +3203,10 @@ internal.mch_py = class {
 		if(!this.config.variable_map[var_id]) {
 			return Promise.reject("var_id incorrecto")
 		}
+		const daily_vars = [39]
+		var daily = (daily_vars.indexOf(var_id) >= 0)
+		var date_start = (daily) ? timestart.toISOString().substring(0,10) : timestart.toISOString().substring(0,19)
+		var date_end =  (daily) ? timeend.toISOString().substring(0,10) : timeend.toISOString().substring(0,19)
 		return crud.getEstacion(estacion_id)
 		.then(estacion=>{
 			if(!estacion) {
@@ -3219,8 +3222,9 @@ internal.mch_py = class {
 				}
 				var serie = series[0]
 				var series_id = serie.id
-				return this.getObservationsPage(undefined,{station_code: estacion.id_externo, variable: this.config.variable_map[var_id], date_start: timestart.toISOString().substring(0,19), date_end: timeend.toISOString().substring(0,19)},series_id)
+				return this.getObservationsPage(undefined,{station_code: estacion.id_externo, variable: this.config.variable_map[var_id], date_start: date_start, date_end: date_end},series_id,undefined,daily)
 				.then(observaciones=>{
+					console.log("got " + observaciones.length + " observaciones")
 					if(update) {
 						return crud.upsertObservaciones(observaciones,'puntual')
 						.then(observaciones=>{
@@ -3241,17 +3245,17 @@ internal.mch_py = class {
 			})
 		})
 	}
-	getObservationsPage(url,params,series_id,observations=[]) {
+	getObservationsPage(url,params,series_id,observations=[],daily=false) {
 		var var_daily_0 = ["temperatura_maxima", "temperatura_minima" ]
 		var var_daily_9 = [ "precipitacion" ]
 		var options
 		if(!url) {
-			url = this.config.url + "/observations"
+			url = (daily) ? `${this.config.url}/daily_observations` : `${this.config.url}/observations`
 			options = {headers: { Authorization: `Bearer ${this.config.token}`}, params:params,accept:"application/json"}
 		} else {
 			options = {headers: { Authorization: `Bearer ${this.config.token}`}, accept:"application/json"}
 		}
-		// console.log({url:url,options:options})
+		//console.log({url:url,options:options})
 		return axios.get(url,options)
 		.then((result)=>{
 			if(!result) {
@@ -3265,9 +3269,10 @@ internal.mch_py = class {
 			}
 			// console.log({current_page:result.data.payload.observations.current_page})
 			result.data.payload.observations.data.forEach(observation=>{
-				var date_time = new Date(observation.date_time)
+				// if (daily) {console.log(observation.date)}
+				var date_time = (daily) ? new Date(observation.date + "T03:00:00Z") : new Date(observation.date_time)
 				var timestart = (var_daily_9.indexOf(params.variable) >= 0) ? new Date(date_time.getTime() + 9*3600*1000) : date_time 
-				var timeend = (var_daily_0.concat(var_daily_9).indexOf(params.variable) >= 0) ? new Date(timestart.getTime() + 24*3600*1000) : new Date(timestart.getTime() + 3*3600*1000)
+				var timeend = (var_daily_0.concat(var_daily_9).indexOf(params.variable) >= 0 || daily) ? new Date(timestart.getTime() + 24*3600*1000) : new Date(timestart.getTime() + 3*3600*1000)
 				observations.push(new CRUD.observacion({tipo:"puntual", series_id: series_id, timestart: timestart, timeend: timeend, valor: observation.value}))
 			})
 			if(result.data.payload.observations.next_page_url) {
@@ -4702,13 +4707,13 @@ internal.fdx = class {
 			this.config = config.fdx
 		}
 	}
-	async get(filter={}, options) {
+	get (filter={}, options) {
 		if(!filter.timestart) {
 			filter.timestart = new Date(new Date().getTime() - 8*24*3600*1000)
 		} else {
 			filter.timestart = new Date(filter.timestart)
 			if(filter.timestart.toString() == "Invalid Date") {
-				throw("Invalid timestart")
+				return promise.reject("Invalid timestart")
 			}
 		}
 		if(!filter.timeend) {
@@ -4716,7 +4721,7 @@ internal.fdx = class {
 		} else {
 			filter.timeend = new Date(filter.timeend)
 			if(filter.timeend.toString() == "Invalid Date") {
-				throw("Invalid timeend")
+				return promise.reject("Invalid timeend")
 			}
 		}
 		//~ var getIds
@@ -4829,9 +4834,6 @@ internal.fdx = class {
 		return this.get(filter,options)
 		.then(observaciones=>{
 			return crud.upsertObservaciones(observaciones,"puntual")
-		})
-		.then(observaciones=>{
-			return observaciones.map(o=> new CRUD.observacion(o))
 		})
 	}
 	test() {
@@ -6104,7 +6106,6 @@ internal.emas_sinarame = class {
 		options.no_update = true
 		return this.getReports(filter,options)
 	}
-	
 	async update(filter,options={}) {
 		options.no_update = false
 		options.no_update_observaciones = false

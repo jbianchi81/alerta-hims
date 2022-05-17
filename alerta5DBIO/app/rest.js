@@ -744,124 +744,22 @@ app.post('/userChangePassword',auth.isAuthenticated, (req,res)=>{
 })
 
 // informe_semanal
-var Informe_semanal = require('./informe_semanal.js').crud
+var Informe_semanal = require('./informe_semanal.js').rest
 var informe_semanal = new Informe_semanal(pool,config)
 
-app.get('/web/semanal/region', (req,res)=>{ // todas
-	var geojson = true
-	if(req.query && req.query.no_geom) {
-		geojson = false
-	}
-	informe_semanal.readRegiones(undefined,geojson)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
+app.get('/web/semanal/region', (req,res)=>informe_semanal.getRegiones(req,res))
+app.get('/web/semanal/region/id/:region_id', (req,res)=>informe_semanal.getRegionById(req,res))
+app.get('/web/semanal/informe', (req,res)=>informe_semanal.getInforme(req,res))
+app.get('/web/semanal/informe/fecha/:fecha', (req,res)=>informe_semanal.getInformeByFecha(req,res))
+app.get('/web/semanal/informe/fecha/:fecha/region/:region_id', (req,res)=>informe_semanal.getContenidoByFechaByRegion(req,res))
+app.get('/web/semanal/informe/region/:region_id', (req,res)=>informe_semanal.getContenidoByRegion(req,res))
+app.post('/web/semanal/informe', auth.isWriter, (req,res)=>informe_semanal.postInforme(req,res))
+app.post('/web/semanal/informe/fecha/:fecha', auth.isWriter, (req,res)=>informe_semanal.postInformeFecha(req,res))
+app.post('/web/semanal/informe/region/:region_id', auth.isWriter, (req,res)=>informe_semanal.postContenidoRegion(req,res))
+app.post('/web/semanal/informe/fecha/:fecha/region/:region_id', auth.isWriter, (req,res)=>informe_semanal.postContenidoRegion(req,res))
+// GUI
+app.get('/web_semanal',auth.isWriterView, (req,res)=>informe_semanal.renderForm(req,res))
 
-app.get('/web/semanal/region/id/:region_id', (req,res)=>{ // todas
-	var geojson = true
-	if(req.query && req.query.no_geom) {
-		geojson = false
-	}
-	informe_semanal.readRegiones(req.params.region_id,geojson)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
-
-app.get('/web/semanal/informe', (req,res)=>{ // last full 
-	informe_semanal.readInforme()
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
-
-app.get('/web/semanal/informe/fecha/:fecha', (req,res)=>{ // all regions
-	informe_semanal.readInforme(req.params.fecha)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
-
-app.get('/web/semanal/informe/fecha/:fecha/region/:region_id', (req,res)=>{
-	informe_semanal.readContenido(req.params.fecha,req.params.region_id)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
-
-app.get('/web/semanal/informe/region/:region_id', (req,res)=>{ // last date, 1 region
-	informe_semanal.readContenido(undefined,req.params.region_id)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
-
-app.post('/web/semanal/informe', auth.isWriter, (req,res)=>{
-	if(!req.body) {
-		res.status(400).send({message:"La solicitud es incorrecta. Falta el cuerpo del mensaje (JSON)"})
-		res.end()
-		return
-	}
-	if(!req.body.fecha || ! req.body.texto_general) {
-		res.status(400).send({message:"La solicitud es incorrecta. El cuerpo del mensaje (JSON) 		debe contener: fecha, texto_general, contenido (opcional)"})
-		res.end()
-		return
-	}
-	informe_semanal.createInforme(req.body.fecha, req.body.texto_general, req.body.contenido)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
-
-app.post('/web/semanal/informe/fecha/:fecha', auth.isWriter, (req,res)=>{
-	if(!req.body) {
-		res.status(400).send({message:"La solicitud es incorrecta. Falta el cuerpo del mensaje (JSON)"})
-		res.end()
-		return
-	}
-	if(!req.params.fecha || ! req.body.texto_general) {
-		res.status(400).send({message:"La solicitud es incorrecta. El cuerpo del mensaje (JSON) 		debe contener: texto_general, contenido (opcional)"})
-		res.end()
-		return
-	}
-	informe_semanal.createInforme(req.params.fecha, req.body.texto_general, req.body.contenido)
-	.then(result=>{
-		res.send(result)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send({"message":e.toString()})
-	})
-})
 
 // CRUD FUNCTION CALLERS //
 
