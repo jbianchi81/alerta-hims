@@ -1,0 +1,87 @@
+<h3>Informe semanal</h3>
+<form id=post method=post action="web/semanal/informe" enctype="application/json">
+	<div class="container">
+		<div class="row">
+			<div class="col-2">
+				<label for=fecha>Fecha</label>
+			</div>
+			<div class="col">
+				<input name=fecha type=date required=true value="{{fecha}}">
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-2">
+				<label for=texto_general>texto_general</label>
+			</div>
+			<div class="col">
+				<textarea name=texto_general type=textarea required=true>{{texto_general}}</textarea>
+			</div>
+		</div>
+		{{#each contenido}}
+			<div class="row">
+				<div class="col-2">
+					<label for={{this.region_id}}>{{this.region_id}}</label>
+				</div>
+				<div class="col">
+					<textarea class=contenido_item name={{this.region_id}} type=textarea>{{this.texto}}</textarea>
+				</div>
+			</div>
+		{{/each}}
+		<div class="row">
+			<div class="col-2">
+				<button type=submit>Confirma</button>
+			</div>
+			<div class="col">
+			</div>
+		</div>
+	</div>
+</form>
+<a href="/cargarPlanillas">&lt;&lt;volver</a>
+
+<script>
+	{{!-- window.onload = function() {
+		if(!$("form#post input[name=fecha]").val()) {
+			var fecha = new Date()
+            console.log("setting fecha to today")
+			$("form#post input[name=fecha]").val(fecha.toISOString().substring(0,10))
+		}
+	} --}}
+    $("form#post").submit(e=>{
+        e.preventDefault()
+        var values = {};
+        $.each($('form#post').serializeArray(), function(i, field) {
+            values[field.name] = field.value;
+        });
+        var contenido = []
+        $('form#post textarea.contenido_item').map((index,item)=> {
+            contenido.push({
+                region_id: $(item).attr('name'),
+                texto: $(item).val()
+            })
+        });
+        var informe = {
+            fecha: values.fecha,
+            texto_general: values.texto_general,
+            contenido: contenido
+        }
+        console.log(JSON.stringify(informe))
+        $.ajax({
+            type: "POST",
+            url: "web/semanal/informe",
+            data: JSON.stringify(informe),
+            error: (jqXHR, textStatus, errorThrown)=>{
+                alert(errorThrown.toString())
+            },
+            success: ()=>{
+                alert("Informe semanal actualizado")
+                location.reload()
+            },
+            dataType: "json",
+            contentType: "application/json",
+            timeout: 10000
+        })
+    })
+    $("textarea").css("min-height",150)
+    {{!-- $("textarea").css("min-width",300) --}}
+    $("textarea").css("width","100%")
+</script>
