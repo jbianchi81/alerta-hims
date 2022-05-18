@@ -194,13 +194,13 @@ internal.crud = class {
         var result
         if(fecha) {
             try {
-                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', region_id,'texto', texto)) filter (where region_id is not null) AS contenido FROM informe_semanal LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha) WHERE informe_semanal.fecha=$1::date GROUP BY informe_semanal.fecha",[fecha])
+                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', informe_semanal_regiones.id, 'texto', texto) ORDER BY informe_semanal_regiones.id) as contenido FROM informe_semanal JOIN informe_semanal_regiones ON (informe_semanal.fecha=$1::date) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha AND informe_semanal_regiones.id=informe_semanal_contenido.region_id) GROUP BY informe_semanal.fecha;",[fecha])
             } catch(e) {
                 throw(e)
             }
         } else {
             try {
-                result = await this.pool.query("WITH last AS (SELECT max(fecha) as fecha FROM informe_semanal) SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', region_id,'texto', texto)) filter (where region_id is not null) AS contenido FROM informe_semanal JOIN last ON (informe_semanal.fecha = last.fecha) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha) GROUP BY informe_semanal.fecha")
+                result = await this.pool.query("WITH last AS (SELECT max(fecha) as fecha FROM informe_semanal) SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', informe_semanal_regiones.id, 'texto', texto) ORDER BY informe_semanal_regiones.id) as contenido FROM informe_semanal JOIN last ON (informe_semanal.fecha = last.fecha) JOIN informe_semanal_regiones ON (1=1) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha AND informe_semanal_regiones.id=informe_semanal_contenido.region_id) GROUP BY informe_semanal.fecha;")
             } catch(e) {
                 throw(e)
             }
@@ -214,25 +214,25 @@ internal.crud = class {
         var result
         if(fecha_inicio && fecha_fin) {
             try {
-                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', region_id,'texto', texto)) filter (where region_id is not null) AS contenido FROM informe_semanal LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha) WHERE informe_semanal.fecha BETWEEN $1 AND $2 GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $3",[fecha_inicio,fecha_fin, this.config.informe_semanal.informes_limit])
+                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', informe_semanal_regiones.id, 'texto', texto) ORDER BY informe_semanal_regiones.id) as contenido FROM informe_semanal JOIN informe_semanal_regiones ON (informe_semanal.fecha BETWEEN $1 AND $2) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha AND informe_semanal_regiones.id=informe_semanal_contenido.region_id) GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $3;",[fecha_inicio,fecha_fin, this.config.informe_semanal.informes_limit])
             } catch(e) {
                 throw(e)
             }
         } else if(fecha_inicio) {
             try {
-                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', region_id,'texto', texto)) filter (where region_id is not null) AS contenido FROM informe_semanal LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha) WHERE informe_semanal.fecha >= $1 GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $2",[fecha_inicio, this.config.informe_semanal.informes_limit])
+                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', informe_semanal_regiones.id, 'texto', texto) ORDER BY informe_semanal_regiones.id) as contenido FROM informe_semanal JOIN informe_semanal_regiones ON (informe_semanal.fecha >= $1) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha AND informe_semanal_regiones.id=informe_semanal_contenido.region_id) GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $2;",[fecha_inicio, this.config.informe_semanal.informes_limit])
             } catch(e) {
                 throw(e)
             }
         } else if(fecha_fin) {
             try {
-                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', region_id,'texto', texto)) filter (where region_id is not null) AS contenido FROM informe_semanal LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha) WHERE informe_semanal.fecha <= $1 GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $2",[fecha_fin,this.config.informe_semanal.informes_limit])
+                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', informe_semanal_regiones.id, 'texto', texto) ORDER BY informe_semanal_regiones.id) as contenido FROM informe_semanal JOIN informe_semanal_regiones ON (informe_semanal.fecha <= $1) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha AND informe_semanal_regiones.id=informe_semanal_contenido.region_id) GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $2;",[fecha_fin,this.config.informe_semanal.informes_limit])
             } catch(e) {
                 throw(e)
             }
         } else {
             try {
-                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', region_id,'texto', texto)) as contenido FROM informe_semanal LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha) GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $1",[this.config.informe_semanal.informes_limit])
+                result = await this.pool.query("SELECT informe_semanal.fecha, texto_general, json_agg(json_build_object('region_id', informe_semanal_regiones.id, 'texto', texto) ORDER BY informe_semanal_regiones.id) as contenido FROM informe_semanal JOIN informe_semanal_regiones ON (1=1) LEFT OUTER JOIN informe_semanal_contenido ON (informe_semanal.fecha=informe_semanal_contenido.fecha AND informe_semanal_regiones.id=informe_semanal_contenido.region_id) GROUP BY informe_semanal.fecha ORDER BY informe_semanal.fecha LIMIT $1;",[this.config.informe_semanal.informes_limit])
             } catch(e) {
                 throw(e)
             }
