@@ -15,11 +15,14 @@
 					<label for={{this.name}}>{{this.description}}</label>
 				</div>
 				<div class="col-md-auto">
-					{{#if this.required}}
-						<input name={{this.name}} type={{this.type}} required=required>
-					{{else}}
-					 	<input name={{this.name}} type={{this.type}}>
-					{{/if}}
+					<input name={{this.name}} type={{this.type}}
+						{{#if this.required}}
+							required=required 
+						{{/if}}
+						{{#if this.default}}
+							value={{this.default}}
+						{{/if}}
+					>
 				</div>
 			</div>
 		{{/each}}

@@ -27,10 +27,10 @@
 <a href="/cargarPlanillas">&lt;&lt;volver</a>
 <script>
 	window.onload = function() {
-		if(!$("form#postTelex div.row input[name=timestart]").val()) {
+		if(!$("form#post div.row input[name=timestart]").val()) {
 			var timestart = new Date()
 			timestart.setTime(timestart.getTime() - 14*24*3600*1000)
-			$("form#postTelex input[name=timestart]").val(timestart.toISOString().substring(0,10))
+			$("form#post input[name=timestart]").val(timestart.toISOString().substring(0,10))
 		}
 	}
 </script>

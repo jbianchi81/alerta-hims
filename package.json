@@ -1,0 +1,30 @@
+{
+  "name": "44-nodejs_apis",
+  "version": "1.0.0",
+  "description": "",
+  "main": "start_app.js",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "axios-cookiejar-support": "^1.0.1",
+    "child_process": "^1.0.2",
+    "commander": "^4.1.1",
+    "config": "^3.3.3",
+    "express": "^4.17.1",
+    "express-handlebars": "^5.2.0",
+    "fs": "0.0.1-security",
+    "http": "0.0.0",
+    "https": "^1.0.0",
+    "https-proxy-agent": "^4.0.0",
+    "ps-node": "^0.1.6",
+    "request": "^2.88.2",
+    "soap": "^0.35.0",
+    "tough-cookie": "^4.0.0",
+    "xml": "^1.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "start_app.js"
+  },
+  "author": "",
+  "license": "ISC"
+}

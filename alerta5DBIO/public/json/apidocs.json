@@ -178,14 +178,14 @@
                         "name": "timestart",
                         "description": "fecha inicial de las series temporales simuladas",
                         "required": false,
-                        "type": "dateTime",
+                        "type": "date-time",
                         "in": "query"
                     },
                     {
                         "name": "timeend",
                         "description": "fecha final de las series temporales simuladas",
                         "required": false,
-                        "type": "dateTime",
+                        "type": "date-time",
                         "in": "query"
                     },
                     {
@@ -3964,6 +3964,48 @@
                         "required": false,
                         "type": "boolean",
                         "in": "query"
+                    },
+                    {
+                        "name": "date_range_before",
+                        "description": "La fecha inicial de la serie es inferior al valor indicado",
+                        "required": false,
+                        "type": "string",
+                        "in": "query"
+                    },
+                    {
+                        "name": "date_range_after",
+                        "description": "La fecha final de la serie es superior al valor indicado",
+                        "required": false,
+                        "type": "string",
+                        "in": "query"
+                    },
+                    {
+                        "name": "getMonthlyStats",
+                        "description": "Incluye estadísticos mensuales (percentiles 1,10,50,90,99)",
+                        "required": false,
+                        "type": "boolean",
+                        "in": "query"
+                    },
+                    {
+                        "name": "getStats",
+                        "description": "Calcula beginTime, endTime, count, minValor, maxValor",
+                        "required": false,
+                        "type": "boolean",
+                        "in": "query"
+                    },
+                    {
+                        "name": "getPercentiles",
+                        "description": "Incluye percentiles (0.01 a 0.99)",
+                        "required": false,
+                        "type": "boolean",
+                        "in": "query"
+                    },
+                    {
+                        "name": "percentil",
+                        "description": "Lista de números de dos cifras decimales separada por comas. Incluye los percentiles especificados (rango 0.01 a 0.99). Ejemplo: 0.01,0.10,0.50,0.90,0.99",
+                        "required": false,
+                        "type": "string",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6571,6 +6613,133 @@
                 }
             }
         },
+        "/obs/{tipo}/series/{series_id}/estadisticosMensuales":{
+            "get": {
+                "summary": "obtiene los estadísticos mensuales de la serie especificada",
+                "nickname": "getEstadisticosMensuales",
+                "parameters": [
+                    {
+                        "name": "tipo",
+                        "description": "tipo de observación",
+                        "required": true,
+                        "type": "string",
+                        "enum": ["puntual","areal","raster"],
+                        "in": "path"
+                    },
+                    {
+                        "name": "series_id",
+                        "description": "id de serie",
+                        "required": true,
+                        "type": "integer",
+                        "in": "path"
+                    },
+                    {
+                        "name": "run",
+                        "description": "calcula los estadísticos",
+                        "required":false,
+                        "type": "boolean",
+                        "in":"query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+									"type": "array",
+									"items": {
+											"$ref": "#/components/schemas/EstadisticosMensuales"
+									}
+								}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/obs/{tipo}/series/{series_id}/percentiles": {
+            "get": {
+                "summary": "obtiene percentiles de la serie",
+                "nickname": "getPercentiles",
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "tipo",
+                        "description": "tipo de observación",
+                        "required": true,
+                        "type": "string",
+                        "enum": ["puntual","areal","raster"],
+                        "in": "path"
+                    },
+                    {
+                        "name": "series_id",
+                        "description": "id de serie",
+                        "required": true,
+                        "type": "integer",
+                        "in": "path"
+                    },
+                    {
+                        "name": "percentil",
+                        "description": "Lista separada por comas de números de dos cifras decimales. Rango 0.01 a 0.99. Ejemplo: '0.01,0.10,0.50,0.90,0.99'. Si no se especifica, devuelve el rango completo",
+                        "required": false,
+                        "type": "string",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "tipo": {
+                                                "type": "string"
+                                            },
+                                            "series_id": {
+                                                "type": "integer"
+                                            },
+                                            "percentiles": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/components/schemas/PercentilGlobal"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
         "/tools/geojson2rast": {
 			"post": {
 				"summary": "convierte vectorial de formato GeoJSON a raster de formato GeoTIFF",
@@ -7094,7 +7263,8 @@
                     },
                     "nombre": {
                         "type": "string",
-                        "description": "nombre del calibrado"
+                        "description": "nombre del calibrado",
+                        "format": "regexp"
                     },
                     "activar": {
                         "type": "boolean",
@@ -7150,19 +7320,66 @@
                         "description": "id de tramo de curso de agua del calibrado"
                     },
                     "dt": {
-                        "type": "string",
+                        "$ref": "#/components/schemas/TimeInterval",
                         "description": "intervalo temporal del calibrado en formato SQL, p. ej '1 days' o '12 hours' o '00:30:00'",
                         "defaultValue": "1 days"
                     },
                     "t_offset": {
-                        "type": "string",
+                        "$ref": "#/components/schemas/TimeInterval",
                         "description": "offset temporal del modelo en formato SQL, p ej '9 hours'",
                         "defaultValue": "9 hours"
+                    },
+                    "grupo_id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "id de grupo de calibrados"
                     }
                 },
                 "required": [
                     "model_id",
                     "nombre"
+                ],
+                "table_name" : "calibrados"
+            },
+            "TimeInterval": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "format": "time-interval"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "milliseconds": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "seconds": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "minutes": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "hours": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "days": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+            				"months": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "years": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        }
+                    }
                 ]
             },
             "Output": {
@@ -7187,12 +7404,25 @@
                         "format": "int64",
                         "description": "número de orden de salida",
                         "minimum": 1
+                    },
+                    "cal_id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único de calibrado",
+                        "readOnly": true
+                    },
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único",
+                        "readOnly": true
                     }
                 },
                 "required": [
                     "series_id",
                     "orden"
-                ]
+                ],
+                "table_name": "cal_out"
             },
             "Parametro": {
                 "type": "object",
@@ -7207,12 +7437,25 @@
                         "format": "int64",
                         "description": "número de orden del parámetro",
                         "minimum": 1
+                    },
+                    "cal_id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único de calibrado",
+                        "readOnly": true
+                    },
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único",
+                        "readOnly": true
                     }
                 },
                 "required": [
                     "valor",
                     "orden"
-                ]
+                ],
+                "table_name": "cal_pars"
             },
             "Estado": {
                 "type": "object",
@@ -7227,12 +7470,25 @@
                         "format": "int64",
                         "description": "número de orden del estado",
                         "minimum": 1
+                    },
+                    "cal_id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único de calibrado",
+                        "readOnly": true
+                    },
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único",
+                        "readOnly": true
                     }
                 },
                 "required": [
                     "valor",
                     "orden"
-                ]
+                ],
+                "table_name": "cal_estados"
             },
             "Forzante": {
                 "type": "object",
@@ -7256,12 +7512,36 @@
                         "format": "int64",
                         "description": "número de orden de entrada",
                         "minimum": 1
+                    },
+                    "cal_id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único de calibrado",
+                        "readOnly": true
+                    },
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único",
+                        "readOnly": true
+                    },
+                    "model_id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "identificador único de modelo",
+                        "readOnly": true
+                    },
+                    "serie": {
+                        "$ref":"#/components/schemas/Serie",
+                        "description": "serie: objeto Serie",
+                        "foreign_key": "series_id"
                     }
                 },
                 "required": [
                     "series_id",
                     "orden"
-                ]
+                ],
+                "table_name": "forzantes"
             },
             "Corrida": {
                 "type": "object",
@@ -7319,11 +7599,15 @@
                 "properties": {
                     "timestart": {
                         "type": "string",
-                        "description": "fecha-hora inicial del pronóstico"
+                        "description": "fecha-hora inicial del pronóstico",
+                        "format": "date-time",
+                        "interval": "begin"
                     },
                     "timeend": {
                         "type": "string",
-                        "description": "fecha-hora final del pronóstico"
+                        "description": "fecha-hora final del pronóstico",
+                        "format": "date-time",
+                        "interval": "end"
                     },
                     "valor": {
                         "type": "number",
@@ -7768,7 +8052,7 @@
                         "description": "nombre del área",
                         "type": "string"
                     },
-                    "unid": {
+                    "id": {
                         "description": "identificador único del área",
                         "type": "integer"
                     },
@@ -7878,7 +8162,8 @@
 							{
 								"$ref": "#/components/schemas/Escena"
 							}
-						]
+						],
+                        "foreign_key": "estacion_id"
 					},
 					"var": {
 						"description": "variable",
@@ -7886,15 +8171,18 @@
 					},
 					"procedimiento": {
                         "description": "procedimiento",
-                        "$ref": "#/components/schemas/Procedimiento"
+                        "$ref": "#/components/schemas/Procedimiento",
+                        "foreign_key": "proc_id"
                     },
                     "unidades": {
                         "description": "unidades",
-                        "$ref": "#/components/schemas/Unidad"
+                        "$ref": "#/components/schemas/Unidad",
+                        "foreign_key": "unit_id"
                     },
                     "fuente": {
                         "description": "fuente (para tipo: areal/raster)",
-                        "$ref": "#/components/schemas/Fuente"
+                        "$ref": "#/components/schemas/Fuente",
+                        "foreign_key": "fuentes_id"
                     },
                     "observaciones": {
 						"description": "arreglo de observaciones correspondientes a la serie",
@@ -7904,7 +8192,8 @@
 						}
 					}
 				},
-				"required": [ "tipo", "estacion_id", "var_id", "proc_id", "unit_id"]
+				"required": [ "tipo", "estacion_id", "var_id", "proc_id", "unit_id"],
+                "table_name" : "series"
 			},
 			"ObservacionDia": {
 				"type": "object",
@@ -8064,6 +8353,100 @@
 					"window_size":{
 						"description": "ventana temporal para el suavizado en días (a partir de y hasta el día del año en cuestión)",
 						"type": "integer"
+					},
+					"timestart":{
+						"description": "fecha inicial",
+						"type": "string"
+					},
+					"timeend":{
+						"description": "fecha final",
+						"type": "string"
+					}
+				}
+			},
+            "PercentilGlobal": {
+				"type": "object",
+				"properties": {
+					"tipo":{
+						"description": "tipo de observación",
+						"type": "string"
+					},
+					"series_id":{
+						"description": "id de serie",
+						"type": "integer"
+					},
+					"percentil":{
+						"description": "número de percentil (0.01 - 0.99)",
+						"type": "number"
+					},
+					"count":{
+						"description": "cantidad de registros",
+						"type": "integer"
+					},
+					"timestart":{
+						"description": "fecha inicial",
+						"type": "string"
+					},
+					"timeend":{
+						"description": "fecha final",
+						"type": "string"
+					},
+                    "valor": {
+                        "description": "valor",
+                        "type": "number"
+                    }
+				}
+			},
+            "EstadisticosMensuales": {
+				"type": "object",
+				"properties": {
+					"tipo":{
+						"description": "tipo de observación",
+						"type": "string"
+					},
+					"series_id":{
+						"description": "id de serie",
+						"type": "integer"
+					},
+					"mon":{
+						"description": "mes del año [0-11]",
+						"type": "integer"
+					},
+					"count":{
+						"description": "cantidad de registros",
+						"type": "integer"
+					},
+					"min":{
+						"description": "valor mínimo",
+						"type": "number"
+					},
+					"max":{
+						"description": "valor máximo",
+						"type": "number"
+					},
+					"mean":{
+						"description": "valor medio",
+						"type": "number"
+					},
+					"p01":{
+						"description": "percentil 1",
+						"type": "number"
+					},
+					"p10":{
+						"description": "percentil 10",
+						"type": "number"
+					},
+					"p50":{
+						"description": "percentil 50",
+						"type": "number"
+					},
+					"p90":{
+						"description": "percentil 90",
+						"type": "number"
+					},
+					"p99":{
+						"description": "percentil 99",
+						"type": "number"
 					},
 					"timestart":{
 						"description": "fecha inicial",

@@ -43,8 +43,6 @@ CREATE TABLE public.colecciones_raster (
 );
 
 
-ALTER TABLE public.colecciones_raster OWNER TO leyden;
-
 --
 -- Name: colecciones_raster_id_seq; Type: SEQUENCE; Schema: public; Owner: leyden
 --
@@ -56,8 +54,6 @@ CREATE SEQUENCE public.colecciones_raster_id_seq
     NO MAXVALUE
     CACHE 1;
 
-
-ALTER TABLE public.colecciones_raster_id_seq OWNER TO leyden;
 
 --
 -- Name: colecciones_raster_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: leyden
@@ -83,8 +79,6 @@ CREATE TABLE public.gridded (
 );
 
 
-ALTER TABLE public.gridded OWNER TO leyden;
-
 --
 -- Name: gridded_id_seq; Type: SEQUENCE; Schema: public; Owner: leyden
 --
@@ -96,8 +90,6 @@ CREATE SEQUENCE public.gridded_id_seq
     NO MAXVALUE
     CACHE 1;
 
-
-ALTER TABLE public.gridded_id_seq OWNER TO leyden;
 
 --
 -- Name: gridded_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: leyden
@@ -116,8 +108,6 @@ CREATE TABLE public.sensores_remotos (
 );
 
 
-ALTER TABLE public.sensores_remotos OWNER TO leyden;
-
 --
 -- Name: sensores_remotos_id_seq; Type: SEQUENCE; Schema: public; Owner: leyden
 --
@@ -129,8 +119,6 @@ CREATE SEQUENCE public.sensores_remotos_id_seq
     NO MAXVALUE
     CACHE 1;
 
-
-ALTER TABLE public.sensores_remotos_id_seq OWNER TO leyden;
 
 --
 -- Name: sensores_remotos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: leyden

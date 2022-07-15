@@ -11,6 +11,7 @@ var ftp = new PromiseFtp();
 //~ var c = new Client()
 const parse = require("node-html-parser").parse;
 const https = require('https');
+const http = require("http")
 //~ require('https').globalAgent.options.ca = require('ssl-root-cas/latest').create();
 var axios = require("axios")
 const xml2js = require('xml2js');
@@ -29,6 +30,8 @@ const basicFtp = require('basic-ftp')
 const path = require('path');
 const wof = require('./wmlclient')
 const printRast = require('./print_rast')
+const utils = require('./utils')
+const { estacion } = require('./CRUD')
 
 var internal = {}
 
@@ -190,37 +193,34 @@ internal.gfs_smn = class {
 		var series_id = (filter.series_id) ? filter.series_id : 2
 		return this.gfs2db(crud,series_id,time,options)
 	}
-	getGFS(time,output=this.config.localcopy,options={}) {
+	async getGFS(time,output=this.config.localcopy,options={}) {
 		var url = sprintf("vila/precip_%02d_gfs.grb", time)
-		console.log({url:url})
-		return ftp.connect(this.config.ftp_connection_pars)
-		.then( serverMessage=>{
+		console.log({url:url,ftp_connection_pars:this.config.ftp_connection_pars})
+		try {
+			var serverMessage = await ftp.connect(this.config.ftp_connection_pars)
 			console.log('serverMessage:'+serverMessage)
-			if(options.no_download) {
-				return true
-			} else {
-				return ftp.get(url)
-				.then( stream=>{
-					console.log("got file " + url)
-					return new Promise(function (resolve, reject) {
-					  stream.once('close', resolve)
-					  stream.once('error', reject)
-					  stream.pipe(fs.createWriteStream(output))
-					});
-				}).then( () => {
-					return ftp.end()
-				}).catch(e=>{
-					console.error(e)
-					throw(e)
-					ftp.end()
-				})
-			}
-		})
-		.catch(e=>{
-			console.error(e)
+		} catch (e) {
 			ftp.end()
-			return false
-		})
+			throw(e)
+		}
+		if(options.no_download) {
+			return true
+		} else {
+			try {
+				var read_stream = await ftp.get(url)
+				console.log("got file " + url)
+				await new Promise((resolve,reject)=>{
+					let write_stream = fs.createWriteStream(output)
+					read_stream.pipe(write_stream)
+					write_stream.on('finish',resolve)
+					write_stream.on('error',reject)
+				})
+			} catch(e) {
+				ftp.end()
+				throw(e)
+			} 
+			return ftp.end()
+		}
 	}
 
 	// readBands: lee bandas de archivo GRIB, crea archivos GTIFF de cada banda y devuelve arreglo de observaciones
@@ -359,6 +359,241 @@ internal.gfs_smn = class {
 	}
 }
 //~ readBands(localcopy,"public/gfs/gtiff",2)
+
+internal.wrf_smn = class { // WRF_SMN
+	constructor(config) {
+		this.default_config = {
+			ftp_connection_pars: {host:"", user: "", password: ""},
+			local_dir: 'data/wrf_smn',
+			path: "/vila/prohmsat",
+			series_id: 15
+		}
+		this.config = this.default_config
+		this.ftp = new PromiseFtp()
+		if(config) {
+			Object.keys(config).forEach(key=>{
+				this.config[key] = config[key]
+			})
+		}
+	}
+	test() {
+		return this.ftp.connect(this.config.ftp_connection_pars)
+		.then( serverMessage=>{
+			console.log('serverMessage:'+serverMessage)
+			this.ftp.end()
+			return true
+		}).catch(e=>{
+			console.error(e)
+			this.ftp.end()
+			return false
+		})
+	}
+
+	async get(filter,options={}) {
+		try {
+			await this.connect()
+			if(options.no_download) {
+				return true
+			}
+			var list = await this.getList()
+			var observaciones = await this.getFiles(list,filter,options)
+		} catch(e) {
+			throw e
+		}
+		this.ftp.end()
+		return observaciones
+	}
+
+	update(filter={},options={}) {
+		return this.get(filter,options)
+		.then(observaciones=>{
+			return crud.upsertObservaciones(observaciones)
+		})
+	}
+
+	async connect(ftp_connection_pars) {
+		if(!ftp_connection_pars) {
+			ftp_connection_pars = this.config.ftp_connection_pars
+		}
+		try {
+			var serverMessage = await this.ftp.connect(ftp_connection_pars)
+			console.log('serverMessage:' + serverMessage)
+			return
+		} catch (e) {
+			throw e
+		}
+	}
+
+	async getList(path) {
+		if(!path) {
+			path = this.config.path
+		}
+		try {
+			var list = await this.ftp.list(this.config.path)
+			return list
+		} catch(e) {
+			this.ftp.end()
+			throw e
+		}
+	}
+
+	async getFile(filename,skip_download) {
+		try {
+			var local_path = this.getLocalPath(filename)
+			var output = local_path + "/" + filename
+			var warped_filename = local_path + "/" + filename + "_geo.tif"
+			if(!skip_download) {
+				stream = await this.ftp.get(this.config.path + "/" + filename)
+				console.log("got file " + this.config.path + "/" + filename)
+				await this.writeStreamToFile(stream,output)
+				await this.warp(output,"/tmp/wrf_b2.tif",warped_filename)
+			}
+			var obs = await this.rast2obs(warped_filename)
+		} catch (e) {
+			throw e
+		}
+		return obs
+	}
+
+	async getFiles(list,filter={},options={}) {
+		var errors = []
+		var filenames = list.map(i=>i.name)
+		var observaciones = []
+		for(var i=0;i<filenames.length;i++) {
+			console.log(this.config.path + "/" + filenames[i])
+			var forecast_date = this.getForecastDate(filenames[i])
+			var valid_time = this.getValidTime(filenames[i])
+			if(filter.forecast_date) {
+				var ffd = new Date(filter.forecast_date)
+				if(ffd.getTime() != forecast_date.getTime()) {
+					console.log("skipping forecast date " + forecast_date.toISOString())
+					continue
+				}
+			}
+			if(filter.forecast_timestart) {
+				var ffts = new Date(filter.forecast_timestart)
+				if(forecast_date.getTime() < ffts.getTime() ) {
+					continue
+				}
+			}
+			if(filter.forecast_timeend) {
+				var ffte = new Date(filter.forecast_timeend)
+				if(forecast_date.getTime() > ffte.getTime() ) {
+					continue
+				}
+			}
+			if(filter.valid_time) {
+				var t = parseInt(filter.valid_time)
+				if(t != valid_time) {
+					console.log("skipping time " + valid_time)
+					continue
+				}
+			} else if(valid_time==0) {
+				// SKIP HOUR 000 (initial state: zero rain accumulation)
+				continue
+			}
+			try {
+				var obs = await this.getFile(filenames[i],options.skip_download)
+				observaciones.push(obs)
+			} catch(e) {
+				console.error(e)
+				errors.push(e)
+			}
+		}
+		if(errors.length && !observaciones.length) {
+			throw new Error(errors)
+		}
+		return observaciones
+	}
+
+	getForecastDate(filename) {
+		var datestring = filename.split("_")[1]
+		var year = datestring.substring(0,4)
+		var month = datestring.substring(4,6)
+		var day = datestring.substring(6,8)
+		var hour = filename.split("_")[2]
+		return new Date(Date.UTC(year,month-1,day,hour))
+	}
+
+	getValidTime(filename) {
+		return  parseInt(filename.split(".")[1])
+	}
+
+	getLocalPath(filename) {
+		var datestring = filename.split("_")[1]
+		var year = datestring.substring(0,4)
+		var month = datestring.substring(4,6)
+		var day = datestring.substring(6,8)
+		var hour = filename.split("_")[2]
+		var year_path = sprintf("%s/%04d", path.resolve(__dirname, this.config.local_dir), year)
+		if(!fs.existsSync(year_path)) {
+			fs.mkdirSync(year_path)
+		}
+		var month_path = sprintf("%s/%02d", year_path, month)
+		if(!fs.existsSync(month_path)) {
+			fs.mkdirSync(month_path)
+		}
+		var day_path = sprintf("%s/%02d", month_path, day)
+		if(!fs.existsSync(day_path)) {
+			fs.mkdirSync(day_path)
+		}
+		var hour_path = sprintf("%s/%04d", day_path, hour)
+		if(!fs.existsSync(hour_path)) {
+			fs.mkdirSync(hour_path)
+		}
+		return hour_path
+	}
+
+	writeStreamToFile(stream,output) {
+		return new Promise(function (resolve, reject) {
+			stream.once('close', resolve)
+			stream.once('error', reject)
+			stream.pipe(fs.createWriteStream(output))
+		});
+	}
+
+	async warp(filename,tif_filename="/tmp/wrf_b2.tif",warped_filename="/tmp/wrf_warped.geo.tif") {
+		try {
+			await pexec('gdal_translate -b 2 -of GTiff ' + filename + ' ' + tif_filename)
+			await pexec('gdalwarp -t_srs EPSG:4326 -of GTiff -te -70 -40 -40 -10 -overwrite ' + tif_filename + ' ' + warped_filename)
+		} catch (e) {
+			throw e
+		}
+		return
+	}
+
+	async rast2obs(filename,series_id=this.config.series_id) {
+		console.log("rast2obs. filename: " + filename)
+		if(!fs.existsSync(filename)) {
+			throw new Error("File " + filename + " not found")
+		}
+		try {
+			var result = await pexec('gdalinfo -json ' + filename)
+			if(result.stderr) {
+				console.error(result.stderr)
+				throw new Error(result.stderr)
+			}
+			var gdalinfo = JSON.parse(result.stdout)
+			var band = gdalinfo.bands[0]
+			var ref_time = new Date(parseInt(band.metadata[""].GRIB_REF_TIME.split(/\s/)[0])*1000)
+			var valid_time = new Date(parseInt(band.metadata[""].GRIB_VALID_TIME.split(/\s/)[0])*1000)
+			var timestart = new Date()
+			timestart.setTime(valid_time.getTime() - 1*60*60*1000)
+			var data = fs.readFileSync(filename, 'hex')
+			return ({
+				tipo:"rast",
+				series_id: series_id,
+				timeupdate: ref_time,
+				timestart: timestart, 
+				timeend: valid_time, 
+				valor: '\\x' + data
+			})
+		} catch (e) {
+			throw e
+		}
+	}
+}
+
 
 internal.ecmwf_mensual = class {
 	constructor(config) {
@@ -646,8 +881,18 @@ internal.delta_mensual = class {
 		.then(corrida=>{
 			return crud.upsertCorrida(corrida)
 		})
+		.then(result=>{
+			return this.refresh_alturas_mensuales_prono()
+			.then(()=>{
+				return result
+			})
+		})
 	}
 	
+	refresh_alturas_mensuales_prono() {
+		return crud.pool.query("REFRESH MATERIALIZED VIEW alturas_mensuales_prono_view")
+	}
+
 	read_xls(filename,format) {
 		return pexec('ssconvert -T Gnumeric_stf:stf_assistant -O separator=";" ' + filename + " fd://1")
 		.then(async result=>{
@@ -748,9 +993,9 @@ internal.telex = class {
 			}) // .filter(o=> parseFloat(o.valor).toString()!=='NaN')
 			if(data[1]) {
 				console.log({corrida:data[1]})
-				return Promise.all([crud.upsertObservaciones(observaciones),crud.upsertCorrida(data[1])])
+				return Promise.all([crud.upsertObservaciones(observaciones,"puntual"),crud.upsertCorrida(data[1])])
 			} else {
-				return crud.upsertObservaciones(observaciones)
+				return crud.upsertObservaciones(observaciones,"puntual")
 			}
 		})
 	}
@@ -2804,9 +3049,13 @@ internal.mch_py = class {
 			return false
 		})
 	}
-	getSites() {
-		return axios.get(this.config.url + "/stations",{headers: { Authorization: `Bearer ${this.config.token}`},accept:"application/json"})
-		.then((result)=>{
+	getSites(filter,options={}) {
+		const sites = []
+		return this.getSitesPage(this.config.url + "/stations",undefined,sites,(options.return_raw) ? true : false)
+	}
+	getSitesPage(url,params,sites=[],return_raw=false) {
+		return axios.get(url,{headers: { Authorization: `Bearer ${this.config.token}`},accept:"application/json"})
+		.then(result=>{
 			if(!result) {
 				throw("getSites failed. Empty response from source")
 			}
@@ -2817,21 +3066,104 @@ internal.mch_py = class {
 			if(!result.data.payload || !result.data.payload.stations || !result.data.payload.stations.data) {
 				throw("getSites failed: payload.stations.data missing from response")
 			}
-			var sites = result.data.payload.stations.data.map(station=>{
-				return new CRUD.estacion({
-					nombre: station.name,
-					id_externo: station.code,
-					geom: {
-						type: "Point",
-						coordinates: [ station.longitude, station.latitude ]
-					},
-					altitud: station.altitude,
-					tabla: "MCH_DMH_PY"
-				})
-			})
-			return sites
+			if(return_raw) {
+				sites.push(result.data)
+			} else {
+				sites.push(...result.data.payload.stations.data.map(station=>{
+					return new CRUD.estacion({
+						nombre: station.name,
+						id_externo: station.code,
+						geom: {
+							type: "Point",
+							coordinates: [ station.longitude, station.latitude ]
+						},
+						altitud: station.altitude,
+						tabla: "MCH_DMH_PY"
+					})
+				}))
+			}
+			if(result.data.payload.stations.next_page_url) {
+				return this.getSitesPage(result.data.payload.stations.next_page_url,undefined,sites,return_raw)
+			} else {
+				return sites
+			}
 		})
-	}	
+	}
+	updateSites(filter,options) {
+		return this.getSites(filter,options)
+		.then(estaciones=>{
+			return crud.upsertEstaciones(estaciones)		
+		})
+	}
+	getSeries(filter,options={}) {
+		const series = []
+		return this.getSeriesPage(this.config.url + "/stations",undefined,series,(options.return_raw) ? true : false)
+	}
+	getSeriesPage(url,params,series=[],return_raw=false) {
+		return axios.get(url,{headers: { Authorization: `Bearer ${this.config.token}`},accept:"application/json"})
+		.then(async result=>{
+			if(!result) {
+				throw("getSeries failed. Empty response from source")
+			}
+			if(!result.data) {
+				throw("getSeries failed. no data in response")
+			}
+			// console.log({data:result.data})
+			if(!result.data.payload || !result.data.payload.stations || !result.data.payload.stations.data) {
+				throw("getSeries failed: payload.stations.data missing from response")
+			}
+			var this_series = []
+			var estaciones_map_py = {}
+			result.data.payload.stations.data.forEach(station=>{
+				estaciones_map_py[station.code] = station.id
+				this_series.push(...station.variables)
+			})
+			if(return_raw) {
+				series.push(...this_series)
+			} else {
+				var estaciones_map = {}
+				try {
+					const estaciones = await crud.getEstaciones({tabla: "MCH_DMH_PY" })
+					for(var estacion of estaciones) {
+						var key = estaciones_map_py[estacion.id_externo]
+						if(key) {
+							estaciones_map[key] = estacion.id
+							console.log("estaciones_map[" + key + "] = " + estaciones_map[key])
+						}
+					}
+				} catch(e) {
+					throw(e)
+				}
+				const var_map = {}
+				for(var key of Object.keys(this.config.variable_map)) {
+					var_map[this.config.variable_map[key]] = key
+				}
+				for(var serie of this_series) {
+					if(!estaciones_map[serie.station_id]) {
+						console.error("estacion not found, id: " + serie.station_id)
+						continue
+					}
+					series.push(new CRUD.serie({
+						estacion_id: estaciones_map[serie.station_id],
+						var_id: var_map[serie.variable_name],
+						unit_id: this.config.unit_map[serie.variable_name],
+						proc_id: 1
+					}))
+				}
+			}
+			if(result.data.payload.stations.next_page_url) {
+				return this.getSeriesPage(result.data.payload.stations.next_page_url,undefined,series,return_raw)
+			} else {
+				return series
+			}
+		})
+	}
+	updateSeries(filter,options) {
+		return this.getSeries(filter,options)
+		.then(series=>{
+			return crud.upsertSeries(series)		
+		})
+	}
 	async get(filter,options={},update=false) {
 		if(!filter.estacion_id) {
 			return Promise.reject("Falta estacion_id")
@@ -2951,6 +3283,10 @@ internal.mch_py = class {
 		if(!this.config.variable_map[var_id]) {
 			return Promise.reject("var_id incorrecto")
 		}
+		const daily_vars = [39]
+		var daily = (daily_vars.indexOf(var_id) >= 0)
+		var date_start = (daily) ? timestart.toISOString().substring(0,10) : timestart.toISOString().substring(0,19)
+		var date_end =  (daily) ? timeend.toISOString().substring(0,10) : timeend.toISOString().substring(0,19)
 		return crud.getEstacion(estacion_id)
 		.then(estacion=>{
 			if(!estacion) {
@@ -2966,7 +3302,7 @@ internal.mch_py = class {
 				}
 				var serie = series[0]
 				var series_id = serie.id
-				return this.getObservationsPage(undefined,{station_code: estacion.id_externo, variable: this.config.variable_map[var_id], date_start: timestart.toISOString().substring(0,19), date_end: timeend.toISOString().substring(0,19)},series_id)
+				return this.getObservationsPage(undefined,{station_code: estacion.id_externo, variable: this.config.variable_map[var_id], date_start: date_start, date_end: date_end},series_id,undefined,daily)
 				.then(observaciones=>{
 					if(update) {
 						return crud.upsertObservaciones(observaciones,'puntual')
@@ -2988,17 +3324,17 @@ internal.mch_py = class {
 			})
 		})
 	}
-	getObservationsPage(url,params,series_id,observations=[]) {
+	getObservationsPage(url,params,series_id,observations=[],daily=false) {
 		var var_daily_0 = ["temperatura_maxima", "temperatura_minima" ]
 		var var_daily_9 = [ "precipitacion" ]
 		var options
 		if(!url) {
-			url = this.config.url + "/observations"
+			url = (daily) ? `${this.config.url}/daily_observations` : `${this.config.url}/observations`
 			options = {headers: { Authorization: `Bearer ${this.config.token}`}, params:params,accept:"application/json"}
 		} else {
 			options = {headers: { Authorization: `Bearer ${this.config.token}`}, accept:"application/json"}
 		}
-		// console.log({url:url,options:options})
+		//console.log({url:url,options:options})
 		return axios.get(url,options)
 		.then((result)=>{
 			if(!result) {
@@ -3012,9 +3348,10 @@ internal.mch_py = class {
 			}
 			// console.log({current_page:result.data.payload.observations.current_page})
 			result.data.payload.observations.data.forEach(observation=>{
-				var date_time = new Date(observation.date_time)
+				// if (daily) {console.log(observation.date)}
+				var date_time = (daily) ? new Date(observation.date + "T03:00:00Z") : new Date(observation.date_time)
 				var timestart = (var_daily_9.indexOf(params.variable) >= 0) ? new Date(date_time.getTime() + 9*3600*1000) : date_time 
-				var timeend = (var_daily_0.concat(var_daily_9).indexOf(params.variable) >= 0) ? new Date(timestart.getTime() + 24*3600*1000) : new Date(timestart.getTime() + 3*3600*1000)
+				var timeend = (var_daily_0.concat(var_daily_9).indexOf(params.variable) >= 0 || daily) ? new Date(timestart.getTime() + 24*3600*1000) : new Date(timestart.getTime() + 3*3600*1000)
 				observations.push(new CRUD.observacion({tipo:"puntual", series_id: series_id, timestart: timestart, timeend: timeend, valor: observation.value}))
 			})
 			if(result.data.payload.observations.next_page_url) {
@@ -3981,10 +4318,10 @@ internal.sat2 = class {
                 //~ "149": {"var_id":37, "unit_id":11, "proc_id":1},           // nivel nieve
                 //~ "14": {"var_id":14, "unit_id":33, "proc_id":1}            // radiacion
 			},
-			user: "",
-			password: "",
+			user: "RHN",
+			password: "1R2H",
 			url: "http://utr.gsm.ina.gob.ar:5667/SAT2Rest/api/"
-			}
+		}
 		this.config = this.default_config
 		if(config) {
 			Object.keys(config).forEach(key=>{
@@ -5624,6 +5961,66 @@ internal.gpm_3h = class {
 			process.env.skip_print = undefined
 		})
 	}
+	async printMapSemanal(timestart,timeend) {
+		const location = path.resolve("data/gpm/semanal") // this.config.mes_local_path
+		var ts = new Date(timestart.getTime())
+		var te = new Date(timestart.getTime())
+		te.setUTCDate(te.getUTCDate()+7)
+		var results = []
+		while(te <= timeend) {
+			console.log({ts:ts.toISOString(),te:te.toISOString()})
+			try {
+				var serie = await crud.rastExtract(13,ts,te,{funcion:"SUM",min_count:7})
+				if(!serie.observaciones || !serie.observaciones.length) {
+					throw("No se encontraron suficientes observaciones")
+				}
+				var result = await printRast.print_rast({prefix:"",location:location,patron_nombre:"gpm_semanal.YYYYMMDD.HHMMSS.tif"},undefined,serie.observaciones[0])
+				results.push(result)
+			} catch (e) {
+				console.error(e)
+			}
+			ts.setUTCDate(ts.getUTCDate()+1)
+			te.setUTCDate(te.getUTCDate()+1)
+		}
+		var new_timeend = new Date(timeend)
+		new_timeend.setDate(new_timeend.getDate()-7) 
+		await this.printSemanalPNG(timestart,new_timeend)
+		return results
+	}
+	printSemanalPNG(timestart,timeend,skip_print) {
+		var mapset = sprintf("%04d",Math.floor(Math.random()*10000))
+		var location = sprintf("%s/%s",config.grass.location,mapset) // sprintf("%s/GISDATABASE/WGS84/%s",process.env.HOME,mapset)
+		var batchjob = path.resolve(__dirname,"../py/print_precip_map.py")
+		if(timestart) {
+			// console.log("callPrintMaps: timestart: " + timestart.toISOString().replace("Z",""))
+			process.env.timestart = timestart.toISOString().replace("Z","")
+		}
+		if(timeend) {
+			// console.log("callPrintMaps: timeend: " + timeend.toISOString().replace("Z",""))
+			process.env.timeend = timeend.toISOString().replace("Z","")
+		}
+		if(skip_print) {
+			process.env.skip_print = "True"
+		}
+		process.env.base_path = "data/gpm/semanal" // this.config.local_path
+		process.env.type = "semanal"
+		var command = sprintf("grass %s -c --exec %s", location, batchjob)
+		return pexec(command)
+		.then(result=>{
+			// console.log("batch job called")
+			var stdout = result.stdout
+			var stderr = result.stderr
+			if(stdout) {
+				console.log(stdout)
+			}
+			if(stderr) {
+				console.error(stderr)
+			}
+			process.env.timestart = undefined
+			process.env.timeend = undefined
+			process.env.skip_print = undefined
+		})		
+	}
 }
 
 internal.wof = class {
@@ -5735,6 +6132,1428 @@ internal.wof = class {
 					variableCode: variableCode				
 				}
 			})
+		})
+	}
+}
+
+// EMAS SINARAME
+
+internal.emas_sinarame = class {
+    constructor(config) {
+        this.config = {
+            url:"http://ftp-ema.smn.gob.ar", 
+            auth: {
+                username: "ina", 
+                password: "FhiypoWL"
+            },
+			local_path: "../data/emas_sinarame/downloads",
+			columns: ["unid", "date", "tempinst", "tempmedia", "tempmin", "tempmax", "tempstatus", "presioninst", "presionmedia", "presionmin", "presionmax", "presionstatus", "humrelinst", "humrelmedia", "humrelmin", "humrelmax", "humrelstatus", "precipinst", "precipmedia", "precipmin", "precipmax", "precipstatus", "velvientoinst", "velvientomedia", "velvientomin", "velvientomax", "velvientostatus", "dirvientoinst", "dirvientomedia", "dirvientomin", "dirvientomax", "dirvientostatus", "disdr_precipint", "disdr_precipacum", "disdr_weathercode", "disdr_radarref", "disdr_morvis", "disdr_kinet", "disdr_temp", "disdr_signal", "disdr_numberofpart", "disdr_sensorstatus","precipsum"],
+			variable_map: {
+				precipsum: 27
+			},
+			proc_id: 1,
+			red_id: 14
+        }
+        if(config) {
+            this.config = config
+        }
+		this.axios_instance = axios.create({
+			auth: this.config.auth,
+			httpAgent: new http.Agent({ keepAlive: true }) 
+		})
+    }
+	createDir(id,timestamp) {
+		if(!fs.existsSync(path.resolve(this.config.local_path,id))) {
+			fs.mkdirSync(path.resolve(this.config.local_path,id))
+		}
+		var year_dir = sprintf ("%s/%s/%04d", this.config.local_path, id, timestamp.getUTCFullYear())
+		var month_dir = sprintf ("%s/%s/%04d/%02d", this.config.local_path, id, timestamp.getUTCFullYear(),timestamp.getUTCMonth() + 1)
+		var day_dir = sprintf("%s/%s/%04d/%02d/%02d", this.config.local_path, id, timestamp.getUTCFullYear(),timestamp.getUTCMonth() + 1, timestamp.getUTCDate())
+		if(!fs.existsSync(path.resolve(year_dir))) {
+			fs.mkdirSync(path.resolve(year_dir))
+		}
+		if(!fs.existsSync(path.resolve(month_dir))) {
+			fs.mkdirSync(path.resolve(month_dir))
+		}
+		if(!fs.existsSync(path.resolve(day_dir))) {
+			fs.mkdirSync(path.resolve(day_dir))
+		}
+		return day_dir
+	}
+
+	async get(filter={},options={}) {
+		options.no_update = true
+		return this.getReports(filter,options)
+	}
+	async update(filter,options={}) {
+		options.no_update = false
+		options.no_update_observaciones = false
+		return this.getReports(filter,options)
+		// .then(tuples=>{
+		// 	return this.upsertEmasSinarameRecords(tuples)
+		// }).then(emasSinarameRecords=>{
+		// 	return this.emasSinarameRecords2Observaciones(emasSinarameRecords)
+		// }).then(observaciones=>{
+		// 	return crud.upsertObservaciones(observaciones,"puntual")
+		// })
+	}
+
+    async getReports(filter={},options={}) {
+        // get({unid:<int>,timestart:<date>,timeend:<date>}, {no_update:false, no_download:false})
+        var timestart, timeend
+		var tuples = []
+		var emasSinarameRecords = []
+		var observaciones = []
+        if(filter.timestart) {
+            timestart = new Date(filter.timestart)
+            if(timestart.toString() == 'Invalid Date') {
+                throw("accessors:sinarame: Invalid timestart")
+            }
+        }
+        if(filter.timeend) {
+            timeend = new Date(filter.timeend)
+            if(timeend.toString() == 'Invalid Date') {
+                throw("accessors:sinarame: Invalid timeend")
+            }
+        }
+		filter.tabla = "emas_sinarame"
+        try {
+            var estaciones = await crud.getEstaciones(filter)
+        } catch(e) {
+            throw(e)
+        }
+		var unids = {}
+		estaciones.forEach(e=>{
+			unids[e.id_externo] = e.id
+		})
+        if(!estaciones.length) {
+            throw("accessors:sinarame: No se encontraron estaciones")
+        }
+
+        try {
+            var result = await axios.get(this.config.url + "/EMA/meas", {auth: this.config.auth}) // "http://ina:FhiypoWL\@ftp-ema.smn.gob.ar/EMA/meas")
+			var root = parse(result.data)
+        } catch(e){
+            throw(e)
+        }
+        var id_list = root.querySelectorAll("a").map(a=>a.getAttribute("href").replace("/","")).filter(id=>(unids[id]))
+		for(var id of id_list) {
+			var station_tuples = []
+			console.log("searching estacion " + id)
+			try {
+				var result = await axios.get(`${this.config.url}/EMA/meas/${id}/`, {auth: this.config.auth})
+				var root = parse(result.data)
+			} catch (e) {
+				throw(e)
+			}
+			var year_list = root.querySelectorAll("a").map(a=>a.getAttribute("href").replace("/","")).filter(href=>(/^[0-9]{4}$/.test(href)))
+			for(var year of year_list) {
+				// console.log("year:" + year)
+				if(timestart &&  parseInt(year) < timestart.getUTCFullYear()) {
+					continue
+				}
+				if(timeend &&  parseInt(year) > timeend.getUTCFullYear()) {
+					continue
+				}
+				console.log("searching year:" + year)
+				try {
+					var result = await axios.get(`${this.config.url}/EMA/meas/${id}/${year}/`, {auth: this.config.auth})
+					var root = parse(result.data)
+				} catch (e) {
+					throw(e)
+				}
+				var month_list = root.querySelectorAll("a").map(a=>a.getAttribute("href").replace("/","")).filter(href=>(/^[0-9]{2}$/.test(href)))
+				for(var month of month_list) {
+					// console.log("month:" + month)
+					if(timestart) {
+						var end_of_month = new Date(year,parseInt(month),1)
+						if(end_of_month < timestart) {
+							continue
+						}
+					}
+					if(timeend) {
+						var start_of_month = new Date(year,parseInt(month)-1,1)
+						if(start_of_month > timeend) {
+							continue
+						}
+					}
+					console.log("searching month:" + month)
+					try {
+						var result = await axios.get(`${this.config.url}/EMA/meas/${id}/${year}/${month}/`, {auth: this.config.auth})
+						var root = parse(result.data)
+					} catch (e) {
+						throw(e)
+					}
+					var day_list = root.querySelectorAll("a").map(a=>a.getAttribute("href").replace("/","")).filter(href=>(/^[0-9]{2}$/.test(href)))
+					for(var day of day_list) {
+						// console.log("day:" + day)
+						if(timestart) {
+							var end_of_day = new Date(year,parseInt(month)-1,parseInt(day)+1)
+							if(end_of_day < timestart) {
+								continue
+							}
+						}
+						if(timeend) {
+							var start_of_day = new Date(year,parseInt(month)-1,parseInt(day))
+							if(start_of_day > timeend) {
+								continue
+							}
+						}
+						console.log("searching day:" + day)
+						try {
+							var result = await axios.get(`${this.config.url}/EMA/meas/${id}/${year}/${month}/${day}/`, {auth: this.config.auth})
+							var root = parse(result.data)
+						} catch (e) {
+							throw(e)
+						}
+						var file_list = root.querySelectorAll("a").map(a=>a.getAttribute("href")).filter(href=>(new RegExp(`^meas${id}[0-9]{12}\.rep$`).test(href)))
+						for(var file of file_list) {
+							// console.log("file:" + file)
+							var timestamp = new Date(Date.UTC(year,month-1,day))
+							if(id.length == 7) { 
+								timestamp.setUTCHours(file.substring(17,19))
+								timestamp.setUTCMinutes(file.substring(19,21))
+								timestamp.setUTCSeconds(file.substring(21,23))
+							} else if (id.length == 8) {
+								timestamp.setUTCHours(file.substring(18,20))
+								timestamp.setUTCMinutes(file.substring(20,22))
+								timestamp.setUTCSeconds(file.substring(22,24))
+							} else {
+								continue
+							}
+							if(timestart && timestamp < timestart) {
+								continue
+							}
+							if(timeend && timestamp > timeend) {
+								continue
+							}
+							// console.log("found file:" + file)
+							var day_dir = this.createDir(id,timestamp)
+							var file_destination = path.resolve(`${day_dir}/${file}`)
+							if(fs.existsSync(file_destination)) {
+								console.log(`file ${file} already in disk`)
+							} else {
+								if(options.no_download) {
+									console.log(`no_download: file ${file} skipped`)	
+								} else {
+									try {
+										console.log("Downloading: " + file)
+										await this.downloadToFile(`${this.config.url}/EMA/meas/${id}/${year}/${month}/${day}/${file}`,file_destination)
+									} catch(e) {
+										throw(e)
+									}
+								}
+							}
+							var tuple = this.parseWSReport(file_destination,unids[id],timestamp) 
+							station_tuples.push(tuple)
+						}
+					}
+				}
+			}
+			if(!station_tuples.length) {
+				console.log("station " + id + ": no reports found")
+				continue
+			}
+			tuples = tuples.concat(station_tuples)
+			if(options.no_update) {
+				continue
+			} 
+			try {
+				var station_records = await this.upsertEmasSinarameRecords(station_tuples)
+				emasSinarameRecords = emasSinarameRecords.concat(station_records)
+			} catch(e) {
+				console.error(e.toString())
+				continue
+			}
+			if(options.no_update_observaciones) {
+				continue
+			} else {
+				try {
+					var station_observaciones = await this.emasSinarameRecords2Observaciones(station_records)
+					var station_upserted = await crud.upsertObservaciones(station_observaciones,"puntual")
+					observaciones = observaciones.concat(station_upserted)
+				} catch(e) {
+					console.error(e.toString())
+					continue
+				}
+			}
+		}
+		if(options.no_update) {
+			return tuples
+		} else if(options.no_update_observaciones){
+			return emasSinarameRecords
+		} else {
+			return observaciones
+		}
+    }
+
+
+	parseWSReport(file,estacion_id,timestamp) {
+		const disdr = {
+			"disdr_precipint" : "Rain intensity 32 bits", 
+			"disdr_precipacum" : "Rain amount accumulated", 
+			"disdr_weathercode": "Weather code SYNOP", 
+			"disdr_radarref": "Radar reflectivity", 
+			"disdr_morvis": "MOR visibility in the precipitation", 
+			"disdr_kinet": "Kinetic energy", 
+			"disdr_temp": "Temperature in the sensor", 
+			"disdr_signal": "Signal amplitude of the laser strip",
+			"disdr_numberofpart": "Number of detected particles",
+			"disdr_sensorstatus": "Sensor status"
+		}
+		var temp = [null,null,null,null,null];
+		var pres = [null,null,null,null,null];
+		var humrel = [null,null,null,null,null];
+		var precip = [null,null,null,null,null];
+		var velviento = [null,null,null,null,null];
+		var dirviento = [null,null,null,null,null];
+		var disdr_val = {}
+		Object.keys(disdr).forEach(key=>{
+			disdr_val[key] = null
+		})
+		var disdr_flag = 0 
+
+		if(!fs.existsSync(file)) {
+			console.error("File " + file + " not found on disk")
+			return []
+		}
+		var data = fs.readFileSync(file,'utf-8')
+		var lines = data.split("\n")
+		for(var line of lines) {
+			line = line.replace(/\r/g,"")
+			var cells = line.split("\t").map(cell=>cell.trim())
+			var row_key = cells[0]
+			row_key = row_key.trim() // replace(/\s+$/,"")
+			if(disdr_flag == 1 && cells[1]) {
+				cells[1] =cells[1].trim()
+				Object.keys(disdr).forEach(key=> {
+					if ( row_key.includes(disdr[key])) {
+						disdr_val[key] = (/^[0-9]+\.?[0-9]*/.test(cells[1])) ? cells[1] : null
+					}
+				})
+				continue
+			}
+			if(/Air temperature/.test(row_key)) {
+				temp = this.parseRow(cells,"signed_float")
+			} else if(/Air pressure/.test(row_key)) {
+				pres = this.parseRow(cells,"unsigned_float")
+			} else if (/Relative humidity/.test(row_key)) {
+				humrel = this.parseRow(cells,"unsigned_integer")
+			} else if (/Precipitation amount/.test(row_key)) {
+				precip = this.parseRow(cells,"unsigned_float")
+			} else if (/Wind speed/.test(row_key)) {
+				velviento = this.parseRow(cells,"unsigned_float")
+			} else if (/Wind direction/.test(row_key)) {
+				dirviento = this.parseRow(cells,"unsigned_integer")
+			} else if (/DISDROMETER/.test(row_key)) {
+				disdr_flag = 1
+			}
+		}
+		var tuple = [estacion_id,timestamp].concat(temp).concat(pres).concat(humrel).concat(precip).concat(velviento).concat(dirviento).concat([disdr_val.disdr_precipint,disdr_val.disdr_precipacum,disdr_val.disdr_weathercode,disdr_val.disdr_radarref, disdr_val.disdr_morvis, disdr_val.disdr_kinet,	disdr_val.disdr_temp, disdr_val.disdr_signal, disdr_val.disdr_numberofpart, disdr_val.disdr_sensorstatus])
+		return tuple
+	}
+
+	parseRow(row,data_type) {
+		var data = [...row]
+		data.splice(0,2)
+		var validation_regexp
+		switch(data_type) {
+			case "signed_float":
+				validation_regexp = new RegExp(/^\-?[0-9]+\.?[0-9]*$/)
+				break;
+			case "unsigned_float":
+				validation_regexp = new RegExp(/^[0-9]+\.?[0-9]*$/)
+				break;
+			case "unsigned_integer":
+				validation_regexp = new RegExp(/^[0-9]+$/)
+				break;
+			default:
+				validation_regexp = new RegExp(/^\-?[0-9]+\.?[0-9]*$/)
+				break;
+		}
+		for(var i=0;i<=3;i++) {
+			data[i] = (validation_regexp.test(data[i])) ? parseFloat(data[i]) : null
+		}
+		return data
+	}
+
+	async upsertEmasSinarameRecords(tuples) {
+		if(!tuples.length) {
+			console.error("upsertEmasSinarameRecords: Empty array")
+			return []
+		}
+		var template_row = Array(42).fill().map((element,index)=> `$${index + 1}`).join(",")
+		var values = tuples.map(tuple=>{
+			return utils.pasteIntoSQLQuery(`(${template_row})`,tuple)
+		}).join(",")
+		var stmt = "INSERT INTO emas_sinarame_records (unid, date, tempinst, tempmedia, tempmin, tempmax, tempstatus, presioninst, presionmedia, presionmin, presionmax, presionstatus, humrelinst, humrelmedia, humrelmin, humrelmax, humrelstatus, precipinst, precipmedia, precipmin, precipmax, precipstatus, velvientoinst, velvientomedia, velvientomin, velvientomax, velvientostatus, dirvientoinst, dirvientomedia, dirvientomin, dirvientomax, dirvientostatus, disdr_precipint, disdr_precipacum, disdr_weathercode, disdr_radarref, disdr_morvis, disdr_kinet, disdr_temp, disdr_signal, disdr_numberofpart, disdr_sensorstatus) VALUES " + values + " ON CONFLICT (unid,date) DO UPDATE SET \
+		tempinst=excluded.tempinst, tempmedia=excluded.tempmedia, tempmin=excluded.tempmin, tempmax=excluded.tempmax, tempstatus=excluded.tempstatus, presioninst=excluded.presioninst, presionmedia=excluded.presionmedia, presionmin=excluded.presionmin, presionmax=excluded.presionmax, presionstatus=excluded.presionstatus, humrelinst=excluded.humrelinst, humrelmedia=excluded.humrelmedia, humrelmin=excluded.humrelmin, humrelmax=excluded.humrelmax, humrelstatus=excluded.humrelstatus, precipinst=excluded.precipinst, precipmedia=excluded.precipmedia, precipmin=excluded.precipmin, precipmax=excluded.precipmax, precipstatus=excluded.precipstatus, velvientoinst=excluded.velvientoinst, velvientomedia=excluded.velvientomedia, velvientomin=excluded.velvientomin, velvientomax=excluded.velvientomax, velvientostatus=excluded.velvientostatus, dirvientoinst=excluded.dirvientoinst, dirvientomedia=excluded.dirvientomedia, dirvientomin=excluded.dirvientomin, dirvientomax=excluded.dirvientomax, dirvientostatus=excluded.dirvientostatus, disdr_precipint=excluded.disdr_precipint, disdr_precipacum=excluded.disdr_precipacum, disdr_weathercode=excluded.disdr_weathercode, disdr_radarref=excluded.disdr_radarref, disdr_morvis=excluded.disdr_morvis, disdr_kinet=excluded.disdr_kinet, disdr_temp=excluded.disdr_temp, disdr_signal=excluded.disdr_signal, disdr_numberofpart=excluded.disdr_numberofpart, disdr_sensorstatus=excluded.disdr_sensorstatus\
+		 RETURNING *";
+		return crud.pool.query(stmt)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async readEmasSinarameRecords(filter) {
+		var valid_filters = {
+			unid: {
+				type: "integer"
+			},
+			estacion_id: {
+				type: "integer",
+				column:  "unid"
+			},
+			date: {
+				type: "date"
+			},
+			timestart: {
+				column: "date",
+				type: "timestart"
+			},
+			timeend: {
+				column: "date",
+				type: "timeend"
+			}
+		}
+		var filter_string = utils.control_filter2(valid_filters,filter,"emas_sinarame_records")
+		return crud.pool.query("SELECT * from emas_sinarame_records WHERE 1=1 " + filter_string + " ORDER BY unid, date")
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async emasSinarameRecords2Observaciones(emasSinarameRecords) {
+		var series_filter = {
+			red_id: this.config.red_id,
+			var_id: Object.values(this.config.variable_map),
+			proc_id: this.config.proc_id
+		}
+		try {
+			var series = await crud.getSeries("puntual",series_filter,{no_metadata:true})
+		} catch(e){
+			throw(e)
+		}
+		var observaciones = []
+		for(var record of emasSinarameRecords) {
+			for(var key of Object.keys(this.config.variable_map)) {
+				var var_id = this.config.variable_map[key]
+				var valor = record[key]
+				if(parseFloat(valor).toString() == 'NaN') {
+					console.error("emasSinarameRecords2Observaciones: Invalid or null value")
+					continue
+				}
+				var serie = series.filter(s=>(record.unid == s.estacion_id && s.var_id == var_id))
+				if(!serie.length) {
+					console.error("emasSinarameRecords2Observaciones: Series not found for unid:" + record.unid + ", var_id:" + var_id)
+					continue
+				}
+				serie = serie[0]
+				observaciones.push({
+					tipo: "puntual",
+					series_id: serie.id,
+					timestart: record.date,
+					timeend: record.date,
+					valor: valor
+				})
+			}
+		}
+		return observaciones
+	}
+
+	async downloadToFile(url,file_destination) {
+		// console.log(new Date())
+		return this.axios_instance.get(url, {responseType: "stream"})
+		.then(response=>{
+			// console.log(new Date())
+			return new Promise((resolve,reject)=>{
+				var writer = fs.createWriteStream(file_destination)
+				response.data.pipe(writer)
+				let error = null
+				writer.on('error',e=>{
+					error = e
+					writer.close()
+					reject(e)
+				})
+				writer.on('close',()=>{		
+					// console.log(new Date())
+					if(!error) {
+						resolve()
+					}
+				})
+			})
+		})
+	}
+
+
+}
+
+
+
+internal.acumar = class {
+
+    constructor(config) {
+		this.default_config = {
+			"url": "http://www.bdh.acumar.gov.ar/bdh3/meteo",
+			"filename": "downld08.txt",
+			"proc_id": 1,
+			"estaciones_map": {
+				"872": {
+					id:"boca",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/boca/downld08.txt",
+					parser: "acumar"
+				},
+				"873": {
+					id: "moron",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/moron/downld08.txt",
+					parser: "acumar"
+				},
+				"874": {
+					id: "merlo",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/merlo/downld08.txt",
+					parser: "acumar"
+				},
+				"875": {
+					id: "mpaz",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/mpaz/downld08.txt",
+					parser: "acumar"
+				},
+				"876": {
+					id: "lanus",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/lanus/downld08.txt",
+					parser: "acumar"
+				},
+				"877": {
+					id: "avellaneda",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/avellaneda/downld08.txt",
+					parser: "acumar"
+				},
+				"878": {
+					id: "abrown",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/abrown/downld08.txt",
+					parser: "acumar"
+				},
+				"879": {
+					id: "echeverria",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/echeverria/downld08.txt",
+					parser: "acumar"
+				},
+				"880": {
+					id: "lzamora",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/lzamora/downld08.txt",
+					parser: "acumar"
+				},
+				"881": {
+					id: "svicente",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/svicente/downld08.txt",
+					parser: "acumar"
+				},
+				"882": {
+					id: "peron",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/peron/downld08.txt",
+					parser: "acumar"
+				},
+				"883": {
+					id: "matanza",
+					url: "http://www.bdh.acumar.gov.ar/bdh3/meteo/matanza/downld08.txt",
+					parser: "acumar"
+				},
+				"884": {
+					id: "ezeiza",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/ezeiza/downld08.txt",
+					parser: "acumar"
+				},
+				"885": {
+					id: "canuelas",
+					url:"http://www.bdh.acumar.gov.ar/bdh3/meteo/canuelas/downld08.txt",
+					parser: "acumar"
+				},
+				"887": {
+					id: "mercobras",
+					url:"http://www.mercobras.com.ar/datos/downld08.txt",
+					parser: "mercobras"
+				},
+				"893": {
+					id: "campana",
+					url: "http://meteo.frd.utn.edu.ar/downld08.txt",
+					parser: "utn"
+				},
+				"895": {
+					id: "varela",
+					url: "http://www.varela.gov.ar/servmetfv/downld08.txt",
+					parser: "acumar"
+				},
+				"5954": {
+					id: "lheras",
+					url: "http://www.bdh.acumar.gov.ar/bdh3/meteo/lheras/downld08.txt",
+					parser: "acumar"
+				}
+			},
+			"columns": [
+				{
+					"name": "tempmedia",
+					"var_id": 53,
+					"type": "number"
+				},{
+					"name": "tempmax",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "tempmin",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "humrel",
+					"var_id": 58,
+					"type": "number"
+				},{
+					"name": "puntorocio",
+					"var_id": 43,
+					"type": "number"
+				},{
+					"name": "velvientomedia",
+					"var_id": 55,
+					"type": "number"
+				},{
+					"name": "dirviento",
+					"var_id": 57,
+					"type": "string"
+				},{
+					"name": "recviento",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "velvientomax",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "dirvientomax",
+					"var_id": null,
+					"type": "string"
+				},{
+					"name": "sensterm",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "indcalor",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "indthw",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "presion",
+					"var_id": 60,
+					"type": "number"
+				},{
+					"name": "precip",
+					"var_id": 27,
+					"type": "number"
+				},{
+					"name": "intprecip",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "graddcalor",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "graddfrio",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "tempint",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "humint",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "rocioint",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "incalint",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "muestviento",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "txviento",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "recepiss",
+					"var_id": null,
+					"type": "number"
+				},{
+					"name": "intarc",
+					"var_id": null,
+					"type": "number"
+				}
+			]
+		}
+		this.config = this.default_config
+        if(config) {
+            for(var key in Object.keys(config)) {
+                this.config[key] = config[key]
+            }
+        }
+		this.parsers = {
+			"acumar": this.parseAcumar.bind(this),
+			"mercobras": this.parseMercobras.bind(this),
+			"utn": this.parseUTN.bind(this)
+		}
+    }
+    
+    test() {
+		return axios.get(this.config.estaciones_map["872"].url)
+		.then(()=>{
+			return true
+		})
+		.catch(e=>{
+			return false
+		})
+    }
+
+    async get(filter={},options={}) {
+		var estacion_ids = []
+		if(filter.estacion_id) {
+			if(Array.isArray(filter.estacion_id)) {
+				for(var estacion_id of filter.estacion_id) {
+					if(!this.config.estaciones_map[estacion_id]) {
+						throw("estacion_id inválido")
+					}
+					estacion_ids.push(estacion_id)
+				}
+			} else {
+				estacion_ids.push(filter.estacion_id)
+			}
+		} else {
+			estacion_ids = Object.keys(this.config.estaciones_map)
+		}
+		var results = []
+		for(var estacion_id of estacion_ids) {
+			try {
+				var result = await this.getData(estacion_id)
+				results.push(...result)
+			} catch(e) {
+				console.error(e.toString())
+			}
+		}
+		if(filter.timestart) {
+			var timestart = new Date(filter.timestart)
+			results = results.filter(o=>(o.timestart >= timestart))
+		}
+		if(filter.timeend) {
+			var timeend = new Date(filter.timeend)
+			results = results.filter(o=>(o.timeend <= timeend))
+		}
+		if(filter.var_id) {
+			var var_id
+			if(!Array.isArray(var_id)) {
+				var_id = [filter.var_id]
+			} else {
+				var_id = filter.var_id
+			}
+			results = results.filter(o=>(var_id.indexOf(o.var_id) >= 0))
+		}
+		if(options.group_by_series) {
+			var series_ids = Array.from(new Set(results.map(o=>o.series_id)))
+			var series = []
+			for(var id of series_ids) {
+				var data = results.filter(o=>(o.series_id==id))
+				data.sort((a,b)=>a.timestart - b.timestart)
+				series.push({
+					id: id,
+					var_id: data[0].var_id,
+					observaciones: data,
+					timestart: data[0].timestart,
+					timeend: data[data.length-1].timeend,
+					count: data.length
+				})
+			}
+			return series
+		}
+		return results
+    }
+
+	async getData(estacion_id) {
+		// FOR A ESTACION_ID DOWNLOADS AND PARSES DATA
+		if(!this.config.estaciones_map[estacion_id]) {
+			throw("estacion_id not in config.estaciones_map")
+		}
+		var url = this.config.estaciones_map[estacion_id].url // `${this.config.url}/${this.config.estaciones_map[estacion_id]}/${this.config.filename}`
+		console.log({url:url})
+		return axios.get(url,{responseType: "text"})
+		.then(response=>{
+			this.last_response = response.data
+			return this.parseData(response.data,this.config.estaciones_map[estacion_id].parser)
+		}).then(async data=>{
+			if(!data.length) {
+				return []
+			}
+			this.last_retrieved_data = data
+			var var_ids = Array.from(new Set(data.map(d=>d.var_id)))
+			try {
+				var var_series_map = await this.getVarSeriesMap(estacion_id,var_ids)
+			} catch(e) {
+				throw(e)
+			}
+			this.last_var_series_map = var_series_map
+			return data.map(d=>{
+				d.series_id = var_series_map[d.var_id] // ASSIGN SERIES_ID TO OBSERVACIONES ACCORDING TO RESULT OF crud.getSeries (var_id+estacion_id+proc_id)
+				// delete d.var_id
+				return d
+			}).filter(d=>(d.series_id)) // FILTER OUT OBSERVACIONES WITH NO SERIES_ID
+		})
+	}
+
+	async getVarSeriesMap(estacion_id,var_ids) {
+		// FOR A ESTACION_ID GET MAPPING OF VAR_ID INTO SERIES_ID 
+		return crud.getSeries("puntual",{var_id:[var_ids],estacion_id:estacion_id,proc_id:this.config.proc_id},{no_metadata:true})
+		.then(series=>{
+			if(!series.length) {
+				throw("No series found")
+			}
+			var var_series_map = {}
+			series.forEach(s=>{
+				var_series_map[s.var_id] = s.id
+			})
+			return var_series_map
+		})
+	}
+
+	parseData(data,parser) {
+		// PARSE TEXT RESPONSE OF HTTP GET INTO OBSERVACIONES ARRAY 
+		return this.parsers[parser](data)  
+	}
+
+	parseUTN(data) {
+		var columns = ["tempmedia","tempmax","tempmin","humrel","puntorocio","velvientomedia","dirviento","recviento","velvientomax","dirvientomax","sensterm","indcalor","indthw","indthsw","presion","precip","intprecip","radsolar","enersolar","maxradsolar","indiceuv","dosisuv","uvmax","graddcalor","graddfrio","tempint","humint","rocioint","ET","incalint","muestviento","txviento","recepiss","intarc"]
+		columns = columns.map(c=>{
+			var index = this.config.columns.map(col=>col.name).indexOf(c)
+			if(index>=0) {
+				return this.config.columns[index]
+			} else {
+				return {
+					"name": c
+				}
+			}
+		})
+		var rows = data.split("\n")
+		var h1 = rows.shift()
+		var h2 = rows.shift()
+		var h3 = rows.shift()
+		var result = []
+		for(var i in rows) {
+			var row = rows[i].split(/\s+/)
+			if(row.length < 2) {
+				continue
+			}
+			this.current_row = [...row]
+			while(row[0] == "") {
+				row.shift()
+			}
+			var datetime = this.parseDate(row.shift(),row.shift())
+			if(!datetime) {
+				console.error("invalid date on row " + i)
+				continue
+			}
+			// this.current_row = row
+			for(var i in row) {
+				if(i >= columns.length) {
+					break
+				}
+				var val = row[i]
+				if(val == "---") {
+					continue
+				}
+				if(!columns[i].var_id) {
+					continue
+				}
+				result.push({
+					timestart: datetime,
+					timeend: datetime,
+					var_id: columns[i].var_id,
+					valor: (columns[i].type == "number") ? parseFloat(val) : val
+				})
+			}
+		}
+		return result
+	}
+
+	parseMercobras(data) {
+		var columns = ["tempmedia","tempmax","tempmin","humrel","puntorocio","velvientomedia","dirviento","recviento","velvientomax","dirvientomax","sensterm","indcalor","indthw","presion","precip","intprecip","graddcalor","graddfrio","tempint","humint","rocioint","incalint","emcint","densintaire","muestviento","txviento","recepiss","intarc"]
+		columns = columns.map(c=>{
+			var index = this.config.columns.map(col=>col.name).indexOf(c)
+			if(index>=0) {
+				return this.config.columns[index]
+			} else {
+				return {
+					"name": c
+				}
+			}
+		})
+		var rows = data.split("\n")
+		var h1 = rows.shift()
+		var h2 = rows.shift()
+		var h3 = rows.shift()
+		var result = []
+		for(var i in rows) {
+			var row = rows[i].split(/\s+/)
+			if(row.length < 2) {
+				continue
+			}
+			this.current_row = [...row]
+			while(row[0] == "") {
+				row.shift()
+			}
+			var datetime = this.parseDate(row.shift(),row.shift())
+			if(!datetime) {
+				console.error("invalid date on row " + i)
+				continue
+			}
+			// this.current_row = row
+			for(var i in row) {
+				if(i >= columns.length) {
+					break
+				}
+				var val = row[i]
+				if(val == "---") {
+					continue
+				}
+				if(!columns[i].var_id) {
+					continue
+				}
+				result.push({
+					timestart: datetime,
+					timeend: datetime,
+					var_id: columns[i].var_id,
+					valor: (columns[i].type == "number") ? parseFloat(val) : val
+				})
+			}
+		}
+		return result
+	}
+
+	parseAcumar(data) {
+		var rows = data.split("\n")
+		var h1 = rows.shift()
+		var h2 = rows.shift()
+		var h3 = rows.shift()
+		var result = []
+		for(var i in rows) {
+			var row = rows[i].split(/\s+/)
+			if(row.length < 2) {
+				continue
+			}
+			this.current_row = [...row]
+			while(row[0] == "") {
+				row.shift()
+			}
+			var datetime = this.parseDate(row.shift(),row.shift())
+			if(!datetime) {
+				console.error("invalid date on row " + i)
+				continue
+			}
+			// this.current_row = row
+			for(var i in row) {
+				if(i >= this.config.columns.length) {
+					break
+				}
+				var val = row[i]
+				if(val == "---") {
+					continue
+				}
+				if(!this.config.columns[i].var_id) {
+					continue
+				}
+				result.push({
+					timestart: datetime,
+					timeend: datetime,
+					var_id: this.config.columns[i].var_id,
+					valor: (this.config.columns[i].type == "number") ? parseFloat(val) : val
+				})
+			}
+		}
+		return result
+	}
+
+	// parseDateAMPM(date,time) {
+	// 	var ampm = time.slice(-1);
+	// 	time = time.slice(time.length-1,time.length)
+	// 	try {
+	// 		var d = date.split("/").map(i=>parseInt(i))
+	// 		var t = time.split(":").map(i=>parseInt(i))
+	// 	} catch(e) {
+	// 		console.error(e)
+	// 		return undefined
+	// 	}
+	// 	if(ampm == "p") {
+	// 		t[0] += (t[0] >= 12) ? 0 : 12
+	// 	} else if (ampm == "a") {
+	// 		t[0] += (t[0] >= 12) ? -12 : 0
+	// 	} else {
+	// 		throw("Bad ampm date")
+	// 	}
+	// 	try {
+	// 		var datetime = new Date(d[2]+2000,d[1]-1,d[0],t[0],t[1])
+	// 	} catch(e) {
+	// 		console.error(e)
+	// 		return undefined
+	// 	}
+	// 	return datetime
+	// }
+
+	parseDate(date,time) {
+		var ampm = (time.slice(-1)=="a") ? 1: (time.slice(-1)=="p") ? 2 : 0
+		if(ampm) {
+			time = time.slice(0,time.length-1)
+		}
+		try {
+			var d = date.split("/").map(i=>parseInt(i))
+			var t = time.split(":").map(i=>parseInt(i))
+		} catch(e) {
+			console.error(e)
+			return undefined
+		}
+		if(ampm == 2 && t[0] < 12) {
+			t[0] = t[0] + 12
+		} else if (ampm == 1 && t[0] >= 12) {
+			t[0] = t[0] - 12
+		}
+		try {
+			var datetime = new Date(d[2]+2000,d[1]-1,d[0],t[0],t[1])
+		} catch(e) {
+			console.error(e)
+			return undefined
+		}
+		return datetime
+	}
+
+    update(filter,options) {
+        return this.get(filter,options)
+		.then(observaciones=>{
+			return crud.upsertObservaciones(observaciones,"puntual")
+		})
+    }
+}
+
+internal.api_smn = class {
+
+    constructor(config) {
+		this.default_config = {
+			url: "https://api-test.smn.gob.ar/v1",
+			username: "username",
+			password: "password"
+		}
+		this.config = this.default_config
+		if(config) {
+			Object.keys(config).forEach(key=>{
+				this.config[key] = config[key]
+			})
+		}
+		// this.getToken()
+	}
+	
+	async getNewToken(save=true) {
+		var url = `${this.config.url}/api-token/auth`
+		return axios.post(url, {
+			username: this.config.username,
+			password: this.config.password
+		})
+		.then(async response=>{
+			this.token = response.data.token
+			this.token_expiry_date = new Date(new Date().getTime() + 24*3600*1000)
+			if(save) {
+				try {
+					await crud.updateAccessorToken("api_smn",this.token,this.token_expiry_date)
+				} catch(e) {
+					throw(e)
+				}
+			}
+			return response.data.token
+		})
+	}
+
+	async getSavedToken() {
+		return crud.getAccessorToken("api_smn")
+		.then(result=>{
+			if(!result.token) {
+				console.log("Saved token not found")
+				return
+			} 
+			if(result.token_expiry_date < new Date()) {
+				console.log("Saved token is expired")
+				return
+			}
+			this.token = result.token
+			this.token_expiry_date = result.token_expiry_date
+			return result.token
+		})
+	}
+
+	async getToken() {
+		// lee this.token y chequea fecha de caducidad
+		if(this.token && this.token_expiry_date > new Date()) {
+			return this.token
+		}
+		// si no lo encuentra o está vencido busca el token guardado en BD
+		try {
+			var token = await this.getSavedToken()
+		} catch(e) {
+			throw(e)
+		}
+		// si no encuentra en BD o está vencido solicita uno nuevo a la api
+		if(!token) {
+			console.log("Solicitando nuevo token")
+			try {
+				token = await this.getNewToken()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		return token
+	}
+
+	async getStations() {
+		try {
+			var token = await this.getToken()
+		} catch(e) {
+			throw(e)
+		}
+		return axios.get(`${this.config.url}/georef/station`,{
+			headers: {
+				"Authorization": `JWT ${token}`
+			}
+		})
+		.then(response=>{
+			return response.data
+		})
+	}
+	parseStation(station) {
+		return {
+			id_externo: station.id,
+			nombre: station.name,
+			distrito: station.province,
+			geom: {
+				type: "Point",
+				coordinates: [station.coord.lon, station.coord.lat]
+			},
+			tabla: "stations"
+		}
+	}
+
+	getStationsMap() {
+		return crud.getEstaciones({tabla:"stations"})
+		.then(results=>{
+			this.config.estaciones_map = {}
+			results.forEach(es=>{
+				if(parseInt(es.id_externo).toString() != "NaN") {
+					this.config.estaciones_map[es.id] = parseInt(es.id_externo)
+				}
+			})
+			return
+		})
+	}
+
+	getStationsMapInv() {
+		return crud.getEstaciones({tabla:"stations"})
+		.then(results=>{
+			this.config.estaciones_map_inv = {}
+			results.forEach(es=>{
+				this.config.estaciones_map_inv[es.id_externo] = es.id
+			})
+			return
+		})
+	}
+
+	getSites(filter) {
+		return this.getStations()
+		.then(stations=>{
+			return stations.map(s=>this.parseStation(s))
+		})
+		.then(estaciones=>{
+			if(filter && filter.id_externo) {
+				estaciones = estaciones.filter(e=>(e.id == filter.id_externo))
+			}
+			return estaciones
+		})
+	}
+
+	updateSites(filter) {
+		return this.getSites(filter)
+		.then(sites=>{
+			return crud.upsertEstaciones(sites)
+		})
+	}
+
+	async getPrecip(estacion_id,timestart,timeend) {
+		try {
+			var token = await this.getToken()
+		} catch(e) {
+			throw(e)
+		}
+		if(!this.config.estaciones_map) {
+			try {
+				await this.getStationsMap()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		if(!this.config.series_map) {
+			try {
+				await this.getSeriesMap()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		var series_id = this.seriesLookUp(estacion_id,1)
+		var stationId = this.config.estaciones_map[estacion_id]
+		if(!stationId) {
+			throw("invalid estacion_id")
+		}
+		var url = `${this.config.url}/history/precipitation/station/${stationId}`
+		console.log({url: url})
+		return axios.get(url,{
+			params: {
+				start: new Date(timestart).toISOString(),
+				end: new Date(timeend).toISOString() 
+			},
+			headers: {
+				"Authorization": `JWT ${token}`
+			}
+		})
+		.then(response=>{
+			this.last_response_data = response.data
+			return this.parsePrecipList(response.data.list,series_id)
+		})
+		.catch(error=>{
+			this.last_error = error
+			if(error.response) {
+				if(error.response.status == 404) {
+					console.error({estacion_id:estacion_id,url:url,data:error.response.data})
+					if(this.error_stack) {
+						this.error_stack.push({estacion_id:estacion_id,url:url,data:error.response.data})
+					}
+					return []
+				} else {
+					throw(error)
+				}
+			} else {
+				throw(error)
+			}
+		})
+	}
+
+	getSeriesMap() {
+		return crud.getSeries("puntual",{tabla_id:"stations",proc_id:1},{no_metadata:true})
+		.then(series=>{
+			this.config.series_map = series
+			return
+		})
+	}
+
+	seriesLookUp(estacion_id,var_id) {
+		for(var serie of this.config.series_map) {
+			if(serie.estacion_id == estacion_id && serie.var_id == var_id) {
+				return serie.id
+			}
+		}
+		return
+	}
+
+	parsePrecipList(list,series_id) {
+		return list.filter(item=>(item.valid)).map(item=>{
+			return {
+				series_id: series_id,
+				timestart: new Date(item.date),
+				timeend: new Date(new Date(item.date).getTime() + 24*3600*1000),
+				valor: (item.precipitation) ? item.precipitation : 0
+			}			
+		})
+	}
+
+	async getTemp(estacion_id,timestart,timeend,var_id=[5,6]) {
+		try {
+			var token = await this.getToken()
+		} catch(e) {
+			throw(e)
+		}
+		if(!this.config.estaciones_map) {
+			try {
+				await this.getStationsMap()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		if(!this.config.series_map) {
+			try {
+				await this.getSeriesMap()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		var series_id_temp_max = (var_id.indexOf(6) >= 0) ? this.seriesLookUp(estacion_id,6) : undefined
+		var series_id_temp_min = (var_id.indexOf(5) >= 0) ? this.seriesLookUp(estacion_id,5) : undefined
+		var stationId = this.config.estaciones_map[estacion_id]
+		if(!stationId) {
+			throw("invalid estacion_id")
+		}
+		var url = `${this.config.url}/history/temperature/station/${stationId}`
+		console.log({url: url})
+		return axios.get(url,{
+			params: {
+				start: new Date(timestart).toISOString().substring(0,10),
+				end: new Date(timeend).toISOString().substring(0,10) 
+			},
+			headers: {
+				"Authorization": `JWT ${token}`
+			}
+		})
+		.then(response=>{
+			this.last_response_data = response.data
+			return this.parseTempList(response.data.list,series_id_temp_min,series_id_temp_max)
+		})
+		.catch(error=>{
+			this.last_error = error
+			if(error.response) {
+				if(error.response.status == 404) {
+					console.error({estacion_id:estacion_id,url:url,data:error.response.data})
+					if(this.error_stack) {
+						this.error_stack.push({estacion_id:estacion_id,url:url,data:error.response.data})
+					}
+					return []
+				} else {
+					throw(error)
+				}
+			} else {
+				throw(error)
+			}
+		})
+	}
+
+	parseTempList(list,series_id_temp_min,series_id_temp_max) {
+		var obs_temp_min = (series_id_temp_min) ? list.map(item=>{
+			return {
+				series_id: series_id_temp_min,
+				timestart: new Date(new Date(item.date).getTime() + 3*3600*1000),
+				timeend: new Date(new Date(item.date).getTime() + 27*3600*1000),
+				valor: item.temp_min
+			}
+		}) : []
+		var obs_temp_max = (series_id_temp_max) ? list.map(item=>{
+			return {
+				series_id: series_id_temp_max,
+				timestart: new Date(new Date(item.date).getTime() + 3*3600*1000),
+				timeend: new Date(new Date(item.date).getTime() + 27*3600*1000),
+				valor: item.temp_max
+			}
+		}) : []
+		return [...obs_temp_min,...obs_temp_max]
+	}
+
+	async get(filter={},options={}) {
+		this.error_stack = []
+		if(!filter.timestart || !filter.timeend) {
+			throw("Missing filter timestart and timeend")
+		}
+		if(filter.estacion_id && !Array.isArray(filter.estacion_id)) {
+			filter.estacion_id = [filter.estacion_id]
+		}
+		if(filter.var_id) {
+			if(!Array.isArray(filter.var_id)) {
+				filter.var_id = [filter.var_id]
+			}
+		} else {
+			filter.var_id = [1,5,6]
+		}
+		if(!this.config.estaciones_map) {
+			try {
+				await this.getStationsMap()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		if(!this.config.series_map) {
+			try {
+				await this.getSeriesMap()
+			} catch(e) {
+				throw(e)
+			}
+		}
+		var observaciones = []
+		for(var estacion_id of Object.keys(this.config.estaciones_map)) {
+			if(filter.estacion_id) {
+				if(filter.estacion_id.indexOf(parseInt(estacion_id)) < 0) {
+					console.log("skipping estacion_id " + estacion_id)
+					continue
+				}
+			}
+			if(filter.var_id.indexOf(1) >= 0) {
+				try {
+					var obs = await this.getPrecip(estacion_id,filter.timestart,filter.timeend)
+				} catch(e) {
+					throw(e)
+				}
+				if(options.update) {
+					try {
+						var upserted = await crud.upsertObservaciones(obs,"puntual")
+					} catch(e){
+						throw(e)
+					}
+					observaciones.push(...upserted)
+				} else {
+					observaciones.push(...obs)
+				}
+			} else {
+				console.log("skipping precip")
+			}
+			if(filter.var_id.indexOf(5) >= 0 || filter.var_id.indexOf(6) >= 0) {
+				try {
+					var obs = await this.getTemp(estacion_id,filter.timestart,filter.timeend,filter.var_id)
+				} catch(e) {
+					throw(e)
+				}
+				if(options.update) {
+					try {
+						var upserted = await crud.upsertObservaciones(obs,"puntual")
+					} catch(e){
+						throw(e)
+					}
+					observaciones.push(...upserted)
+				} else {
+					observaciones.push(...obs)
+				}
+			} else {
+				console.log("skipping temp")
+			}
+		}
+		return observaciones
+	}
+
+	async update(filter={},options={}) {
+		options.update = true
+		return this.get(filter,options)
+	}
+
+	async test() {
+		return this.getSites()
+		.then(sites=>{
+			if(!sites.length) {
+				return false
+			} else {
+				return true
+			}
+		})
+		.catch(e=>{
+			console.error(e)
+			return false
 		})
 	}
 }

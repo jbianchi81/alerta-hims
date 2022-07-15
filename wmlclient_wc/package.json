@@ -1,0 +1,38 @@
+{
+  "name": "wmlclient_wc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cerobpm/wmlclient_wc.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "commander": "^3.0.1",
+    "config": "^3.2.2",
+    "express": "^4.17.1",
+    "express-flash": "0.0.2",
+    "express-handlebars": "^3.1.0",
+    "express-session": "^1.17.1",
+    "fs": "0.0.1-security",
+    "inquirer": "^7.0.0",
+    "passport": "^0.4.1",
+    "passport-local": "^1.0.0",
+    "pg": "^8.5.1",
+    "request": "^2.88.0",
+    "session-file-store": "^1.5.0",
+    "soap": "^0.35.0",
+    "sprintf-js": "^1.1.2",
+    "xml": "^1.0.1",
+    "xml-crypto": "^2.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/cerobpm/wmlclient_wc/issues"
+  },
+  "homepage": "https://github.com/cerobpm/wmlclient_wc#readme"
+}

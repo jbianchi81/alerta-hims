@@ -391,11 +391,19 @@
 				</li>
 				<li>
 					<b>Cuantiles diarios (JSON):    </b>
-					<a id=descargarDoyStatsJSON download="CuantilesDiarios.json" href="getCuantilesDiariosSuavizados?tipo=puntual&series_id=&format=json">getCuantilesDiariosSuavizados?tipo=puntual&amp;series_id=&amp;format=json</a>
+					<a id=descargarDoyStatsJSON download="CuantilesDiarios.json" href="obs/puntual/series/{id}/estadisticosDiarios?format=json">obs/puntual/series/{id}/estadisticosDiarios?format=json</a>
 				</li>
 				<li>
 					<b>Cuantiles diarios (CSV):    </b>
-					<a id=descargarDoyStatsCSV download="CuantilesDiarios.csv" href="getCuantilesDiariosSuavizados?tipo=puntual&series_id=&format=csv">getCuantilesDiariosSuavizados?tipo=puntual&amp;series_id=&amp;format=csv</a>
+					<a id=descargarDoyStatsCSV download="CuantilesDiarios.csv" href="obs/puntual/series/{id}/estadisticosDiarios?format=csv">obs/puntual/series/{id}/estadisticosDiarios?format=csv</a>
+				</li>
+				<li>
+					<b>Cuantiles mensuales (JSON):    </b>
+					<a id=descargarMonStatsJSON download="CuantilesMensuales.json" href="obs/puntual/series/{id}/estadisticosMensuales?format=json">obs/puntual/series/{id}/estadisticosMensuales?format=json</a>
+				</li>
+				<li>
+					<b>Cuantiles mensuales (CSV):    </b>
+					<a id=descargarMonStatsCSV download="CuantilesMensuales.csv" href="obs/puntual/series/{id}/estadisticosMensuales?format=csv">obs/puntual/series/{id}/estadisticosMensuales?format=csv</a>
 				</li>
 				<li>
 					<b>Percentiles diarios (JSON):    </b>
@@ -797,7 +805,7 @@
 			  //~ })
 			  new ol.layer.Tile({
 				  source: new ol.source.XYZ({
-					  url: "https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png"
+					  url: "https://api.mapbox.com/styles/v1/jbianchi/ckyso80451sba14thm4lenny3/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiamJpYW5jaGkiLCJhIjoiY2prbWttdmJvMDJiNTNwb2V0NzU0NDdmaCJ9.u5_KzyKkY9FRfCcJjAF6gA"
 				  })
 			  }),
 			  box_layer
@@ -1241,7 +1249,7 @@
 			$("form#choosepercentile input[name=timestart]").val(timestart.toISOString().substring(0,10))
 			$("form#choosepercentile input[name=timeend]").val(timeend.toISOString().substring(0,10))
 			$("body").css("cursor","progress")
-			var getSeriesParams = {estacion_id:matched_point.properties.estacion_id, var_id:matched_point.properties.var_id, timestart:timestart, timeend:timeend, includeProno:true,proc_id:matched_point.properties.proc_id}
+			var getSeriesParams = {estacion_id:matched_point.properties.estacion_id, var_id:matched_point.properties.var_id, timestart:timestart, timeend:timeend, includeProno:true,proc_id:matched_point.properties.proc_id,stats:"monthly"}
 			if(urlParams.get('forecast_date')) {
 				getSeriesParams.forecast_date = urlParams.get('forecast_date')
 			}
@@ -1509,20 +1517,20 @@
 					}
 					
 					// enable stats buttons
-					if(series.dailyDoyStats.length>0) {
+					if(series.monthlyStats && series.monthlyStats.length) {
 						//~ console.log("enable Stats buttons")
 						$("div.tabcontent#grafico").find("button.toggle-stats").prop('disabled',false)
 						.on('click', function () {
-								var chart = $("#chart_container").highcharts()
-								chart.series.forEach(s=>{  
-								   if(/^permanencia\s\d\d?\%$/.test(s.name)) {
-									if(s.visible) {
-										s.hide()
-									} else {
-										s.show()
-									}
-								  }
-								})
+							var chart = $("#chart_container").highcharts()
+							chart.series.forEach(s=>{  
+								if(/^permanencia\s\d\d?\%$/.test(s.name)) {
+								if(s.visible) {
+									s.hide()
+								} else {
+									s.show()
+								}
+								}
+							})
 						});
 						$("div.tabcontent#grafico").find("button.downld-stats").prop('disabled',false)
 						.on('click', function () {
@@ -1546,7 +1554,7 @@
 							$("#myModal span#exportcsv a").attr({'href':gurl,download:'stats.csv'}).html("Descargar CSV").on("click", e=>{
 								//~ $("#myModal").modal("hide")
 							})
-							$("#myModal span#exportjson input#exportjsonurl").val(window.location.origin + window.location.pathname.replace(/[^/]*$/,"") + "getCuantilesDiariosSuavizados?tipo=puntual&series_id=" + gSeries.id + "&format=json").removeAttr("disabled")
+							$("#myModal span#exportjson input#exportjsonurl").val(window.location.origin + window.location.pathname.replace(/[^/]*$/,"") + "obs/puntual/series/" + gSeries.id + "/estadisticosMensuales?format=json").removeAttr("disabled")
 							$("div#myModal span#exportcsv").show()
 							$("div#myModal span#exportjson").show()
 							$("div#myModal div#authentication").hide()
@@ -1642,6 +1650,11 @@
 				$("a#descargarDoyStatsJSON").attr('href',doystatsurl).text(doystatsurl)
 				var doystatsurlcsv = "obs/" + series.tipo + "/series/" + series.id + "/estadisticosDiariosSuavizados?format=csv" //"getCuantilesDiariosSuavizados?tipo=puntual&series_id="+ series.id + "&format=csv"
 				$("a#descargarDoyStatsCSV").attr('href',doystatsurlcsv).text(doystatsurlcsv)
+				var percentilesurl = "obs/" + series.tipo + "/series/" + series.id + "/percentilesDiarios" // "getPercentilesDiarios?series_id="+ series.id
+				var monstatsurl = "obs/" + series.tipo + "/series/" + series.id + "/estadisticosMensuales?format=json"
+				$("a#descargarMonStatsJSON").attr('href',monstatsurl).text(monstatsurl)
+				var monstatsurlcsv = "obs/" + series.tipo + "/series/" + series.id + "/estadisticosMensuales?format=csv"
+				$("a#descargarMonStatsCSV").attr('href',monstatsurlcsv).text(monstatsurlcsv)
 				var percentilesurl = "obs/" + series.tipo + "/series/" + series.id + "/percentilesDiarios" // "getPercentilesDiarios?series_id="+ series.id
 				$("a#descargarPercentiles").attr('href',percentilesurl).text(percentilesurl)
 				var percentilesurlcsv = "obs/" + series.tipo + "/series/" + series.id + "/percentilesDiarios?format=csv" // "getPercentilesDiarios?series_id="+ series.id + "&format=csv"

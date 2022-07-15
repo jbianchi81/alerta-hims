@@ -35,7 +35,9 @@ CREATE TABLE public.accessors (
     config json,
     series_id integer,
     upload_fields json DEFAULT '{}'::json,
-    title character varying
+    title character varying,
+    token varchar,
+    token_expiry_date timestamp
 );
 
 
@@ -61,7 +63,7 @@ CREATE TABLE public.areas_pluvio (
     exutorio public.geometry(Point,4326),
     nombre character varying(64),
     area double precision DEFAULT 0,
-    unid integer DEFAULT nextval('public.areas_pluvio_unid_seq'::regclass),
+    unid integer DEFAULT nextval('public.areas_pluvio_unid_seq'::regclass) NOT NULL,
     rho real DEFAULT 0.5,
     ae real DEFAULT 1,
     wp real DEFAULT 0.03,
@@ -1007,8 +1009,8 @@ ALTER TABLE ONLY public.estaciones
 -- Name: unid_es; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.areas_pluvio
-    ADD CONSTRAINT unid_es FOREIGN KEY (unid) REFERENCES public.estaciones(unid);
+-- ALTER TABLE ONLY public.areas_pluvio
+--     ADD CONSTRAINT unid_es FOREIGN KEY (unid) REFERENCES public.estaciones(unid);
 
 
 --

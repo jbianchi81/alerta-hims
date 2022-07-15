@@ -203,44 +203,44 @@ internal.advanceTimeStep = function(start_timestamp,timeSupport) {
 
 internal.advanceInterval = function(date,interval={hours:1}) {
 	if(!interval instanceof Object) {
-		console.error("interval must be an postgresInterval object")
+		console.error("interval must be a postgresInterval object")
 		return
 	}
-	var new_date = date
+	var new_date = new Date(date)
 	Object.keys(interval).map(k=>{
 		switch(k) {
 			case "milliseconds":
 			case "millisecond":
-				date.setUTCMilliseconds(date.getUTCMilliseconds() + interval[k])
+				new_date.setUTCMilliseconds(new_date.getUTCMilliseconds() + interval[k])
 				break
 			case "seconds":
 			case "second":
-				date.setUTCSeconds(date.getUTCSeconds() + interval[k])
+				new_date.setUTCSeconds(new_date.getUTCSeconds() + interval[k])
 				break
 			case "minutes":
 			case "minute":
-				date.setUTCMinutes(date.getUTCMinutes() + interval[k])
+				new_date.setUTCMinutes(new_date.getUTCMinutes() + interval[k])
 				break
 			case "hours":
 			case "hour":
-				date.setUTCHours(date.getUTCHours() + interval[k])
+				new_date.setUTCHours(new_date.getUTCHours() + interval[k])
 				break
 			case "days":
 			case "day":
-				date.setUTCDate(date.getUTCDate() + interval[k])
+				new_date.setUTCDate(new_date.getUTCDate() + interval[k])
 				break
 			case "weeks":
 			case "week":
-				date.setUTCDate(date.getUTCDate() + interval[k]*7)
+				new_date.setUTCDate(new_date.getUTCDate() + interval[k]*7)
 				break
 			case "months":
 			case "month":
 			case "mon":
-				date.setUTCMonth(date.getUTCMonth() + interval[k])
+				new_date.setUTCMonth(new_date.getUTCMonth() + interval[k])
 				break
 			case "years":
 			case "year":
-				date.setUTCFullYear(date.getUTCFullYear() + interval[k])
+				new_date.setUTCFullYear(new_date.getUTCFullYear() + interval[k])
 				break
 			default:
 				break
@@ -267,6 +267,23 @@ internal.date2tste = function(date) {
 	te.setDate(te.getDate() + 1)
 	return [ts, te]
 }
+
+internal.setTOffset = function(date,t_offset) {
+	if(!t_offset) {
+		t_offset = {"days":1}
+	}
+	t_offset = internal.createInterval(t_offset)
+	var new_date = new Date(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate())
+	while(new_date < date) {
+		var next_date = internal.advanceInterval(new_date,t_offset)
+		if(next_date > date) {
+			break
+		}
+		new_date = next_date
+	}
+	return new_date
+}
+
 // internal.string2interval(string=>{
 // 	if(!string) {
 // 		return {}
@@ -278,6 +295,19 @@ internal.date2tste = function(date) {
 // 		}
 // 	}
 // })
+
+internal.doy2month = function(doy) {
+    var date = new Date(2022,0,1)
+    date.setUTCDate(doy)
+    return date.getUTCMonth()
+}
+
+internal.doy2date = function(doy) {
+    var date = new Date(2022,0,1)
+    date.setUTCDate(doy)
+    return date.getUTCDate()
+}
+
 
 module.exports = internal
 

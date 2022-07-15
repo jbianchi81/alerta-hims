@@ -1,0 +1,437 @@
+<h3>Informe semanal</h3>
+<div>
+	<form method="POST" action="web/semanal/informe" id="import_informe" enctype="multipart/form-data">
+		<label for="informe_semanal">Importar informe</label>
+		<input type="file" name="informe_semanal" title="Seleccione el archivo JSON para importar">
+		<button type=submit>Importar</button>
+	</form>
+</div>
+<form id=post method=post action="web/semanal/informe" enctype="application/json">
+	<div class="container">
+		<style type="text/css" scoped>
+        	textarea {
+				min-height: 150;
+				width: 100%;
+			} 
+			textarea.not_edited {
+				background-color: grey;
+			}
+			textarea.edited {
+				background-color: white;
+			}
+			button.delete_button {
+				background-color: red;
+				width:90px;
+			}
+			button.update_button {
+				background-color: lightgrey;
+				width: 90px;
+			}
+			.buttons_column {
+				max-width: 120px;
+			}
+			.col {
+				padding-left: 5px;
+				padding-right: 5px;
+			}
+			.col-2 {
+				padding-left: 5px;
+				padding-right: 5px;
+			}
+			.row {
+				margin-left: -5px;
+				margin-right: -5px;
+			}
+    	</style>
+		<div class="row">
+			<div class="col-2">
+				<label for=fecha>Fecha</label>
+			</div>
+			<div class="col">
+				<input name=fecha type=date required=true autocomplete="off" value="{{fecha}}">
+			</div>
+			<div class="col-2 buttons_column">
+				<button type="button" onclick="deleteInforme()" class="delete_button">Eliminar</button>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-2">
+				<label for=texto_general>texto_general</label>
+			</div>
+			<div class="col">
+				<textarea name=texto_general type=textarea required=true autocomplete="off">{{texto_general}}</textarea>
+			</div>
+			<div class="col-2 buttons_column">
+
+			</div>
+		</div>
+		{{#each contenido}}
+			<div class="row">
+				<div class="col-2">
+					<label for={{this.region_id}} class="region">{{this.region_nombre}}</label>
+				</div>
+				<div class="col">
+					<textarea class="contenido_item not_edited" name={{this.region_id}} type=textarea autocomplete="off">{{this.texto}}</textarea>
+				</div>
+				<div class="col-2 buttons_column">
+					<div class="row">
+						<div class="col">
+							<button type="button" onclick="postContenido('{{this.region_id}}')" class="update_button" id="post_{{this.region_id}}" disabled="true">Actualizar</button>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col">
+							<button type="button" onclick="deleteContenido('{{this.region_id}}')" class="delete_button" id="delete_{{this.region_id}}">Eliminar</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			{{#if tramos}} 
+				{{#each tramos}}
+					<div class="row">
+						<div class="col-2">
+							<ul><li><label for={{tramo_id}} class="tramo" region_id="{{../region_id}}">{{tramo_nombre}}</label></li></ul>
+						</div>
+						<div class="col">
+							<textarea class="contenido_item_tramo not_edited" name={{tramo_id}} region_id={{../region_id}} type=textarea autocomplete="off">{{texto}}</textarea>
+						</div>
+						<div class="col-2 buttons_column">
+							<div class="row">
+								<div class="col">
+									<button type="button" onclick="postContenidoTramo('{{tramo_id}}')" class="update_button" id="post_{{tramo_id}}" disabled="true">Actualizar</button>
+								</div>
+							</div>
+							<div class="row">
+								<div class="col">
+									<button type="button" onclick="deleteContenidoTramo('{{tramo_id}}')" class="delete_button" id="delete_{{tramo_id}}">Eliminar</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				{{/each}}
+			{{/if}}
+		{{/each}}
+		<div class="row">
+			<div class="col-2">
+				<button type=submit>Confirma</button>
+			</div>
+			<div class="col">
+				<button type=button onclick="previewInforme()">Vista previa</button>
+			</div>
+		</div>
+	</div>
+</form>
+<a href="cargarPlanillas">&lt;&lt;volver</a>
+<div id="preview" class="modal">
+	<style type="text/css" scoped>
+		.modal-body {
+			max-height: calc(100vh - 100px);
+			overflow-y: auto;
+		}
+	</style>
+	<div class="modal-content">
+		<span class="close">&times;</span>
+		<span id=preview_content class="modal-body"></span>
+	</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+	var is_editing = new Set()
+	function getRegionNames() {
+		var region_names = {}
+		$('form#post label.region').map((index,item)=>{
+			region_names[$(item).attr('for')] = item.textContent
+		})
+		return region_names
+	}
+	function getValues(include_non_edited=true) {
+		var values = {};
+        $.each($('form#post').serializeArray(), function(i, field) {
+            values[field.name] = field.value;
+        });
+		var region_names = getRegionNames()
+        var contenido = []
+		var selector = (include_non_edited) ? 'form#post textarea.contenido_item[value!=""]' : 'form#post textarea.contenido_item.edited[value!=""]'
+        $(selector).map((index,item)=> {
+			var value = {
+				region_id: $(item).attr('name')
+			}
+			value.region_nombre =  region_names[$(item).attr('name')]
+			value.texto =  $(item).val().trim()
+			var tramos_selector = (include_non_edited) ? 'form#post textarea.contenido_item_tramo[value!=""][region_id="' + value.region_id + '"]' : 'form#post textarea.contenido_item_tramo.edited[value!=""][region_id="' + value.region_id + '"]'
+			value.tramos = []
+			$(tramos_selector).map((index,item)=>{
+				if($(item).val().trim() != "") {
+					value.tramos.push({
+						tramo_id: $(item).attr('name'),
+						texto: $(item).val().trim()
+					})
+				}
+			})
+			if(value.texto != "" || value.tramos.length) {
+				contenido.push(value)
+			}
+        });
+        return {
+            fecha: values.fecha,
+            texto_general: values.texto_general,
+            contenido: contenido
+        }
+	}
+	var modal = document.getElementById("preview")
+	var modal_content = document.getElementById('preview_content')
+	var modal_close_button = document.getElementsByClassName("close")[0]
+	modal_close_button.onclick = function() {
+		modal.style.display = "none"
+	}
+	function previewInforme() {
+		var informe = getValues()
+		var contenido = informe.contenido.map(item=>{
+			var item_md = `#### ${item.region_nombre}\n\n\
+${item.texto}`
+			if(item.tramos.length) {
+				item_md = item_md + "\n\n" + item.tramos.map(t=>{
+					return `> ***_${t.tramo_id}:_*** ${t.texto}`
+				}).join("\n\n")
+			}
+			return item_md
+		}).join("\n\n---\n\n")
+		var md_preview = `## Informe semanal\n\n\
+### fecha: ${informe.fecha}\n\n\
+${informe.texto_general}\n\n---\n\n\
+${contenido}`
+		console.log(md_preview)
+		var preview = marked.parse(md_preview)
+		modal_content.innerHTML = preview
+		modal.style.display = "block"
+		console.log(preview)
+	}
+	window.onclick = function(event) {
+		if (event.target == modal) {
+			modal.style.display = "none";
+		}
+	}
+    $("form#post").submit(e=>{
+        e.preventDefault()
+        var informe = getValues(false) // exclude non-edited
+        {{!-- console.log(JSON.stringify(informe)) --}}
+        $.ajax({
+            type: "POST",
+            url: "web/semanal/informe",
+            data: JSON.stringify(informe),
+            error: (jqXHR, textStatus, errorThrown)=>{
+                alert(errorThrown.toString())
+            },
+            success: ()=>{
+                alert("Informe semanal actualizado")
+				is_editing.clear()
+                location.reload()
+            },
+            dataType: "json",
+            contentType: "application/json",
+            timeout: 10000
+        })
+    })
+	function deleteInforme() {
+		var informe = getValues()
+		{{!-- console.log(informe.fecha) --}}
+		if(confirm(`¿Está seguro que desea eliminar el informe de la fecha ${informe.fecha}?`) == true) {
+			$.ajax({
+				type: "DELETE",
+				url: `web/semanal/informe/fecha/${informe.fecha}`,
+				error: (xhr, textStatus, errorThrown)=>{
+					if(xhr && xhr.responseText) {
+						var response = JSON.parse(xhr.responseText)
+						alert(response.message)
+					} else {
+						alert(errorThrown.toString())
+					}
+				},
+				success: ()=>{
+					alert("Informe semanal eliminado")
+					is_editing.clear()
+					location.reload()
+				},
+				timeout: 10000
+			})
+		}
+	}
+	function postContenido(region_id) {
+		document.body.style.cursor = "progress"
+		$(`textarea[name=${region_id}]`).prop("disabled",true)
+		var values = getValues()
+		var index = values.contenido.map(i=>i.region_id).indexOf(region_id)
+		if(index == -1) {
+			alert("No se encontró contenido")
+			return
+		}
+		var contenido_region = values.contenido[index].texto
+		{{!-- console.log({region_id: region_id, texto: contenido_region}) --}}
+		$.ajax({
+            type: "POST",
+            url: `web/semanal/informe/fecha/${values.fecha}/region/${region_id}`,
+            data: JSON.stringify({fecha: values.fecha, region_id: region_id, texto: contenido_region}),
+            error: (xhr, textStatus, errorThrown)=>{
+				document.body.style.cursor = "default"
+				if(xhr && xhr.responseText) {
+					var response = JSON.parse(xhr.responseText)
+					alert(response.message)
+				} else {
+					alert(errorThrown.toString())
+				}
+				$(`textarea[name=${region_id}]`).prop("disabled",false)
+            },
+            success: (data)=>{
+				document.body.style.cursor = "default"
+				{{!-- console.log(JSON.stringify(data)) --}}
+				$(`textarea[name=${region_id}]`).val(data[0].texto)
+				is_editing.delete(region_id)
+				$(`textarea[name=${region_id}]`).addClass("not_edited").removeClass("edited") // css("background-color","grey")
+				$(`button.update_button#post_${region_id}`).prop("disabled",true)
+                alert(`Contenido de ${region_id} actualizado`)
+				$(`textarea[name=${region_id}]`).prop("disabled",false)
+                {{!-- location.reload() --}}
+            },
+            dataType: "json",
+            contentType: "application/json",
+            timeout: 10000
+        })
+	}
+	function postContenidoTramo(tramo_id) {
+		document.body.style.cursor = "progress"
+		$(`textarea[name=${tramo_id}]`).prop("disabled",true)
+		var region_id = $(`textarea[name=${tramo_id}]`)[0].getAttribute("region_id")
+		var values = getValues()
+		var index = values.contenido.map(i=>i.region_id).indexOf(region_id)
+		if(index == -1) {
+			alert("No se encontró contenido")
+			return
+		}
+		var jndex = values.contenido[index].tramos.map(j=>j.tramo_id).indexOf(tramo_id)
+		if(jndex == -1) {
+			alert("No se encontró tramo")
+			return
+		}
+		var contenido_tramo = values.contenido[index].tramos[jndex].texto
+		{{!-- console.log({region_id: region_id, tramo_id: tramo_id, texto: contenido_tramo}) --}}
+		$.ajax({
+            type: "POST",
+            url: `web/semanal/informe/fecha/${values.fecha}/tramo/${tramo_id}`,
+            data: JSON.stringify({fecha: values.fecha, tramo_id: tramo_id, texto: contenido_tramo}),
+            error: (xhr, textStatus, errorThrown)=>{
+				document.body.style.cursor = "default"
+				if(xhr && xhr.responseText) {
+					var response = JSON.parse(xhr.responseText)
+					alert(response.message)
+				} else {
+					alert(errorThrown.toString())
+				}
+				$(`textarea[name=${tramo_id}]`).prop("disabled",false)
+            },
+            success: (data)=>{
+				document.body.style.cursor = "default"
+				{{!-- console.log(JSON.stringify(data)) --}}
+				$(`textarea[name=${tramo_id}]`).val(data.texto)
+				is_editing.delete(tramo_id)
+				$(`textarea[name=${tramo_id}]`).addClass("not_edited").removeClass("edited") // css("background-color","grey")
+				$(`button.update_button#post_${tramo_id}`).prop("disabled",true)
+                alert(`Contenido de tramo ${tramo_id} actualizado`)
+				$(`textarea[name=${tramo_id}]`).prop("disabled",false)
+                {{!-- location.reload() --}}
+            },
+            dataType: "json",
+            contentType: "application/json",
+            timeout: 10000
+        })
+	}
+	function deleteContenido(region_id) {
+		var informe = getValues()
+		{{!-- console.log(informe.fecha) --}}
+		if(confirm(`¿Está seguro que desea eliminar el contenido de la region ${region_id}?`) == true) {
+			$.ajax({
+				type: "DELETE",
+				url: `web/semanal/informe/fecha/${informe.fecha}/region/${region_id}`,
+				error: (xhr, textStatus, errorThrown)=>{
+					if(xhr && xhr.responseText) {
+						var response = JSON.parse(xhr.responseText)
+						alert(response.message)
+					} else {
+						alert(errorThrown.toString())
+					}
+				},
+				success: ()=>{
+					$(`textarea[name=${region_id}]`).val("")
+					alert("Contenido eliminado")
+				},
+				timeout: 10000
+			})
+		}
+	}
+	function deleteContenidoTramo(tramo_id) {
+		var informe = getValues()
+		{{!-- console.log(informe.fecha) --}}
+		if(confirm(`¿Está seguro que desea eliminar el contenido del tramo ${tramo_id}?`) == true) {
+			$.ajax({
+				type: "DELETE",
+				url: `web/semanal/informe/fecha/${informe.fecha}/tramo/${tramo_id}`,
+				error: (xhr, textStatus, errorThrown)=>{
+					if(xhr && xhr.responseText) {
+						var response = JSON.parse(xhr.responseText)
+						alert(response.message)
+					} else {
+						alert(errorThrown.toString())
+					}
+				},
+				success: ()=>{
+					$(`textarea[name=${tramo_id}]`).val("")
+					alert("Contenido eliminado")
+				},
+				timeout: 10000
+			})
+		}
+	}
+	window.onbeforeunload = function() {
+		if(is_editing.size > 0) {
+			return "¿Está seguro que desea salir de la página?";
+		}
+	};
+	$("form#post input").change((event)=>{
+		is_editing.add($(event.target).attr("name"))
+	})
+	$("form#post textarea").on('input',()=>{
+		var id = $(event.target).attr("name")
+		is_editing.add(id)
+		$(event.target).addClass("edited").removeClass("not_edited") // .css('background-color', "white")
+		$(`button.update_button#post_${id}`).prop("disabled",false)
+	})
+	$("form#import_informe").submit(e=>{
+		e.preventDefault()
+		var formData = new FormData(e.target)
+		console.log(formData.toString())
+		$.ajax({
+            type: "POST",
+            url: "web/semanal/informe",
+            data: formData,
+            error: (jqXHR, textStatus, errorThrown)=>{
+                alert(errorThrown.toString())
+            },
+            success: ()=>{
+                alert("Informe semanal importado")
+				is_editing.clear()
+                location.reload()
+            },
+			cache: false,
+            contentType: false,
+			processData: false,
+            timeout: 10000
+        })
+	})
+
+	{{!-- window.onload = function() {
+		if(!$("form#post input[name=fecha]").val()) {
+			var fecha = new Date()
+            console.log("setting fecha to today")
+			$("form#post input[name=fecha]").val(fecha.toISOString().substring(0,10))
+		}
+	} --}}
+</script>

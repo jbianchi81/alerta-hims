@@ -9,10 +9,12 @@ const exphbs = require('express-handlebars')
 var bodyParser = require('body-parser')
 const { body } = require('express-validator');
 const querystring = require('querystring');
+// const fileUpload = require('express-fileupload')
 
-const { Pool, Client } = require('pg')
-const readline = require("readline");
-const { exec } = require('child_process');
+const { Pool } = require('pg')
+// const readline = require("readline");
+// const { exec } = require('child_process');
+const spawn = require('child_process').spawn
 
 const crypto = require('crypto')
 
@@ -27,12 +29,12 @@ const accessors = require('./accessors')
 
 var default_rast_location = (config.rast) ? (config.rast.location) ? config.rast.location : "public" : "public"
 
-const basicAuth = require('express-basic-auth')
-var flash = require('express-flash')
-var cookieParser = require('cookie-parser')
+// const basicAuth = require('express-basic-auth')
+// var flash = require('express-flash')
+// var cookieParser = require('cookie-parser')
 var session = require('express-session')
-const FileStore = require('session-file-store')(session);
-const uuid = require('uuid/v4')
+// const FileStore = require('session-file-store')(session);
+// const uuid = require('uuid')
 
 var path = require('path');
 const tar = require('tar');
@@ -48,6 +50,10 @@ pool.on('connect', client=>{
 // file_indexer
 const file_indexer = require('./file_indexer')
 const indexer = new file_indexer.file_indexer(pool)
+
+//mareas
+const Mareas = require('./mareas')
+const mareas = new Mareas.CRUD(pool)
 
 // print_rast
 const printRast = require('./print_rast')
@@ -99,10 +105,15 @@ app.use(express.static('public', {
 		}
 	}	
 }));
+// app.use(fileUpload({
+//     createParentPath: true
+// }));
 const LocalStrategy = require('passport-local').Strategy;
 //~ const BasicStrategy = require('passport-http').BasicStrategy
 
 const formidable = require('formidable')
+const { makeBrowseAsync } = require('./print_rast')
+const { relativeTimeThreshold } = require('moment-timezone')
 
 
 // CONTROLLER //
@@ -465,15 +476,16 @@ app.get('/obs/:tipo/regular',auth.isAuthenticated,getMultipleRegularSeries)
 app.get('/obs/puntual/campo',auth.isPublic,getCampo) // isAuthenticated
 app.get('/obs/puntual/campo',auth.isPublic,getCampoSerie) // isAuthenticated
 app.get('/obs/asociaciones',auth.isWriter,(req,res)=>{
-	if(req.query.run) {
+	if(req.query.run && req.query.run.toString().toLowerCase() == 'true') {
 		runAsociaciones(req,res)
 	} else {
 		getAsociaciones(req,res)
 	}
 })
 app.post('/obs/asociaciones',auth.isAdmin,upsertAsociaciones)
+app.delete('/obs/asociaciones',auth.isAdmin,deleteAsociaciones)
 app.get('/obs/asociaciones/:id',auth.isWriter,(req,res)=>{
-	if(req.query.run) {
+	if(req.query.run && req.query.run.toString().toLowerCase() == 'true') {
 		runAsociacion(req,res)
 	} else {
 		getAsociacion(req,res)
@@ -482,17 +494,26 @@ app.get('/obs/asociaciones/:id',auth.isWriter,(req,res)=>{
 app.put('/obs/asociaciones/:id',auth.isAdmin,upsertAsociacion)
 app.delete('/obs/asociaciones/:id',auth.isAdmin,deleteAsociacion)
 app.get('/obs/:tipo/series/:series_id/estadisticosDiariosSuavizados',auth.isPublic,(req,res)=>{
-	if(req.query.run) {
+	if(req.query.run && req.query.run.toString().toLowerCase() == 'true') {
 		isWriter(req,res,()=> getCuantilesDiariosSuavizados(req,res))
 	} else {
 		getDailyDoyStats(req,res)
 	}
 })
 app.post('/obs/:tipo/series/:series_id/estadisticosDiariosSuavizados',auth.isWriter,upsertCuantilesDiariosSuavizados)
+app.get('/obs/:tipo/series/:series_id/estadisticosMensuales',auth.isPublic,(req,res)=>{
+	if(req.query.run && req.query.run.toString().toLowerCase() == 'true') {
+		auth.isWriter(req,res,()=> upsertMonthlyStats(req,res))
+	} else {
+		getMonthlyStats(req,res)
+	}
+})
+app.post('/obs/:tipo/series/:series_id/estadisticosMensuales',auth.isWriter,upsertMonthlyStats)
 app.get('/obs/:tipo/series/:series_id/estadisticosDiariosSuavizados/:cuantil',auth.isAuthenticated,getCuantilDiarioSuavizado)
 app.get('/obs/:tipo/series/:series_id/percentilesDiarios',auth.isPublic,getPercentilesDiarios)
 app.post('/obs/:tipo/series/:series_id/percentilesDiarios',auth.isWriter,upsertPercentilesDiarios)
 app.get('/obs/:tipo/series/:series_id/percentilesDiarios/:timestart/:timeend',auth.isPublic,getPercentilesDiariosBetweenDates)
+app.get('/obs/:tipo/series/:series_id/percentiles',auth.isPublic,getPercentiles)
 
 app.post('/tools/geojson2rast',auth.isAuthenticated,geojson2rast)
 app.get('/tools/pp_cdp/:timestart',auth.isAuthenticated,read_pp_cdp)
@@ -522,7 +543,8 @@ app.get('/file_index/colecciones',auth.isPublic,getColeccionesRaster)
 app.get('/file_index/colecciones/:id',auth.isPublic,getColeccionesRaster)
 app.get('/file_index/colecciones/:col_id/productos',auth.isPublic,getGridded)
 app.put('/file_index/colecciones/:col_id/productos',auth.isAdmin,runGridded)
-
+// MAREAS
+app.get('/obs/mareas_rdp',auth.isAuthenticated,getAlturasMareaFull)
 // LOGIN
 app.get('/login',(req,res)=>{
 	//~ console.log(req)
@@ -726,6 +748,38 @@ app.post('/userChangePassword',auth.isAuthenticated, (req,res)=>{
 		//~ }
 	//~ })
 })
+
+// informe_semanal
+var Informe_semanal = require('./informe_semanal.js').rest
+var informe_semanal = new Informe_semanal(pool,config)
+
+app.get('/web/semanal/region', (req,res)=>informe_semanal.getRegiones(req,res))
+app.get('/web/semanal/region/id/:region_id', (req,res)=>informe_semanal.getRegionById(req,res))
+app.get('/web/semanal/tramo', (req,res)=>informe_semanal.getTramos(req,res))
+app.get('/web/semanal/region/id/:region_id/tramos', (req,res)=>informe_semanal.getTramos(req,res))
+app.get('/web/semanal/tramo/id/:tramo_id', (req,res)=>informe_semanal.getTramoById(req,res))
+app.get('/web/semanal/informe', (req,res)=>informe_semanal.getInforme(req,res))
+app.get('/web/semanal/informe/fecha/:fecha', (req,res)=>informe_semanal.getInformeByFecha(req,res))
+app.get('/web/semanal/informe/fecha/:fecha/region/:region_id', (req,res)=>informe_semanal.getContenidoByFechaByRegion(req,res))
+app.get('/web/semanal/informe/region/:region_id', (req,res)=>informe_semanal.getContenidoByRegion(req,res))
+app.post('/web/semanal/informe', auth.isWriter, (req,res)=>{
+	if(req.body && Object.keys(req.body).length) {
+		informe_semanal.postInformeJSON(req,res)
+	} else {
+		const form = new formidable.IncomingForm({})
+		form.parse(req, (err, fields, files) => informe_semanal.postInforme(res,err,fields,files))
+	}
+})
+app.post('/web/semanal/informe/fecha/:fecha', auth.isWriter, (req,res)=>informe_semanal.postInformeFecha(req,res))
+app.post('/web/semanal/informe/region/:region_id', auth.isWriter, (req,res)=>informe_semanal.postContenidoRegion(req,res))
+app.post('/web/semanal/informe/fecha/:fecha/region/:region_id', auth.isWriter, (req,res)=>informe_semanal.postContenidoRegion(req,res))
+app.post('/web/semanal/informe/tramo/:tramo_id', auth.isWriter, (req,res)=>informe_semanal.postContenidoTramo(req,res))
+app.post('/web/semanal/informe/fecha/:fecha/tramo/:tramo_id', auth.isWriter, (req,res)=>informe_semanal.postContenidoTramo(req,res))
+app.delete('/web/semanal/informe/fecha/:fecha', auth.isWriter, (req,res)=>informe_semanal.deleteInformeFecha(req,res))
+app.delete('/web/semanal/informe/fecha/:fecha/region/:region_id',(req,res)=>informe_semanal.deleteContenido(req,res))
+app.delete('/web/semanal/informe/fecha/:fecha/tramo/:tramo_id',(req,res)=>informe_semanal.deleteContenidoTramo(req,res))
+// GUI
+app.get('/web_semanal',auth.isWriterView, (req,res)=>informe_semanal.renderForm(req,res))
 
 // CRUD FUNCTION CALLERS //
 
@@ -1108,16 +1162,18 @@ function upsertVariables(req,res) {
 		res.status(400).send({message:"query error",error:e.toString()})
 		return
 	}
-	if(!req.body.variables) {
+	var variables
+	if(req.body.variables) {
+		variables = req.body.variables
+	} else if(Array.isArray(req.body)) {
+			variables = req.body
+	} else {
 		res.status(400).send({message:"query error",error:"Falta atributo 'variables'"})
 		return
 	}
-	var variables
-	if(typeof req.body.variables == "string") {
-		variables = JSON.parse(req.body.variables.trim())
-	} else {
-		variables = req.body.variables
-	}
+	if(typeof variables == "string") {
+		variables = JSON.parse(variables.trim())
+	} 
 	if(!Array.isArray(variables)) {
 		res.status(400).send({message:"query error",error:"Atributo 'variables debe ser un array'"})
 		return
@@ -2347,6 +2403,7 @@ function deleteSeries(req,res) {
 	var count_filters=countValidFilters(valid_filters,filter)
 	if(count_filters == 0) {
 		res.status(400).send({message:"bad request. filters missing"})
+		return
 	}
 	crud.deleteSeries(filter)
 	.then(result=>{
@@ -3213,11 +3270,16 @@ function upsertAsociaciones(req,res) {
 		res.status(400).send({message:"missing request body"})
 		return
 	}
-	if(!req.body.asociaciones) {
+	var asociaciones
+	if(req.body.asociaciones) {
+		asociaciones = req.body.asociaciones
+	} else if (Array.isArray(req.body)) {
+		asociaciones = req.body
+	} else {
 		res.status(400).send({message:"missing object asociaciones in request body"})
 		return
 	}
-	crud.upsertAsociaciones(req.body.asociaciones,options)
+	crud.upsertAsociaciones(asociaciones,options)
 	.then(result=>{
 		res.send(result)
 	})
@@ -3343,6 +3405,32 @@ function deleteAsociacion(req,res) {
 	})
 }
 
+function deleteAsociaciones(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	} 
+	var valid_filters = {id:{type:"number"},source_tipo: {type: "string"}, source_series_id: {type: "number"}, source_estacion_id: {type: "number"}, source_fuentes_id: {type: "string"}, source_var_id: {type: "number"},  source_proc_id: {type: "number"}, dest_tipo: {type: "string"}, dest_series_id: {type: "number"}, dest_var_id: {type: "number"}, dest_proc_id: {type: "number"}, agg_func: {type: "string"}, dt: {type: "interval"}, t_offset: {type: "interval"},habilitar: {type: "boolean"}}
+	var count_filters = countValidFilters(valid_filters,filter)
+	if(count_filters == 0) {
+		res.status(400).send({message:"bad request. filters missing"})
+		return
+	}
+	// console.log({filter:filter})
+	crud.deleteAsociaciones(filter)
+	.then(result=>{
+		res.send(result)
+	})
+	.catch(e=>{
+		res.status(404).send(e.toString())
+	})
+}
+
+
 // SECCIONES view backend
 
 function getSeriesBySiteAndVar(req,res) {  //	estacion_id,var_id,timestart,timeend,includeProno=true)
@@ -3377,21 +3465,42 @@ function getSeriesBySiteAndVar(req,res) {  //	estacion_id,var_id,timestart,timee
 		timeend = new Date(filter.timeend)
 	}
 	var includeProno = (typeof options.includeProno == "undefined") ? true : options.includeProno
+	// var stats = (options.stats) ? options.stats : "monthly"
 	//~ console.log({estacion_id: filter.estacion_id, var_id: filter.var_id, timestart: timestart, timeend: timeend, includeProno: includeProno})
 	crud.getSeriesBySiteAndVar(filter.estacion_id, filter.var_id, timestart, timeend, includeProno, undefined, undefined, filter.proc_id,filter.public,filter.forecast_date)
 	.then(result=>{
 		if(!result) {
 			res.status(400).send({error:"serie no encontrada",message:"serie no encontrada"})
 		} else {
-			crud.getDailyDoyStats("puntual",result.id)
-			.then(dailystatslist=>{
-				// console.log("got dailyDoyStats at:" + Date())
-				result.dailyDoyStats = dailystatslist.values
+			if(options.stats) {
+				if(options.stats.toLowerCase() == "daily" ) {
+					crud.getDailyDoyStats("puntual",result.id)
+					.then(dailystatslist=>{
+					// console.log("got dailyDoyStats at:" + Date())
+						result.dailyDoyStats = dailystatslist.values
+						res.send(result)
+					})
+					.catch(e=>{
+						console.error(e)
+						res.send(result)
+					})
+				} else if(options.stats.toLowerCase() == "monthly") {
+					crud.getMonthlyStats("puntual",result.id)
+					.then(monthlystatslist=>{
+						// console.log("got dailyDoyStats at:" + Date())
+						result.monthlyStats = monthlystatslist.values
+						res.send(result)
+					})
+					.catch(e=>{
+						console.error(e)
+						res.send(result)
+					})
+				} else {
+					res.status(400).send("bad option: stats:" + options.stats)
+				}
+			} else {
 				res.send(result)
-			})
-			.catch(e=>{
-				res.send(result)
-			})
+			}
 		}
 	})
 	.catch(e=>{
@@ -3779,6 +3888,30 @@ function getCuantilesDiariosSuavizados(req,res) {
 	})
 }
 
+function getMonthlyStats(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	crud.getMonthlyStats(filter.tipo,filter.series_id,filter.public)
+	.then(result=>{
+		if(filter.format == "csv") {
+			res.setHeader('content-type','text/plain')
+			res.send(result.toCSV())
+		} else {
+			res.send(result)
+		}
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send(e)
+	})
+}
+
 function getCuantilDiarioSuavizado(req,res) {
 	try {
 		var filter = getFilter(req)
@@ -3939,6 +4072,29 @@ function getPercentilesDiariosBetweenDates(req,res) {
 	})	
 }
 
+function upsertMonthlyStats(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	crud.upsertMonthlyStats(filter.tipo,filter.series_id)
+	.then(result=>{
+		if(filter.format == "csv") {
+			res.setHeader('content-type','text/plain')
+			res.send(result.toCSV())
+		} else {
+			res.send(result.values)
+		}
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send(e)
+	})
+}
 function upsertCuantilesDiariosSuavizados(req,res) {
 	try {
 		var filter = getFilter(req)
@@ -3954,21 +4110,13 @@ function upsertCuantilesDiariosSuavizados(req,res) {
 		.then(result=>{
 			// console.log({valueslength:result.values.length})
 			if(result.values.length==0) {
-				return crud.getCuantilesDiariosSuavizados(filter.tipo,filter.series_id,filter.timestart,filter.timeend,filter.range,filter.t_offset,filter.precision,filter.public)
-				.then(dailyStats=>{
-					//~ console.log(dailyStats)
-					return crud.upsertDailyDoyStats(dailyStats)
-				})
+				return crud.upsertDailyDoyStats2(filter.tipo,filter.series_id,filter.timestart,filter.timeend,filter.range,filter.t_offset,filter.precision,filter.public)
 			} else {
 				return result
 			}
 		})
 	} else {
-		promise = crud.getCuantilesDiariosSuavizados(filter.tipo,filter.series_id,filter.timestart,filter.timeend,filter.range,filter.t_offset,filter.precision)
-		.then(dailyStats=>{
-			//~ console.log(dailyStats)
-			return crud.upsertDailyDoyStats(dailyStats)
-		})
+		promise = crud.upsertDailyDoyStats2(filter.tipo,filter.series_id,filter.timestart,filter.timeend,filter.range,filter.t_offset,filter.precision)
 	}
 	promise
 	.then(result=>{
@@ -4008,6 +4156,33 @@ function getDailyDoyStats(req,res) {
 		res.status(400).send(e)
 	})
 }
+
+function getPercentiles(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	crud.getPercentiles(filter.tipo,filter.series_id,filter.percentil,filter.public)
+	.then(result=>{
+		if(filter.format == "csv") {
+			res.setHeader('content-type','text/plain')
+			res.send("# tipo,series_id,percentil,valor,count,timestart,timeend\n" + result.map(r=>r.toCSV()).join("\n"))
+		} else if (filter.format == "csvless") {
+			res.setHeader('content-type','text/plain')
+			res.send(result.map(r=>r.toCSVless()).join("\n")) 
+		} else {
+			res.send(result)
+		}
+	}).catch(e=>{
+		console.error(e)
+		res.status(400).send(e)
+	})
+}
+
 
 //~ function updateCuantilesDiariosSuavizados(req,res) {
 	//~ try {
@@ -4561,11 +4736,13 @@ function renderAccessorUploadForm(req,res) {
 	accessors.new(req.query.class)
 	.then(accessor=>{
 		var upload_fields = (accessor.upload_fields) ? Object.keys(accessor.upload_fields).map(key=>{
+			var default_value = (accessor.upload_fields[key].default) ? (accessor.upload_fields[key].type && accessor.upload_fields[key].type == "date") ? (typeof accessor.upload_fields[key].default == "number") ? new Date(new Date().getTime() - accessor.upload_fields[key].default * 24 * 3600 * 1000).toISOString().substring(0,10) : new Date(accessor.upload_fields[key].default).toISOString().substring(0,10) :  accessor.upload_fields[key].default : undefined
 			return {
 				name: key,
 				description: accessor.upload_fields[key].description,
 				type: accessor.upload_fields[key].type,
-				required: accessor.upload_fields[key].required
+				required: accessor.upload_fields[key].required,
+				default: default_value
 			}
 		}) : undefined
 		var params = {"class":accessor.clase, "title": accessor.title, "upload_fields": upload_fields}
@@ -4871,6 +5048,41 @@ function updateSitesFromAccessor(req,res) {
 	})
 }
 
+function getSeriesFromAccessor(req,res) {
+	if(!req.params || !req.params.name) {
+		console.error("falta name")
+		res.status(400).send({message:"falta name"})
+		return
+	}
+    try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e.toString())
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	accessors.new(req.params.name)
+	.then(accessor=>{
+		if(typeof accessor.engine.getSeries !== 'function') {
+			throw("Este accessor no tiene definida la función getSeries")
+		} 
+		return accessor.engine.getSeries(filter,options)
+		.then(result=>{
+			if(result) {
+				send_output(options,result,res)
+				//~ pool.query("UPDATE accessors set time_update=$1 WHERE name=$2",[accessor.time_update,accessor.name])
+			} else {
+				res.status(400).send({message:"accessor getSeries failed"})
+			}
+		})
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({message:e.toString()})
+	})
+}
+
 function uploadToAccessor(req,res) {
 	if(!req.params || !req.params.name) {
 		console.error("falta name")
@@ -4951,32 +5163,32 @@ function uploadToAccessor(req,res) {
 	})
 }
 
-function getSeriesFromAccessor(req,res) {
-	if(!req.params || !req.params.name) {
-		console.error("falta name")
-		res.status(400).send({message:"falta name"})
-		return
-	}
-	try {
-		var filter = getFilter(req)
-		var options = getOptions(req)
-	} catch (e) {
-		console.error(e)
-		res.status(400).send({message:"query error",error:e.toString()})
-		return
-	}
-	accessors.new(req.params.name)
-	.then(accessor=>{
-		return accessor.engine.getSeries(filter,options)
-	})
-	.then(result=>{
-		send_output(options,result,res)
-	})
-	.catch(e=>{
-		console.error(e)
-		res.status(400).send(e.toString())
-	})
-}
+// function getSeriesFromAccessor(req,res) {
+// 	if(!req.params || !req.params.name) {
+// 		console.error("falta name")
+// 		res.status(400).send({message:"falta name"})
+// 		return
+// 	}
+// 	try {
+// 		var filter = getFilter(req)
+// 		var options = getOptions(req)
+// 	} catch (e) {
+// 		console.error(e)
+// 		res.status(400).send({message:"query error",error:e.toString()})
+// 		return
+// 	}
+// 	accessors.new(req.params.name)
+// 	.then(accessor=>{
+// 		return accessor.engine.getSeries(filter,options)
+// 	})
+// 	.then(result=>{
+// 		send_output(options,result,res)
+// 	})
+// 	.catch(e=>{
+// 		console.error(e)
+// 		res.status(400).send(e.toString())
+// 	})
+// }
 
 function updateSeriesFromAccessor(req,res) {
 	if(!req.params || !req.params.name) {
@@ -4994,7 +5206,10 @@ function updateSeriesFromAccessor(req,res) {
 	}
 	accessors.new(req.params.name)
 	.then(accessor=>{
-		return accessor.engine.upsertSeries(filter,options)
+		if(!accessor.engine.updateSeries) {
+			throw("updateSeries not defined for accessor")
+		}
+		return accessor.engine.updateSeries(filter,options)
 	})
 	.then(result=>{
 		send_output(options,result,res)
@@ -5733,6 +5948,28 @@ function thinObs(req,res) {
 	})
 }
 
+// PRUNE
+
+function pruneObs(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	pruneObs(filter.tipo,filter, options={})
+	.then(result=>{
+		send_output(result)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send(e.toString())
+	})
+
+}
+
 
 // 2mnemos
 
@@ -6381,6 +6618,27 @@ function runGridded (req,res) {
 	})
 }
 
+// mareas
+
+function getAlturasMareaFull(req,res) {
+	try {
+		var filter = getFilter(req)
+		var options = getOptions(req)
+	} catch (e) {
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+		return
+	}
+	mareas.getAlturasMareaFull(filter)
+	.then(result=>{
+		send_output(options,result,res)
+	})
+	.catch(e=>{
+		console.error(e)
+		res.status(400).send({message:"query error",error:e.toString()})
+	})
+}
+
 // aux functions
 
 function arr2csv(arr) {
@@ -6565,6 +6823,33 @@ function send_output(options,data,res) {
 					console.error(e)
 					res.status(400).send({message:"query error",error:e.toString()})
 				})
+			} else if (options.format.toLowerCase() == 'waterml2') {
+				if(!Array.isArray(data)) {
+					data = [data]
+				}
+				for(var item of data) {
+					var is_serie = (item instanceof CRUD.serie)
+					if(!is_serie) {
+						console.error("Formato solicitado válido sólo para series")
+						res.status(400).send("Formato solicitado válido sólo para series")
+						return	
+					}
+				}
+				return crud.series2waterml2(data)
+				.then(result=>{
+					output = result
+					contentType = "application/xml"
+					console.log("about to send " + output.length + " characters of data")
+					res.setHeader('Content-Type', contentType);
+					res.end(output);
+					return
+				})
+				.catch(e=>{
+					console.error(e)
+					res.status(500).send({message:e.toString()})
+					return
+	
+				})
 			} else {
 				console.error("Formato solicitado inválido: opciones: json, geojson, mnemos, csv, string")
 				res.status(400).send("Formato solicitado inválido: opciones: json, geojson, mnemos, csv, string")
@@ -6583,9 +6868,28 @@ function send_output(options,data,res) {
 		}
 		contentType="application/json"
 	}
-	console.log("about to send " + output.length + " characters of data")
-	res.setHeader('Content-Type', contentType);
-    res.end(output);
+	if(options.zip) {
+		contentType="zip"
+		var zip = spawn('zip',['-rj', '-', '-'])
+		zip.stdout.on('data',(data)=>{
+			res.write(data)
+		})
+		zip.on('exit', (code)=>{
+			if(code !== 0) {
+				res.statusCode = 500;
+				console.log('zip process exited with code ' + code);
+				res.end();
+			} else {
+				res.end();
+			}
+		})
+		zip.stdin.write(output + "\n")
+		zip.stdin.end()
+	} else {
+		console.log("about to send " + output.length + " characters of data")
+		res.setHeader('Content-Type', contentType);
+		res.end(output);
+	}
 }
 	
 // function print_rast(options,serie,obs) {
@@ -6674,7 +6978,7 @@ function getFilter(req) {
 			}
 		}
 		if(req.body.unid) {
-			filter.unid = req.body.unid
+			filter.unid = parseIntList(req.body.unid)
 		}
 		if(req.body.id_externo) {
 			filter.id_externo = parseStringList(req.body.id_externo)
@@ -6806,7 +7110,7 @@ function getFilter(req) {
 		if(req.body.orden) {
 			filter.orden = req.body.orden
 		}
-		["source_tipo","source_series_id","dest_tipo","dest_series_id","source_var_id","dest_var_id","source_proc_id","dest_proc_id","provider_id","var","abrev","type", "datatype", "valuetype", "GeneralCategory", "VariableName", "SampleMedium","def_unit_id","timeSupport","no_metadata","habilitar","provincia","pais","rio","has_obs","automatica","propietario","abreviatura","url","localidad","real","nivel_alerta","nivel_evacuacion","nivel_aguas_bajas","altitud","distrito","escena_id","accessor","asociacion","exutorio_id","cal_grupo_id","has_prono","col_id"].forEach(k=>{
+		["source_tipo","source_series_id","dest_tipo","dest_series_id","source_var_id","dest_var_id","source_proc_id","dest_proc_id","provider_id","var","abrev","type", "datatype", "valuetype", "GeneralCategory", "VariableName", "SampleMedium","def_unit_id","timeSupport","no_metadata","habilitar","provincia","pais","rio","has_obs","automatica","propietario","abreviatura","url","localidad","real","nivel_alerta","nivel_evacuacion","nivel_aguas_bajas","altitud","distrito","escena_id","accessor","asociacion","exutorio_id","cal_grupo_id","has_prono","col_id","date_range_before","date_range_after"].forEach(k=>{
 			if(req.body[k]) {
 				filter[k] = req.body[k]
 			}
@@ -6848,7 +7152,7 @@ function getFilter(req) {
 			}
 		}
 		if(req.query.unid) {
-			filter.unid = req.query.unid
+			filter.unid = parseIntList(req.query.unid)
 		}
 		if(req.query.id_externo) {
 			filter.id_externo = parseStringList(req.query.id_externo)
@@ -6990,7 +7294,7 @@ function getFilter(req) {
 		if(req.query.orden) {
 			filter.orden = req.query.orden
 		}
-		["source_tipo","source_series_id","dest_tipo","dest_series_id","source_var_id","dest_var_id","source_proc_id","dest_proc_id","provider_id","var","abrev","type", "datatype", "valuetype", "GeneralCategory", "VariableName", "SampleMedium","def_unit_id","timeSupport","no_metadata","id_grupo","habilitar","provincia","pais","rio","has_obs","automatica","propietario","abreviatura","url","localidad","real","nivel_alerta","nivel_evacuacion","nivel_aguas_bajas","altitud","distrito","escena_id","accessor","asociacion","exutorio_id","cal_grupo_id","has_prono","data_availability","col_id"].forEach(k=>{
+		["source_tipo","source_series_id","dest_tipo","dest_series_id","source_var_id","dest_var_id","source_proc_id","dest_proc_id","provider_id","var","abrev","type", "datatype", "valuetype", "GeneralCategory", "VariableName", "SampleMedium","def_unit_id","timeSupport","no_metadata","id_grupo","habilitar","provincia","pais","rio","has_obs","automatica","propietario","abreviatura","url","localidad","real","nivel_alerta","nivel_evacuacion","nivel_aguas_bajas","altitud","distrito","escena_id","accessor","asociacion","exutorio_id","cal_grupo_id","has_prono","data_availability","col_id","date_range_before","date_range_after"].forEach(k=>{
 			if(req.query[k]) {
 				filter[k] = req.query[k]
 			}
@@ -7076,10 +7380,16 @@ function getOptions(req) {
 			}
 		}
 		if(req.body.pretty) {
-			options.pretty = true
+			options.pretty = (req.body.pretty.toString().toLowerCase() == 'true')
 		}
 		if(req.body.getStats) {
-			options.getStats = true
+			options.getStats = (req.body.getStats.toString().toLowerCase() == 'true')
+		}
+		if(req.body.getMonthlyStats) {
+			options.getMonthlyStats = (req.body.getMonthlyStats.toString().toLowerCase() == 'true')
+		}
+		if(req.body.getPercentiles) {
+			options.getPercentiles = (req.body.getPercentiles.toString().toLowerCase() == 'true')
 		}
 		if(req.body.funcion) {
 			options.funcion = req.body.funcion //~ .option('-f, --funcion <value>', 'funcion de agregacion temporal (defaults to SUM')
@@ -7154,7 +7464,10 @@ function getOptions(req) {
 		if(req.body.returnSkipped) {
 			options.returnSkipped = (req.body.returnSkipped.toString().toLowerCase() == 'true')
 		}
-		["agg_func","dt","t_offset","id_grupo","get_raster","min_count","group_by_cal","interval"].forEach(k=>{
+		if(req.body.zip) {
+			options.zip = (req.body.zip.toString().toLowerCase() == 'true')
+		}
+		["agg_func","dt","t_offset","id_grupo","get_raster","min_count","group_by_cal","interval","stats","pivot"].forEach(k=>{
 			if(req.body[k]) {
 				options[k] = req.body[k]
 			}
@@ -7180,10 +7493,16 @@ function getOptions(req) {
 			}
 		}
 		if(req.query.pretty) {
-			options.pretty = true
+			options.pretty = (req.query.pretty.toString().toLowerCase() == 'true')
 		}
 		if(req.query.getStats) {
-			options.getStats = true
+			options.getStats = (req.query.getStats.toString().toLowerCase() == 'true')
+		}
+		if(req.query.getMonthlyStats) {
+			options.getMonthlyStats = (req.query.getMonthlyStats.toString().toLowerCase() == 'true')
+		}
+		if(req.query.getPercentiles) {
+			options.getPercentiles = (req.query.getPercentiles.toString().toLowerCase() == 'true')
 		}
 		if(req.query.funcion) {
 			options.funcion = req.query.funcion //~ .option('-f, --funcion <value>', 'funcion de agregacion temporal (defaults to SUM')
@@ -7258,7 +7577,13 @@ function getOptions(req) {
 		if(req.query.returnSkipped) {
 			options.returnSkipped = (req.query.returnSkipped.toString().toLowerCase() == 'true')
 		}
-		["agg_func","dt","t_offset","get_raster","min_count","group_by_cal","interval"].forEach(k=>{
+		if(req.query.zip) {
+			options.zip = (req.query.zip.toString().toLowerCase() == 'true')
+		}
+		if(req.query.return_raw) {
+			options.return_raw = (req.query.return_raw.toString().toLowerCase() == 'true')
+		}
+		["agg_func","dt","t_offset","get_raster","min_count","group_by_cal","interval","stats","pivot"].forEach(k=>{
 			if(req.query[k]) {
 				options[k] = req.query[k]
 			}
@@ -7350,7 +7675,7 @@ function guess_tipo (data) {
 		var tipo_guess = data[0].tipo
 		var count = 0
 		for(var i in data) {
-			if (data[i].tipo != tipo_guess) {
+			if (data[i] && data[i].tipo != tipo_guess) {
 				break
 			}
 			count++

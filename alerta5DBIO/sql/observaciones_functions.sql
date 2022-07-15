@@ -231,7 +231,9 @@ CREATE OR REPLACE FUNCTION public.orden_model_forz()
  LANGUAGE plpgsql
  STABLE
 AS $function$
-begin;
+declare
+orden int;
+begin
     if NEW.orden is NULL then
         execute ( 'select coalesce(max(orden)+1,1) from ' || TG_TABLE_NAME || ' where model_id=' || new.model_id ) into orden;
         NEW.orden := orden;

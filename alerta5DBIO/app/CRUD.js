@@ -24,6 +24,42 @@ const utils = require('./utils')
 const control_filter = utils.control_filter
 const control_filter2 = utils.control_filter2
 const pasteIntoSQLQuery = utils.pasteIntoSQLQuery
+const build_group_by_clause = utils.build_group_by_clause
+const QueryStream = require('pg-query-stream')
+const JSONStream = require('JSONStream')
+
+var Validator = require('jsonschema').Validator;
+const { errorMonitor } = require('events');
+var turfHelpers = require("@turf/helpers")
+var bboxPolygon = require("@turf/bbox-polygon")
+var pointsWithinPolygon = require("@turf/points-within-polygon")
+// const { createCipheriv } = require('crypto');
+
+const series2waterml2 = require('./series2waterml2')
+
+const apidoc = JSON.parse(fs.readFileSync('public/json/apidocs.json','utf-8'))
+var schemas = apidoc.components.schemas
+traverse(schemas,changeRef)
+var v = new Validator();
+for(var key in schemas) {
+    v.addSchema(schemas[key],"/" + key)
+}
+
+function changeRef(object,key) {
+    if(key == "$ref") {
+        object[key] = "/" + object[key].split("/").pop()
+    }
+}
+
+function traverse(o,func) {
+    for (var i in o) {
+        func.apply(this,[o,i]);  
+        if (o[i] !== null && typeof(o[i])=="object") {
+            //going one step down in the object tree!!
+            traverse(o[i],func);
+        }
+    }
+}
 
 if (!Promise.allSettled) {
   Promise.allSettled = promises =>
@@ -109,7 +145,31 @@ internal.geometry = class {
 			return null
 		}
 	}
-
+	toGeoJSON(properties) {
+		return turfHelpers.feature(this,properties)
+		// var geojson
+		// switch(this.geom.type.toLowerCase()) {
+		// 	case "point":
+		// 		geojson = turfHelpers.point(this.geom.coordinates)
+		// 		break;
+		// 	case "polygon":
+		// 		geojson = turfHelpers.polygon(this.geom.coordinates)
+		// 		break;
+		// 	case "line":
+		// 		geojson = turfHelpers.line()
+		// }
+		// return geojson
+	}
+	distance(feature) {
+		if(feature instanceof internal.geometry) {
+			feature = feature.toGeoJSON()
+		}
+		if(this.type != "Point" || feature.geometry.type != "Point") {
+			console.error("distance only works for points")
+			return
+		}
+		return this.distance(feature,this.toGeoJSON(),{units:"kilometers"})
+	}
 }
 
 internal.red = class {
@@ -166,10 +226,38 @@ internal.red = class {
 		.catch(e=>{
 			console.error(e)
 		})
+	}		
+}
+
+internal.red.build_read_query = function (filter) {
+	//~ console.log(filter)
+	const valid_filters = {nombre:"regex_string", tabla_id:"string", public:"boolean", public_his_plata:"boolean", id:"integer"}
+	var filter_string=""
+	var control_flag=0
+	Object.keys(valid_filters).forEach(key=>{
+		if(filter[key]) {
+			if(/[';]/.test(filter[key])) {
+				console.error("Invalid filter value")
+				control_flag++
+			}
+			if(valid_filters[key] == "regex_string") {
+				var regex = filter[key].replace('\\','\\\\')
+				filter_string += " AND " + key  + " ~* '" + filter[key] + "'"
+			} else if(valid_filters[key] == "string") {
+				filter_string += " AND "+ key + "='" + filter[key] + "'"
+			} else if (valid_filters[key] == "boolean") {
+				var boolean = (/^[yYtTvVsS1]/.test(filter[key])) ? "true" : "false"
+				filter_string += " AND "+ key + "=" + boolean + ""
+			} else {
+				filter_string += " AND "+ key + "=" + filter[key] + ""
+			}
+		}
+	})
+	if(control_flag > 0) {
+		return Promise.reject(new Error("invalid filter value"))
 	}
-	
-			
-		
+	//~ console.log("filter_string:" + filter_string)
+	return "SELECT * from redes WHERE 1=1 " + filter_string
 }
 
 internal.estacion = class {
@@ -302,7 +390,40 @@ internal.estacion = class {
 	toCSVless() {
 		return this.id + "," + this.nombre + "," + this.tabla + "," + this.geom.toString()
 	}
-
+	toGeoJSON(includeProperties=true) {
+		var geojson
+		geojson = turfHelpers.point(this.geom.coordinates)
+		if(includeProperties) {
+			geojson.properties = {}
+			Object.keys(this).forEach(key=>{
+				if(key == "geom") {
+					return
+				}
+				geojson.properties[key] = this[key]
+			})
+		}
+		return geojson
+	}
+	isWithinPolygon(polygon) {
+		if(polygon instanceof internal.geometry) {
+			if(polygon.type.toLowerCase() != "polygon") {
+				console.error("bad geometry for polygon")
+				return false
+			}
+			polygon = polygon.toGeoJSON()
+		}
+		if(!this.geom || !this.geom.coordinates || this.geom.coordinates.length < 2) {
+			console.error("isWithinPolygon: Missing geometry for estacion")
+			return false
+		}
+		var point = this.toGeoJSON(false) // turfHelpers.point([this.geom.coordinates[0],this.geom.coordinates[1]])
+		var within = pointsWithinPolygon(point,polygon)
+		if(within.features.length) {
+			return true
+		} else {
+			return false
+		}
+	}
 }
 
 internal.area = class {
@@ -730,6 +851,26 @@ internal.fuente = class {
 	}
 }
 
+internal.fuente.build_read_query = function(filter) {
+	if(filter && filter.tipo && filter.tipo.toLowerCase() == "puntual") {
+		return internal.red.build_read_query(filter)
+	}
+	if(filter && filter.geom) {
+		filter.def_extent = filter.geom
+	}
+	const valid_filters = {id: "numeric", nombre: "regex_string", data_table: "string", data_column: "string", tipo: "string", def_proc_id: "numeric", def_dt: "string", hora_corte: "string", def_unit_id: "numeric", def_var_id: "numeric", fd_column: "string", mad_table: "string", scale_factor: "numeric", data_offset: "numeric", def_pixel_height: "numeric", def_pixel_width: "numeric", def_srid: "numeric", def_extent: "geometry", date_column: "string", def_pixeltype: "string", abstract: "regex_string", source: "regex_string",public:"boolean_only_true"}
+	var filter_string = control_filter(valid_filters,filter)
+	if(!filter_string) {
+		return Promise.reject(new Error("invalid filter value"))
+	}
+	console.log("filter_string:" + filter_string)
+	return "SELECT id, nombre, data_table, data_column, tipo, def_proc_id, def_dt, hora_corte, def_unit_id, def_var_id, fd_column, mad_table, scale_factor, data_offset, def_pixel_height, def_pixel_width, def_srid, st_asgeojson(def_extent)::json def_extent, date_column, def_pixeltype, abstract, source, public\
+	 FROM fuentes \
+	 WHERE 1=1 " + filter_string
+}
+
+
+
 internal.serie = class {
 	constructor() {
 		switch(arguments.length) {
@@ -817,6 +958,7 @@ internal.serie = class {
 					if( (arguments[0].observaciones)) {
 						this.observaciones = new internal.observaciones(arguments[0].observaciones)
 					}
+					this.date_range = arguments[0].date_range
 				}
 				break;
 			default:
@@ -1050,6 +1192,189 @@ internal.serie = class {
 		}
 	}
 }
+
+internal.serie.build_read_query = function(filter={},options) {
+	// var model = apidoc.serie
+	var valid_filters
+	var table
+	var tipo
+	var order_string
+	if(!filter.tipo) {
+		tipo = "puntual"
+	} else {
+		tipo = filter.tipo
+	}
+	if(!filter.id && filter.series_id) {
+		filter.id = filter.series_id
+		delete filter.series_id
+	}
+	var properties
+	if(tipo.toUpperCase() == "AREAL" ) {
+		valid_filters = {
+			id:{
+				type: "integer",
+				table: "series_areal"
+			},area_id:{
+				type:"integer",
+				table: "series_areal"
+			},var_id:{
+				type:"integer",
+				table: "series_areal"
+			},proc_id:{
+				type:"integer",
+				table: "series_areal"
+			},unit_id:{
+				type: "integer",
+				table: "series_areal"
+			},fuentes_id:{
+				type:"integer",
+				table: "series_areal"
+			},public: {
+				type:"boolean_only_true",
+				table: "redes"
+			},date_range_before: {
+				column: "timestart",
+				type: "timeend",
+				table: "series_areal_date_range"
+			},date_range_after: {
+				column: "timeend",
+				type: "timestart",
+				table: "series_areal_date_range"
+			},
+			count: {
+				type: "numeric_min",
+				table: "series_areal_date_range"
+			}
+
+		}
+		table = "series_areal join (select id f_id,nombre fuentes_nombre,public from fuentes) fuentes on (fuentes.f_id=series_areal.fuentes_id) join (select unid id,nombre area_nombre from areas_pluvio) areas on (areas.id=series_areal.area_id) join (select id,nombre var_nombre from var) var on (var.id=series_areal.var_id) join (select id,nombre proc_nombre from procedimiento) procedimiento on (procedimiento.id=series_areal.proc_id) join (select id,nombre unit_nombre from unidades) unidades on (unidades.id=series_areal.unit_id)\
+			left join series_areal_date_range on (series_areal.id=series_areal_date_range.series_id)"
+		properties = ["series_areal.id","area_id","area_nombre","proc_id","proc_nombre","var_id","var_nombre","unit_id","unit_nombre","fuentes_id","fuentes_nombre","series_areal_date_range.timestart","series_areal_date_range.timeend","series_areal_date_range.count"]
+		order_string = " ORDER BY series_areal.id"
+	} else if (tipo.toUpperCase() == "RASTER" || tipo.toUpperCase() == "RAST") {
+		valid_filters = {
+			id:{
+				type:"integer",
+				table: "series_rast"
+			},escena_id:{
+				type:"integer",
+				table: "series_rast"
+			},var_id:{
+				type:"integer",
+				table: "series_rast"
+			},proc_id:{
+				type: "integer",
+				table: "series_rast"
+			},unit_id:{
+				type: "integer",
+				table: "series_rast"
+			},fuentes_id:{
+				type:"integer",
+				table: "series_rast"
+			},public: {
+				type:"boolean_only_true",
+				table: "redes"
+			}
+		}
+		table = "series_rast join (select id f_id,nombre fuentes_nombre,public from fuentes) fuentes on (fuentes.f_id=series_rast.fuentes_id) join (select id,nombre escena_nombre from escenas) escenas on (escenas.id=series_rast.escena_id) join (select id,nombre var_nombre from var) var on (var.id=series_rast.var_id) join (select id,nombre proc_nombre from procedimiento) procedimiento on (procedimiento.id=series_rast.proc_id) join (select id,nombre unit_nombre from unidades) unidades on (unidades.id=series_rast.unit_id)\
+		left join series_rast_date_range on (series_rast.id=series_rast_date_range.series_id)"
+		properties = ["series_rast.id","nombre","escena_id","escena_nombre","proc_id","proc_nombre","var_id","var_nombre", "unit_id","unit_nombre", "fuentes_id","fuentes_nombre","public","series_rast_date_range.timestart","series_rast_date_range.timeend","series_rast_date_range.count"]
+		order_string = " ORDER BY series_rast.id"
+	} else if (tipo.toUpperCase() == "PUNTUAL") {
+		filter.red_id = (filter.red_id) ? filter.red_id : (filter.fuentes_id) ? filter.fuentes_id : undefined 
+		valid_filters = {
+			"id":{
+				type:"arrInteger",
+				table: "series"
+			},
+			var_id:{
+				type:"arrInteger",
+				table:"series"
+			},
+			proc_id:{
+				type:"arrInteger",
+				table: "series"
+			},
+			unit_id:{
+				type:"arrInteger",
+				table:"series"
+			},
+			estacion_id:{
+				type:"arrInteger",
+				table: "series"
+			},
+			tabla_id:{
+				type:"string",
+				table: "redes"
+			},
+			id_externo:{
+				type:"string",
+				table: "estaciones"
+			},
+			geom:{
+				type: "geometry",
+				table: "estaciones"
+			},
+			red_id:{
+				type:"arrInteger",
+				table:"redes"
+			},
+			public: {
+				type:"boolean_only_true",
+				table: "redes"
+			},
+			timestart_min: {
+				column: "timestart",
+				type: "date_min",
+				table: "series_date_range"
+			},date_range_before: {
+				column: "timestart",
+				type: "timeend",
+				table: "series_date_range"
+			},date_range_after: {
+				column: "timeend",
+				type: "timestart",
+				table: "series_date_range"
+			},
+			count: {
+				type: "numeric_min",
+				table: "series_date_range"
+			}
+		}
+		table = "series join (select unid,id_externo,tabla,geom,nombre estacion_nombre from estaciones) estaciones on (series.estacion_id=estaciones.unid) join (select id red_id,tabla_id,nombre red_nombre,public from redes) redes on (redes.tabla_id = estaciones.tabla) join (select id,nombre var_nombre from var) var on (var.id=series.var_id) join (select id,nombre proc_nombre from procedimiento) procedimiento on (procedimiento.id=series.proc_id) join (select id,nombre unit_nombre from unidades ) unidades on (unidades.id=series.unit_id)\
+		left join series_date_range on (series.id=series_date_range.series_id)"
+		properties = ["series.id","estacion_id","estacion_nombre","proc_id","proc_nombre","var_id","var_nombre","unit_id","unit_nombre","id_externo","tabla","st_asgeojson(geom) geom","red_nombre","public","series_date_range.timestart","series_date_range.timeend","series_date_range.count"]
+		if(filter.geom) {
+			filter.geom = new internal.geometry(filter.geom)
+		}
+		order_string = " ORDER BY series.id"
+	} else {
+		console.error("invalid tipo")
+		throw "invalid tipo"
+	}
+	var filter_string=control_filter2(valid_filters,filter)
+
+	return "SELECT  " + properties.join(",") + "  FROM " + table + " WHERE 1=1 " + filter_string + order_string
+		// .then(res=>{
+		// 	for(var i in res.rows) {
+		// 		res.rows[i].date_range = {timestart: res.rows[i].timestart, timeend: res.rows[i].timeend, count: res.rows[i].count}
+		// 		delete res.rows[i].timestart
+		// 		delete res.rows[i].timeend
+		// 		delete res.rows[i].count
+		// 	}
+		// 	if(options.no_metadata) {  // RETURN WITH NO METADATA (SOLO IDS)
+		// 		return res.rows.map(r=> {
+		// 			//~ delete r.geom
+		// 			//~ console.log(r.geom)
+		// 			if(r.geom) {
+		// 				r.geom = JSON.parse(r.geom)
+		// 			} 
+		// 			r.tipo = tipo
+		// 			return r
+		// 		})
+		// 	}
+}
+
 
 internal.serieRegular = class {
 	constructor() {
@@ -1436,16 +1761,69 @@ internal.observacion = class {
 }
 
 internal.observaciones = class extends Array {
-   toString() {
-    return this.map(o=>o.toString()).join("\n")
-   }
-   toCSV() {
-    return this.map(o=>o.toCSV()).join("\n")
-   }
-   toCSVless() {
-    return this.map(o=>o.toCSVless()).join("\n")
-   }
-   toMnemos(estacion_id,var_id) {
+	constructor(arr,options) {
+		if(arr) {
+			super(...[])
+			for (const x of arr) this.push(x)
+		}
+		this.getObsClass()
+		if(options) {
+			this.metadata = {}
+			var valid_md_keys = ["dt","t_offset","timestart","timeend","var_id","proc_id","estacion_id","fuentes_id","pivot","skip_nulls"]
+			for(var key of valid_md_keys) {
+				if(options[key]) {
+					this.metadata[key] = options[key]
+				}
+			}
+			if(options && options.pivot) {
+				if(options.skip_nulls) {
+					this.pivot()
+				} else {
+					if(this.metadata.timestart && this.metadata.timeend && this.metadata.dt && this.metadata.t_offset) {
+						this.pivotRegular()
+					} else {
+						this.pivot()
+					}
+				}
+			}
+		}
+	}
+	getObsClass() {
+		this.forEach(o=>{
+			if(!o instanceof internal.observacion) {
+				o = new internal.observacion(o)
+			}
+		})
+	}
+    toString() {
+        return this.map(o=>o.toString()).join("\n")
+    }
+    toCSV(sep=",") {
+		if(this.metadata && this.metadata.pivot) {
+			var headers = Array.from(this.headers)
+			var h1 = headers.shift()
+			var h2 = headers.shift()
+			headers.sort((a,b)=>a-b)
+			var header = `${h1}${sep}${h2}${sep}${headers.join(sep)}\n`
+			var body = this.map(o=>{
+				var values = headers.map(key=>{
+					if(o[key]) {
+						return o[key]
+					} else {
+						return "NULL"
+					}
+				}).join(sep)
+				return `${o.timestart.toISOString()}${sep}${o.timeend.toISOString()}${sep}${values}`
+			}).join("\n")
+			return `${header}${body}`
+		} else {
+			return this.map(o=>o.toCSV()).join("\n")
+		}
+	}
+    toCSVless() {
+        return this.map(o=>o.toCSVless()).join("\n")
+    }
+    toMnemos(estacion_id,var_id) {
 		var var_matches = Object.keys(config.snih.variable_map).filter(key=>{
 			return (config.snih.variable_map[key].var_id == var_id)
 		})
@@ -1457,8 +1835,8 @@ internal.observaciones = class extends Array {
 			codigo_de_variable = var_matches[0]
 		}
 		return this.map(o=>o.toMnemos(estacion_id,codigo_de_variable)).join("\n")
-   }
-   removeDuplicates() {   // elimina observaciones con timestart duplicado
+    }
+    removeDuplicates() {   // elimina observaciones con timestart duplicado
 		var timestarts = []
 		for(var i=0;i<this.length;i++) { 
 			if(timestarts.indexOf(this[i].timestart) >= 0) {
@@ -1468,12 +1846,107 @@ internal.observaciones = class extends Array {
 			} 
 		}
 	}
+	map(fn) {
+		var result = []
+		this.forEach(o=>{
+			if(!fn) {
+				result.push(o)
+			} else {
+				if(typeof fn !== 'function') {
+					throw("map argument must be a function")
+				}
+				result.push(fn(o))
+			}
+		})
+		return result
+	}
+	pivot(inline=true) {
+		var pivoted = {}
+		var headers = new Set(["timestart","timeend"])
+		this.forEach(o=>{
+			if(!o.series_id) {
+				throw("can't pivot: missing series_id")
+			}
+			const key = o.timestart.toISOString()
+			if(!pivoted[key]) {
+				pivoted[key] = {
+					timestart: o.timestart, 
+					timeend: o.timeend
+				}
+			}
+			pivoted[key][o.series_id] = o.valor
+			headers.add(o.series_id)
+		})
+		var result = Object.keys(pivoted).sort().map(key=>{
+			return pivoted[key]
+		})
+		if(inline) {
+			this.length = 0
+			this.push(...result)
+			this.headers = headers
+		}
+		return result
+	}
+	pivotRegular(timestart,timeend,dt,t_offset,inline=true) {
+		if(!timestart) {
+			if(!this.metadata || !this.metadata.timestart) {
+				throw("missing timestart")
+			}
+			timestart = this.metadata.timestart
+		}
+		if(!timeend) {
+			if(!this.metadata || !this.metadata.timeend) {
+				throw("missing timeend")
+			}
+			timeend = this.metadata.timeend
+		}
+		if(!dt) {
+			if(!this.metadata.dt) {
+				dt = {days:1}
+			}
+			dt = this.metadata.dt
+		}
+		if(!t_offset) {
+			if(!this.metadata.t_offset) {
+				t_offset = {hours:0}
+			}
+			t_offset = this.metadata.t_offset
+		}
+		timestart = timeSteps.setTOffset(timestart,t_offset)
+		var dates = timeSteps.dateSeq(timestart,timeend,dt)
+		this.sort((a,b)=>(a.timestart.getTime() - b.timestart.getTime()))
+		var start = 0
+		var end = response.length - 1
+		var headers = new Set(["timestart","timeend"])
+		var pivoted = dates.map(date=>{
+			var row = {
+				timestart: date,
+				timeend: timeSteps.advanceInterval(date,dt)
+			}
+			for(var i=start;i<=end;i++) {
+				var o = this[i]
+				if(o.timestart.getTime() == date.getTime()) {
+					row[o.series_id] = o.valor
+					headers.add(o.series_id)
+				} else if (o.timestart.getTime() > date.getTime()) {
+					start = i
+					break
+				}
+			}
+			return row
+		})
+		if(inline) {
+			this.length = 0
+			this.push(...pivoted)
+			this.headers = headers // Array.from(headers)
+		}
+		return pivoted
+	}
 }
 
 
 internal.dailyStats = class {
 	constructor() {
-		var tipo, series_id, doy, count, min, max, mean, p01, p10, p50, p90, p99, window_size, timestart, timeend
 		switch(arguments.length) {
 			case 1:
 				if(typeof(arguments[0]) == "string") {
@@ -1512,6 +1985,67 @@ internal.dailyStats = class {
 	}
 }
 
+internal.monthlyStats = class {
+	constructor() {
+		switch(arguments.length) {
+			case 1:
+				if(typeof(arguments[0]) == "string") {
+					[this.tipo,this.series_id,this.mon, this.count, this.min, this.max, this.mean, this.p01, this.p10, this.p50, this.p90, this.p99, this.timestart, this.timeend] = arguments[0].split(",")
+				} else {
+					this.tipo = arguments[0].tipo
+					this.series_id = arguments[0].series_id
+					this.mon = arguments[0].mon
+					this.count=arguments[0].count
+					this.min=arguments[0].min
+					this.max=arguments[0].max
+					this.mean=arguments[0].mean
+					this.p01=arguments[0].p01
+					this.p10=arguments[0].p10
+					this.p50=arguments[0].p50
+					this.p90=arguments[0].p90
+					this.p99=arguments[0].p99
+					this.timestart=arguments[0].timestart
+					this.timeend=arguments[0].timeend
+				}
+				break;
+			default:
+				[this.tipo, this.series_id, this.mon, this.count, this.min, this.max, this.mean, this.p01, this.p10, this.p50, this.p90, this.p99, this.timestart, this.timeend] = arguments
+				break;
+		}
+	}
+	toString() {
+		return JSON.stringify({tipo:this.tipo,series_id:this.series_id,mon:this.mon,count:this.count, min:this.min, max:this.max, mean:this.mean, p01:this.p01, p10:this.p10, p50:this.p50, p90:this.p90, p99:this.p99, timestart:this.timestart, timeend:this.timeend})
+	}
+	toCSV() {
+		return this.tipo + "," + this.series_id + "," + this.mon + "," + this.count+ "," + this.min+ "," + this.max+ "," + this.mean+ "," + this.p01 + "," + this.p10+ "," + this.p50+ "," + this.p90+ "," + this.p99 + "," + this.timestart.toISOString() + "," + this.timeend.toISOString()
+	}
+	toCSVless() {
+		return this.tipo + "," + this.series_id + "," + this.doy+ "," + this.count+ "," + this.min+ "," + this.max+ "," + this.mean+ "," + this.p01 + "," + this.p10+ "," + this.p50+ "," + this.p90+ "," + this.p99 + "," + this.timestart.toISOString() + "," + this.timeend.toISOString()
+	}
+}
+
+internal.monthlyStatsList = class {
+	constructor() {
+		this.varNames = ["tipo", "series_id", "mon", "count", "min", "max", "mean", "p01", "p10", "p50", "p90", "p99", "timestart", "timeend"]
+		this.values = arguments[0].map(v=>{
+			if(v instanceof internal.monthlyStats) {
+				return v
+			} else {
+				return new internal.monthlyStats(v)
+			}
+		})
+	}
+	toString() {
+		return JSON.stringify(this.values)
+	}
+	toCSV() {
+		return "# " + this.varNames.join(",") + "\n" + this.values.map(v=>v.toCSV()).join("\n")
+	}
+	toCSVless() {
+		return "# " + this.varNames.join(",") + "\n" + this.values.map(v=>v.toCSVless()).join("\n")
+	}
+}
+
 internal.dailyStatsList = class {
 	constructor() {
 		this.varNames = ["tipo", "series_id", "doy", "count", "min", "max", "mean", "p01", "p10", "p50", "p90", "p99", "window_size", "timestart", "timeend"]
@@ -1532,6 +2066,52 @@ internal.dailyStatsList = class {
 	toCSVless() {
 		return "# " + this.varNames.join(",") + "\n" + this.values.map(v=>v.toCSVless()).join("\n")
 	}
+
+	getMonthlyValues2() {
+		var monthly = {}
+		this.values.filter(v=>(timeSteps.doy2date(v.doy) == 15)).forEach(v=>{
+			var mon = timeSteps.doy2month(v.doy)
+			monthly[mon] = v
+			delete monthly[mon].doy
+			delete monthly[mon].window_size
+		})
+		return monthly
+	}
+	
+	getMonthlyValues() {
+		var monthly = {}
+		this.values.forEach(v=>{
+			var month = timeSteps.doy2month(v.doy)
+			if(!monthly[month]) {
+				monthly[month] = {
+					values: [v]
+				}
+			} else {
+				monthly[month].values.push(v)
+			}
+		})
+		Object.keys(monthly).forEach(key=>{
+			monthly[key].min = monthly[key].values.reduce((a,b)=>(a<b.min)?a:b.min,monthly[key].values[0].min)
+			monthly[key].max = monthly[key].values.reduce((a,b)=>(a>b.max)?a:b.max,monthly[key].values[0].max)
+			monthly[key].mean = monthly[key].values.reduce((a,b)=>a+b.mean,0) / monthly[key].values.length
+			var p01 = monthly[key].values.map(v=>v.p01).sort((a, b) => a - b)
+			monthly[key].p01 = p01[parseInt(p01.length/2)]
+			var p10 = monthly[key].values.map(v=>v.p10).sort((a, b) => a - b)
+			monthly[key].p10 = p10[parseInt(p10.length/2)]
+			var p50 = monthly[key].values.map(v=>v.p50).sort((a, b) => a - b)
+			monthly[key].p50 = p50[parseInt(p50.length/2)]
+			var p90 = monthly[key].values.map(v=>v.p90).sort((a, b) => a - b)
+			monthly[key].p90 = p90[parseInt(p90.length/2)]
+			var p99 = monthly[key].values.map(v=>v.p99).sort((a, b) => a - b)
+			monthly[key].p99 = p99[parseInt(p99.length/2)]
+			monthly[key].count = monthly[key].values.reduce((a,b)=>a+b.count,0)
+			monthly[key].timestart = monthly[key].values.reduce((a,b)=>(a.getTime()<b.timestart.getTime())?a:b.timestart,monthly[key].values[0].timestart)
+			monthly[key].timeend = monthly[key].values.reduce((a,b)=>(a.getTime()>b.timeend.getTime())?a:b.timeend,monthly[key].values[0].timeend)
+			delete monthly[key].values
+		})
+		return monthly
+	}
+	
 }
 
 internal.doy_percentil = class {
@@ -1548,6 +2128,52 @@ internal.doy_percentil = class {
 	} 
 	toCSVless() {
 		return this.tipo + "," + this.series_id+ "," + this.doy+ "," + this.percentil+ "," + this.valor
+	}
+} 
+
+internal.percentiles = class {
+	constructor() {
+		this.tipo = arguments[0].tipo
+		this.series_id = arguments[0].series_id
+		this.percentiles = arguments[0].percentiles.map(p=>new internal.percentil(p))
+	}
+	toString() {
+		return JSON.stringify(this)
+	}
+	toCSV() {
+		return this.percentiles.map(p=>p.toCSV(this.tipo,this.series_id)).join("\n")
+	} 
+	toCSVless() {
+		return this.percentiles.map(p=>p.toCSVless(this.tipo,this.series_id)).join("\n")
+	}
+}
+
+internal.percentil = class {
+	constructor() {
+		// for (let [key, value] of Object.entries(arguments[0])) {
+		// 	this[key] = value
+		// }
+		this.tipo = arguments[0].tipo
+		this.series_id = arguments[0].series_id
+		this.percentile = arguments[0].percentile
+		this.valor = arguments[0].valor
+		this.timestart = arguments[0].timestart
+		this.timeend = arguments[0].timeend
+		this.count = arguments[0].count
+		
+	}
+	toString() {
+		return JSON.stringify(this)
+	}
+	toCSV(tipo,series_id) {
+		var tipo = (tipo) ? tipo : this.tipo
+		var series_id = (series_id) ? series_id : this.series_id
+		return tipo + "," + series_id + "," + this.percentile+ "," + this.valor+ "," + this.count+ "," + this.timestart.toISOString().substring(0,10)+ "," + this.timeend.toISOString().substring(0,10)
+	} 
+	toCSVless(tipo,series_id) {
+		var tipo = (tipo) ? tipo : this.tipo
+		var series_id = (series_id) ? series_id : this.series_id
+		return tipo + "," + series_id+ "," + this.percentile + "," + this.valor
 	}
 } 
 
@@ -1687,8 +2313,36 @@ internal.modelo_output = class {
 	}
 }
 
-internal.calibrado = class {
+const classes = {
+	"Calibrado": internal.Calibrado
+}
+
+internal.genericModel = class {
+	constructor(model_name) {
+		this.schema = model_name
+	}
+	// getModelName() {
+		// var model_name = this.constructor.name
+		// return model_name.charAt(0).toUpperCase() + model_name.slice(1)
+	// 	return this.schema
+	// }
+	remove_null_properties() {
+		for(var key in this) {
+			if(this[key] === null) {
+				delete this[key]
+			}
+		}
+	}
+	validate() {
+		this.remove_null_properties()
+		return utils.validate_with_model(this,this.schema)
+	}
+	
+}
+
+internal.calibrado = class extends internal.genericModel {
 	constructor() {
+		super("Calibrado")
 		var m = arguments[0]
 		if(m.estados_iniciales && ! m.estados) {
 			m.estados = m.estados_iniciales
@@ -1697,16 +2351,17 @@ internal.calibrado = class {
 		this.nombre = (m.nombre) ? m.nombre.toString() : undefined
 		this.model_id = parseInt(m.model_id)
 		this.activar = (m.hasOwnProperty("activar")) ? m.activar : true
-		this.parametros = (m.parametros) ? m.parametros.map(p=>new internal.parametro(p)) : undefined
-		this.forzantes = (m.forzantes) ? m.forzantes.map(f=>new internal.forzante(f)) : undefined
-		this.estados = (m.estados) ? m.estados.map(e=>new internal.estado(e)) : undefined
-		this.outputs = (m.outputs) ? m.outputs.map(o=>new internal.output(o)) : undefined
+		this.parametros = this.getParametros(m.parametros)
+		this.forzantes = this.getForzantes(m.forzantes)
+		this.estados = this.getParametros(m.estados)
+		this.outputs = this.getForzantes(m.outputs)
 		this.selected = (m.hasOwnProperty("selected")) ? m.selected : false
 		this.out_id = m.out_id
 		this.area_id = m.area_id
 		this.tramo_id = m.tramo_id
 		this.dt = m.dt
 		this.t_offset = m.t_offset
+		this.stats = m.stats
 
 		this.sortArrays()
 	}
@@ -1730,6 +2385,50 @@ internal.calibrado = class {
 		sortByOrden(this.forzantes)
 		sortByOrden(this.outputs)
 	}
+	getParametros(parametros) {
+		if(!parametros) {
+			return
+		}
+		var orden = 0
+		return parametros.map(p=>{
+			orden = orden + 1
+			var parametro = {}
+			if(typeof p == "number") {
+				parametro.valor = p
+				parametro.orden = orden
+			} else {
+				parametro.valor = p.valor
+				parametro.orden = (p.orden) ? p.orden : orden
+			}
+			if(parseFloat(parametro.valor).toString() == "NaN") {
+				throw(`invalid parametro: ${parametro.valor}`)
+			}
+			return new internal.parametro(parametro)
+		})
+	}
+	getForzantes(forzantes) {
+		if(!forzantes) {
+			return
+		}
+		var orden = 0 
+		return forzantes.map(f=>{
+			orden = orden + 1
+			var forzante = {}
+			if(typeof f == "number") {
+				forzante.series_id = f 
+				forzante.series_table = "series"
+				forzante.orden = orden
+			} else {
+				forzante.series_id = f.series_id
+				forzante.series_table = f.series_table
+				forzante.orden = (f.orden) ? f.orden : orden
+			}
+			if(parseInt(forzante.series_id).toString() == "NaN") {
+				throw(`invalid forzante: ${forzante.series_id}`)
+			}
+			return new internal.forzante(forzante)
+		})
+	}
 }
 
 function getValoresAndOrder(array) {
@@ -1744,7 +2443,9 @@ function getValoresAndOrder(array) {
 			uniques.push(p)
 		}
 	})
-	uniques.sort((a,b)=>a.orden>b.orden)
+	uniques.sort((a,b)=>{
+		return a.orden - b.orden
+	})
 	return uniques.map(p=>p.valor)
 }
 
@@ -1823,6 +2524,15 @@ internal.forzante = class {
 	toCSVless() {
 		return this.orden + "," + this.series_id + "," + this.series_table
 	} 
+	async getSerie(pool) {
+		var tipo = (this.series_table == "series") ? "puntual" : (this.series_table == "series_areal") ? "areal" : "puntual"
+		try {
+			const crud = new internal.CRUD(pool)
+			this.serie = await crud.getSerie(tipo,this.series_id,undefined,undefined,{no_metadata:true})
+		} catch(e) {
+			console.error("crud: forzante: no se encontró serie")
+		}
+	}
 }
 
 internal.forzanteDeModelo = class {
@@ -1908,6 +2618,15 @@ internal.output = class {
 	} 
 	toCSVless() {
 		return this.orden + "," + this.series_id + "," + this.series_table
+	}
+	async getSerie(pool) {
+		var tipo = (this.series_table == "series") ? "puntual" : (this.series_table == "series_areal") ? "areal" : "puntual"
+		try {
+			const crud = new internal.CRUD(pool)
+			this.serie = await crud.getSerie(tipo,this.series_id,undefined,undefined,{no_metadata:true})
+		} catch(e) {
+			console.error("crud: forzante: no se encontró serie")
+		}
 	}
 }
 
@@ -2015,6 +2734,159 @@ internal.Accessor = class {
 	}
 }
 
+internal.engine = class {
+	constructor(pool,config_,schemas_){
+        this.pool = pool
+		if(config_) {
+			this.config = config_
+			if(this.config.database) {
+				this.dbConnectionString = "host=" + this.config.database.host + " user=" + this.config.database.user + " dbname=" + this.config.database.database + " password=" + this.config.database.password + " port=" + this.config.database.port
+			}
+		} else {
+			this.config = config
+		}
+		this.models = {
+			"Calibrado": internal.calibrado,
+			"Output": internal.output,
+			"Forzante": internal.forzante,
+			"Parametro": internal.parametro,
+			"Estado": internal.estado,
+			"Serie": internal.serie,
+			"Fuente": internal.fuente,
+			"Unidad": internal.unidades,
+			"Procedimiento": internal.procedimiento,
+			"Estacion": internal.estacion,
+			"Variable": internal.var
+		}
+		this.foreign_keys_alias = {
+			"calibrados_id": "cal_id",
+			"variables_id": "var_id"
+		}
+		this.schemas = (schemas_) ? schemas_ : schemas		
+	}    
+
+	
+	build_read_query(model_name,filter,table_name,options) {
+		if(!schemas.hasOwnProperty(model_name)) {
+			throw("model name not found")
+		}
+		var model = schemas[model_name]
+		if(!model) {
+			throw("model not found")
+		}
+		var model_class = this.models[model_name]
+		// console.log({model_name: model_name, model:model, model_class: model_class})
+		if(model_class.build_read_query) {
+			return model_class.build_read_query(model_name,filter,table_name,options)
+		}
+		if(!table_name) {
+			table_name = model.table_name
+		}
+		var child_tables = {}
+		var meta_tables = {}
+		var selected_columns = Object.keys(model.properties).filter(key=>{
+			if(model.properties[key].type == 'array' && model.properties[key].hasOwnProperty("items") && model.properties[key].items.hasOwnProperty("$ref")) {
+				child_tables[key] = model.properties[key].items.$ref.split("/").pop()
+				return false
+			} else if (model.properties[key].hasOwnProperty("$ref") && model.properties[key].hasOwnProperty("foreign_key")) {
+				meta_tables[key] = model.properties[key].$ref.split("/").pop()
+				return false
+			} else {
+				return true
+			}
+		})
+		var filter_string = utils.control_filter3(model,filter,table_name)
+		if(!filter_string) {
+			throw("Invalid filter")
+		}
+		const order_by_clause = ""
+		if (options && options.order_by) {
+			var order_by
+			if(!Array.isArray(options.order_by)) {
+				if(options.order_by.indexOf(",") >= 0) {
+					order_by = options.order_by.split(",")
+				} else {
+					order_by = [options.order_by]
+				}
+			} else {
+				order_by = options.order_by
+			}
+			for(var i in order_by) {
+				if(selected_columns.indexOf(order_by[i]) == -1) {
+					throw("invalid order_by option - invalid property")
+				}
+			}
+			order_by_clause = ` ORDER BY ${order_by.map(key => utils.getFullKey(model, key, table_name)).join(",")}`
+		}
+		return {
+			query: `SELECT ${selected_columns.map(key => utils.getFullKey(model, key, table_name)).join(", ")} FROM "${table_name}" WHERE 1=1 ${filter_string}${order_by_clause}`,
+			child_tables: child_tables,
+			meta_tables: meta_tables,
+			table_name: table_name
+		}
+	}
+
+	read(model_name,filter) {
+		if(!this.models.hasOwnProperty(model_name)) {
+			return Promise.reject("Invalid model_name")
+		}
+		try {
+			var parent_query = this.build_read_query(model_name,filter)
+		} catch(e) {
+			return Promise.reject(e)
+		}
+		console.log(parent_query.query)
+		return this.pool.query(parent_query.query)
+		.then(result=>{
+			// console.log("model_name: " + model_name)
+			// console.log("typeof:" + typeof this.models[model_name])
+			return result.rows.map(i=>new this.models[model_name](i))
+		})
+		.then(async parents=>{
+			// console.log({child_tables:parent_query.child_tables})
+			if(Object.keys(parent_query.child_tables).length) {
+				for (var parent of parents) {
+					for(var key in parent_query.child_tables) {
+						var foreign_key = parent_query.table_name + "_id"
+						foreign_key = (this.foreign_keys_alias[foreign_key]) ? this.foreign_keys_alias[foreign_key] : foreign_key
+						var child_filter = {}
+						child_filter[foreign_key] = parent.id
+						var child_query  = this.build_read_query(parent_query.child_tables[key],child_filter)
+						var query_result = await this.pool.query(child_query.query)
+						// console.log({query_result:query_result.rows})
+						parent[key] = query_result.rows.map(j=> new this.models[parent_query.child_tables[key]](j))
+					}
+				}
+			}
+			if(Object.keys(parent_query.meta_tables).length) {
+				for (var parent of parents) {
+					for(var key in parent_query.meta_tables) {
+						var foreign_key = key + "s_id" // parent_query.table_name + "_id"
+						foreign_key = (this.foreign_keys_alias[foreign_key]) ? this.foreign_keys_alias[foreign_key] : foreign_key
+						var meta_filter = {
+							"id": parent[foreign_key]
+						}
+						var meta_table_name = (parent.hasOwnProperty("series_table")) ? parent.series_table : undefined
+						var meta_query  = this.build_read_query(parent_query.meta_tables[key],meta_filter,meta_table_name)
+						console.log(meta_query.query)
+						var query_result = await this.pool.query(meta_query.query)
+						// console.log({query_result:query_result.rows})
+						if(!query_result.rows.length) {
+							console.error("meta element not found")
+						} else {
+							parent[key] = query_result.rows.map(j=> new this.models[parent_query.meta_tables[key]](j))
+						}
+					}
+				}
+			}
+			return parents
+		})
+	}
+
+	
+}
+
+
 
 
 internal.CRUD = class {
@@ -2026,8 +2898,8 @@ internal.CRUD = class {
 				this.dbConnectionString = "host=" + config.database.host + " user=" + config.database.user + " dbname=" + config.database.database + " password=" + config.database.password + " port=" + config.database.port
 			}
 		}
-    }
-    
+	}    
+
     // red //
     
 	upsertRed(red) {
@@ -2443,6 +3315,12 @@ internal.CRUD = class {
 			}
 		})
 		.then(()=>{
+			if(area.geom && area.geom.type && area.geom.type == "MultiPolygon") {
+				area.geom = new internal.geometry({
+					type: "Polygon",
+					coordinates: area.geom.coordinates[0]
+				})
+			}
 			return this.pool.query(this.upsertAreaQuery(area))
 		}).then(result=>{
 			if(result.rows.length<=0) {
@@ -2479,7 +3357,7 @@ internal.CRUD = class {
 			ON CONFLICT (unid) DO UPDATE SET \
 				nombre=excluded.nombre,\
 				geom=excluded.geom,\
-				exutorio_id=exluded.exutorio_id\
+				exutorio_id=excluded.exutorio_id\
 			RETURNING unid AS id,nombre,st_astext(geom) AS geom, st_astext(exutorio) AS exutorio, exutorio_id"
 			params = [area.id,area.nombre,area.geom.toString(),area.exutorio_id]
 		}
@@ -3347,7 +4225,8 @@ internal.CRUD = class {
 		try {
 			await client.query("BEGIN")
 			for(var i=0; i<series.length; i++) {
-				const serie = new internal.serie(series[i])
+				const serie = (series[i] instanceof internal.serie) ? series[i] : new internal.serie(series[i])
+				// console.log("new serie: " + JSON.stringify(serie))
 				var serie_props = {}
 				if(all) {
 					if(serie.estacion instanceof internal.estacion) {
@@ -3378,7 +4257,9 @@ internal.CRUD = class {
 						serie_props.fuente = await client.query(this.upsertFuenteQuery(serie.fuente))
 					}
 				}
-				var s = await client.query(this.upsertSerieQuery(serie))
+				var query_string = this.upsertSerieQuery(serie)
+				// console.log(query_string)
+				var s = await client.query(query_string)
 				Object.keys(serie_props).forEach(key=>{
 					s[key] = serie_props[key]
 				})
@@ -3392,8 +4273,11 @@ internal.CRUD = class {
 				}
 				series_result.push(s)
 			}
+			console.log("COMMIT")
+			await client.query("COMMIT")
 		}
 		catch (e) {
+			console.log("ROLLBACK")
 			client.query("ROLLBACK")
 			throw(e)
 		}
@@ -3539,7 +4423,7 @@ internal.CRUD = class {
 		}
 	}
 	
-	getSerie(tipo,id,timestart,timeend,options={},isPublic) {
+	getSerie(tipo,id,timestart,timeend,options={},isPublic,timeupdate) {
 		if(tipo == "areal") {
 			return this.pool.query("\
 			SELECT series_areal.id,series_areal.area_id,series_areal.var_id,series_areal.proc_id,series_areal.unit_id,series_areal.fuentes_id,fuentes.public,series_areal_date_range.timestart,series_areal_date_range.timeend,series_areal_date_range.count FROM series_areal join fuentes on (series_areal.fuentes_id=fuentes.id) left join series_areal_date_range on (series_areal.id=series_areal_date_range.series_id)\
@@ -3574,7 +4458,7 @@ internal.CRUD = class {
 					var promises = [serie]
 					if(timestart && timeend) {
 						options.obs_type = serie["var"].type
-						return promises.push(this.getObservacionesRTS("areal",{series_id:row.id,timestart:timestart,timeend:timeend},options,serie)
+						promises.push(this.getObservacionesRTS("areal",{series_id:row.id,timestart:timestart,timeend:timeend},options,serie)
 						.then(results=>{
 							if(results) {
 								// console.log("got observaciones for series")
@@ -3582,6 +4466,16 @@ internal.CRUD = class {
 							}
 							return
 						}))
+					} else if(timeupdate) {
+						options.obs_type = serie["var"].type
+						promises.push(this.getObservacionesRTS("areal",{series_id:row.id,timeupdate:timeupdate},options,serie)
+						.then(results=>{
+							if(results) {
+								// console.log("got observaciones for series")
+								row.observaciones = results
+							}
+							return
+						}))						
 					} else {
 						promises.push(null)
 					}
@@ -3649,7 +4543,19 @@ internal.CRUD = class {
 						}
 						return
 					}))
-				}				
+				}	else if(timeupdate) {
+					if(!options.format) {
+						options.format="hex"
+					}
+					promises.push(this.getObservacionesRTS("rast",{series_id:row.id,timeupdate:timeupdate},options)
+					.then(results=>{
+						if(results) {
+							// console.log("got observaciones for series")
+							row.observaciones = results
+						}
+						return
+					}))						
+				}			
 				return Promise.all(promises)
 				.then( s => {
 					const serie = new internal.serie({estacion:s[0],"var":s[1],procedimiento:s[2],unidades:s[3], tipo:"rast", fuente:s[4]})  // estacion,variable,procedimiento,unidades,tipo,fuente
@@ -3717,7 +4623,7 @@ internal.CRUD = class {
 								return
 							}))
 						} else {
-							promises.push(this.getObservacionesRTS("puntual",{series_id:row.id,timestart:timestart,timeend:timeend},options,serie)
+							promises.push(this.getObservacionesRTS("puntual",{series_id:row.id,timestart:timestart,timeend:timeend,timeupdate:timeupdate},options,serie)
 							.then(results=>{
 								if(results) {
 									// console.log("got observaciones for series")
@@ -3726,22 +4632,35 @@ internal.CRUD = class {
 								return
 							}))
 						}
+					} else if(timeupdate) {
+						options.obs_type = serie["var"].type
+						promises.push(this.getObservacionesRTS("puntual",{series_id:row.id,timeupdate:timeupdate},options,serie)
+						.then(results=>{
+							if(results) {
+								// console.log("got observaciones for series")
+								row.observaciones = results
+							}
+							return
+						}))						
 					}
-					if(options) {
-						if(options.getStats) {
-							promises.push(serie.getStats(this.pool)
-							.then(results=>{
-								if(results) {
-									console.log("got stats for series")
-								}
+					if(options && options.getStats) {
+						promises.push(serie.getStats(this.pool)
+						.then(results=>{
+							if(results) {
+								console.log("got stats for series")
 								return
-							}))
-						} 
-						else {
-							promises.push(null)
-						}
-					} 
-					else {
+							}
+						}))
+					} else {
+						promises.push(null)
+					}
+					if(options && options.getMonthlyStats) {
+						promises.push(this.getMonthlyStats("puntual",serie.id)
+						.then(monthlyStats=>{
+							serie.monthlyStats = monthlyStats.values
+							return
+						}))
+					} else {
 						promises.push(null)
 					}
 					return Promise.all(promises)
@@ -3854,288 +4773,207 @@ internal.CRUD = class {
 		})
 	}
 	
-	getSeries(tipo,filter,options={}) {
+	async getSeries(tipo,filter,options={}) {
 		//~ console.log(options)
 		// console.log({filter:filter})
-		var valid_filters
-		var table
-		if(!tipo) {
-			tipo = "puntual"
+		if(tipo) {
+			filter.tipo = tipo
 		}
-		var properties
-		var order_string = " ORDER BY series.id"
-		if(tipo.toUpperCase() == "AREAL" ) {
-			valid_filters = {
-				id:{
-					type: "integer",
-					table: "series_areal"
-				},area_id:{
-					type:"integer",
-					table: "series_areal"
-				},var_id:{
-					type:"integer",
-					table: "series_areal"
-				},proc_id:{
-					type:"integer",
-					table: "series_areal"
-				},unit_id:{
-					type: "integer",
-					table: "series_areal"
-				},fuentes_id:{
-					type:"integer",
-					table: "series_areal"
-				},public: {
-					type:"boolean_only_true",
-					table: "redes"
-				}
-			}
-			table = "series_areal join (select id f_id,nombre fuentes_nombre,public from fuentes) fuentes on (fuentes.f_id=series_areal.fuentes_id) join (select unid id,nombre area_nombre from areas_pluvio) areas on (areas.id=series_areal.area_id) join (select id,nombre var_nombre from var) var on (var.id=series_areal.var_id) join (select id,nombre proc_nombre from procedimiento) procedimiento on (procedimiento.id=series_areal.proc_id) join (select id,nombre unit_nombre from unidades) unidades on (unidades.id=series_areal.unit_id)\
-			left join series_areal_date_range on (series_areal.id=series_areal_date_range.series_id)"
-			properties = ["series_areal.id","area_id","area_nombre","proc_id","proc_nombre","var_id","var_nombre","unit_id","unit_nombre","fuentes_id","fuentes_nombre","series_areal_date_range.timestart","series_areal_date_range.timeend","series_areal_date_range.count"]
-			order_string = " ORDER BY series_areal.id"
-		} else if (tipo.toUpperCase() == "RASTER" || tipo.toUpperCase() == "RAST") {
-			valid_filters = {
-				id:{
-					type:"integer",
-					table: "series_rast"
-				},escena_id:{
-					type:"integer",
-					table: "series_rast"
-				},var_id:{
-					type:"integer",
-					table: "series_rast"
-				},proc_id:{
-					type: "integer",
-					table: "series_rast"
-				},unit_id:{
-					type: "integer",
-					table: "series_rast"
-				},fuentes_id:{
-					type:"integer",
-					table: "series_rast"
-				},public: {
-					type:"boolean_only_true",
-					table: "redes"
-				}
-			}
-			table = "series_rast join (select id f_id,nombre fuentes_nombre,public from fuentes) fuentes on (fuentes.f_id=series_rast.fuentes_id) join (select id,nombre escena_nombre from escenas) escenas on (escenas.id=series_rast.escena_id) join (select id,nombre var_nombre from var) var on (var.id=series_rast.var_id) join (select id,nombre proc_nombre from procedimiento) procedimiento on (procedimiento.id=series_rast.proc_id) join (select id,nombre unit_nombre from unidades) unidades on (unidades.id=series_rast.unit_id)\
-			left join series_rast_date_range on (series_rast.id=series_rast_date_range.series_id)"
-			properties = ["series_rast.id","nombre","escena_id","escena_nombre","proc_id","proc_nombre","var_id","var_nombre", "unit_id","unit_nombre", "fuentes_id","fuentes_nombre","public","series_rast_date_range.timestart","series_rast_date_range.timeend","series_rast_date_range.count"]
-			order_string = " ORDER BY series_rast.id"
-		} else if (tipo.toUpperCase() == "PUNTUAL") {
-			valid_filters = {
-				"id":{
-					type:"arrInteger",
-					table: "series"
-				},
-				var_id:{
-					type:"arrInteger",
-					table:"series"
-				},
-				proc_id:{
-					type:"arrInteger",
-					table: "series"
-				},
-				unit_id:{
-					type:"arrInteger",
-					table:"series"
-				},
-				estacion_id:{
-					type:"arrInteger",
-					table: "series"
-				},
-				tabla_id:{
-					type:"string",
-					table: "redes"
-				},
-				id_externo:{
-					type:"string",
-					table: "estaciones"
-				},
-				geom:{
-					type: "geometry",
-					table: "estaciones"
-				},
-				red_id:{
-					type:"arrInteger",
-					table:"redes"
-				},
-				public: {
-					type:"boolean_only_true",
-					table: "redes"
-				}
-			}
-			table = "series join (select unid,id_externo,tabla,geom,nombre estacion_nombre from estaciones) estaciones on (series.estacion_id=estaciones.unid) join (select id red_id,tabla_id,nombre red_nombre,public from redes) redes on (redes.tabla_id = estaciones.tabla) join (select id,nombre var_nombre from var) var on (var.id=series.var_id) join (select id,nombre proc_nombre from procedimiento) procedimiento on (procedimiento.id=series.proc_id) join (select id,nombre unit_nombre from unidades ) unidades on (unidades.id=series.unit_id)\
-			left join series_date_range on (series.id=series_date_range.series_id)"
-			properties = ["series.id","estacion_id","estacion_nombre","proc_id","proc_nombre","var_id","var_nombre","unit_id","unit_nombre","id_externo","tabla","st_asgeojson(geom) geom","red_nombre","public","series_date_range.timestart","series_date_range.timeend","series_date_range.count"]
-			if(filter.geom) {
-				filter.geom = new internal.geometry(filter.geom)
-			}
-			order_string = " ORDER BY series.id"
-		} else {
-			console.error("invalid tipo")
-			return Promise.reject("invalid tipo")
+		var query = internal.serie.build_read_query(filter,options)
+		// console.log(query)
+		try {
+			var res = await this.pool.query(query)
+		} catch(e) {
+			throw(e)
 		}
-		var filter_string=control_filter2(valid_filters,filter)
-		//~ var control_flag=0
-		//~ Object.keys(valid_filters).forEach(key=>{
-			//~ if(filter[key]) {
-				//~ if(/[';]/.test(filter[key])) {
-					//~ console.error("Invalid filter value")
-					//~ control_flag++
-				//~ }
-				//~ if(valid_filters[key] == "regex_string") {
-					//~ var regex = filter[key].replace('\\','\\\\')
-					//~ filter_string += " AND " + key  + " ~* '" + filter[key] + "'"
-				//~ } else if(valid_filters[key] == "string") {
-					//~ filter_string += " AND "+ key + "='" + filter[key] + "'"
-				//~ } else if (valid_filters[key] == "boolean") {
-					//~ var boolean = (/^[yYtTvVsS1]/.test(filter[key])) ? "true" : "false"
-					//~ filter_string += " AND "+ key + "=" + boolean + ""
-				//~ } else if (valid_filters[key] == "boolean_only_true") {
-					//~ if (/^[yYtTvVsS1]/.test(filter[key])) {
-						//~ filter_string += " AND " + key + "=true"
-					//~ }
-				//~ } else if (valid_filters[key] == "boolean_only_false") {
-					//~ if (!/^[yYtTvVsS1]/.test(filter[key])) {
-						//~ filter_string += " AND " + key + "=flase"
-					//~ }
-				//~ } else if (valid_filters[key] == "geometry") {
-					//~ if(! filter[key] instanceof internal.geometry) {
-						//~ console.error("Invalid geometry object")
-						//~ return Promise.reject("invalid geometry object")
-					//~ } else {
-						//~ filter_string += "  AND ST_Distance(st_transform(" + key + ",4326),st_transform(" + filter[key].toSQL() + ",4326)) < 0.001" 
-					//~ }
-				//~ } else if (valid_filters[key] == "arrInteger") {
-					//~ var values = Array.isArray(filter[key]) ? filter[key] : [filter[key]]
-					//~ filter_string += " AND " + key + " IN (" + values.map(f=>f.toString()).join(",") + ") "
-				//~ } else {
-					//~ filter_string += " AND "+ key + "=" + filter[key] + ""
-				//~ }
-			//~ }
-		//~ })
-		//~ if(control_flag > 0) {
-			//~ return Promise.reject(new Error("invalid filter value"))
-		//~ }
-		//~ console.log("SELECT " + properties.join(",") + " FROM " + table + " WHERE 1=1 " + filter_string + order_string)
-		return this.pool.query("SELECT  " + properties.join(",") + "  FROM " + table + " WHERE 1=1 " + filter_string + order_string)
-		.then(res=>{
-			for(var i in res.rows) {
-				res.rows[i].date_range = {timestart: res.rows[i].timestart, timeend: res.rows[i].timeend, count: res.rows[i].count}
-				delete res.rows[i].timestart
-				delete res.rows[i].timeend
-				delete res.rows[i].count
-			}
-			if(options.no_metadata) {  // RETURN WITH NO METADATA (SOLO IDS)
-				return res.rows.map(r=> {
-					//~ delete r.geom
-					//~ console.log(r.geom)
-					if(r.geom) {
-						r.geom = JSON.parse(r.geom)
-					} 
-					r.tipo = tipo
-					return r
-				})
-			}
-			var series = []
-			for(var i = 0; i < res.rows.length; i++) {
-				var row=res.rows[i]
-				var promises = [row.id,this.getVar(row.var_id), this.getProcedimiento(row.proc_id), this.getUnidad(row.unit_id)]
-				if(filter.timestart && filter.timeend) {
-					promises.push(this.getObservaciones(tipo,{series_id:row.id,timestart:filter.timestart,timeend:filter.timeend}))
-				} else {
-					promises.push(null)
+		for(var i in res.rows) {
+			res.rows[i].date_range = {timestart: res.rows[i].timestart, timeend: res.rows[i].timeend, count: res.rows[i].count}
+			delete res.rows[i].timestart
+			delete res.rows[i].timeend
+			delete res.rows[i].count
+		}
+		if(options.no_metadata) {  // RETURN WITH NO METADATA (SOLO IDS)
+			return res.rows.map(r=> {
+				//~ delete r.geom
+				//~ console.log(r.geom)
+				if(r.geom) {
+					r.geom = JSON.parse(r.geom)
+				} 
+				r.tipo = tipo
+				return r
+			})
+		}
+		var series = []
+		for(var i = 0; i < res.rows.length; i++) {
+			var row=res.rows[i]
+			try {
+				var serie = {
+					id:row.id,
+					var: await this.getVar(row.var_id),
+					procedimiento: await this.getProcedimiento(row.proc_id), 
+					unidades: await this.getUnidad(row.unit_id)
 				}
-				if(tipo.toUpperCase() == "AREAL") {
-					promises.push(this.getArea(row.area_id,{no_geom:true}),this.getFuente(row.fuentes_id),row.date_range)
-					//~ const s = new internal.serie(row.area_id, row.var_id, row.proc_id, row.unit_id, "areal", row.fuentes_id)
-					series.push(
-						Promise.all(promises)
-						.then( s => {
-							const serie =new internal.serie(s[5],s[1],s[2],s[3], tipo.toLowerCase(), s[6])
-							serie.id=s[0]
-							serie.date_range = s[7]
-							if(s[4]) {
-								serie.observaciones = s[4]
-							}
-							if(options.getStats) {
-								return serie.getStats(this.pool)
-							} else {
-								return serie
-							}
-						})
-					)
-				} else if (tipo.toUpperCase() == "RAST" || tipo.toUpperCase() == "RASTER") {
-					promises.push(this.getEscena(row.escena_id),this.getFuente(row.fuentes_id),row.date_range)
-					//~ const s = new internal.serie(row.area_id, row.var_id, row.proc_id, row.unit_id, "areal", row.fuentes_id)
-					series.push(
-						Promise.all(promises)
-						.then( s => {
-							const serie =new internal.serie(s[5],s[1],s[2],s[3], tipo.toLowerCase(), s[6])
-							serie.id=s[0]
-							serie.date_range = s[7]
-							if(s[4]) {
-								serie.observaciones = s[4]
-							}
-							if(options.getStats) {
-								return serie.getStats(this.pool)
-							} else {
-								return serie
-							}
-						})
-					)
-				} else {
-					promises.push(this.getEstacion(row.estacion_id),row.date_range)
-					//~ const s = new internal.serie(row.estacion_id, row.var_id, row.proc_id, row.unit_id, "puntual")
-					series.push(
-						Promise.all(promises)
-						.then( s => {
-							const serie =new internal.serie(s[5],s[1],s[2],s[3], "puntual")
-							//~ console.log({serie:serie})
-							serie.id=s[0]
-							serie.date_range = s[6]
-							//~ console.log(JSON.stringify(serie.date_range))
-							if(s[4]) {
-								serie.observaciones = s[4]
-							}
-							if(options) {
-								if(options.getStats) {
-									return serie.getStats(this.pool)
-								} else {
-									return serie
-								}
-							} else {
-								return serie
-							}
-						})
-					)
+			} catch(e) {
+				throw(e)
+			}
+			if(filter.timestart && filter.timeend) {
+				try {
+					serie.observaciones = await this.getObservaciones(tipo,{series_id:row.id,timestart:filter.timestart,timeend:filter.timeend})
+				} catch(e){
+					throw(e)
+				}
+			} 
+			if(tipo.toUpperCase() == "AREAL") {
+				tipo = "areal"
+				try {
+					serie.estacion = await this.getArea(row.area_id,{no_geom:true})
+					serie.fuente = await this.getFuente(row.fuentes_id)
+					serie.date_range = row.date_range
+				} catch(e){
+					throw(e)
+				}
+				
+			} else if (tipo.toUpperCase() == "RAST" || tipo.toUpperCase() == "RASTER") {
+				tipo="raster"
+				try {
+					serie.estacion = await this.getEscena(row.escena_id)
+					serie.fuente = await this.getFuente(row.fuentes_id)
+				} catch(e) {
+					throw(e)
+				}
+				serie.date_range = row.date_range
+				//~ const s = new internal.serie(row.area_id, row.var_id, row.proc_id, row.unit_id, "areal", row.fuentes_id)		
+			} else { // puntual
+				tipo="puntual"
+				try {
+					serie.estacion = await this.getEstacion(row.estacion_id)
+				} catch(e) {
+					throw(e)
+				}
+				serie.date_range = row.date_range
+				//~ const s = new internal.serie(row.estacion_id, row.var_id, row.proc_id, row.unit_id, "puntual")
+			}
+			serie.tipo = tipo
+			if(options.getStats) {
+				try {
+					serie = new internal.serie(serie)
+					await serie.getStats(this.pool)
+				} catch(e){
+					throw(e)
+				}
+				series.push(serie)
+			} else {
+				series.push(new internal.serie(serie))
+			}
+		}
+		return Promise.all(series)
+		.then(async series=>{
+			if(options.getMonthlyStats) {
+				var series_id_list = series.map(s=>s.id)
+				try {
+					var monthly_stats = await this.getMonthlyStatsSeries(tipo,series_id_list)
+					var ms = {}
+					monthly_stats.forEach(i=>{
+						ms[i.series_id] = i.stats
+					})
+				} catch(e) {
+					throw(e)
+				}
+				for(var i in series) {
+					if(ms[series[i].id]) {
+						series[i].monthlyStats = ms[series[i].id]
+					}
 				}
 			}
-			return Promise.all(series)
+			if(filter.percentil || options.getPercentiles) {
+				var series_id_list = series.map(s=>s.id)
+				try {
+					var percentiles = await this.getPercentiles(tipo,series_id_list,filter.percentil)
+					var perc = {}
+					percentiles.forEach(i=>{
+						perc[i.series_id] = i.percentiles
+					})
+				} catch(e) {
+					throw(e)
+				}
+				for(var i in series) {
+					if(perc[series[i].id]) {
+						series[i].percentiles = perc[series[i].id]
+					}
+				}
+			}
+			return series
 		})
-		.catch(e=>{
-			console.error(e)
-			return null
+	}
+
+	getPercentiles(tipo="puntual",series_id,percentiles,isPublic) {
+		var filter
+		var params
+		if(!series_id) {
+			filter = "WHERE tipo=$1" 
+			params = [tipo]
+		} else if(Array.isArray(series_id)) {
+			if(series_id.length) {
+				var id_list = series_id.map(id=>parseInt(id)).join(",")
+				filter = "WHERE tipo=$1 AND series_id IN (" + id_list + ")"
+				params = [tipo]
+			} else {
+				filter = "WHERE tipo=$1" 
+				params = [tipo]
+			}
+		} else {
+			filter = "WHERE tipo=$1 AND series_id=$2"
+			params = [tipo,series_id]
+		}
+		if(percentiles) {
+			if(Array.isArray(percentiles)) {
+				filter = `${filter} AND percentil::text IN (${percentiles.map(p=>`${parseFloat(p).toString()}::text`).join(",")})`
+			} else {
+				filter = `${filter} AND percentil::text=${parseFloat(percentiles).toString()}::text`
+			}
+		}
+		var stmt = "SELECT tipo,series_id,json_agg(json_build_object('percentile',percentil,'count',count,'timestart',timestart,'timeend',timeend,'valor',valor) ORDER BY percentil) AS percentiles FROM series_percentiles " + filter + " GROUP BY tipo,series_id ORDER BY tipo,series_id"
+		console.log(stmt)
+		return this.pool.query(stmt,params)
+		.then(result=>{
+			return result.rows.map(row=>new internal.percentiles(row))
 		})
 	}
 	
 	// OBSERVACION //
 	
+	removeDuplicatesMultiSeries(observaciones) {
+		var series_id = new Set(observaciones.map(o=>o.series_id))
+		var result = []
+		for(var id of series_id) {
+			var subset = observaciones.filter(o=>(o.series_id==id))
+			if(subset.length) {
+				var filtered = this.removeDuplicates(subset)
+				for(var x of filtered) result.push(x)
+			}
+		}
+		return result
+	}
+
 	removeDuplicates(observaciones) {   // elimina observaciones con timestart duplicado
-		var timestarts = []
+		// var timestarts = []
+		console.log("sorting...")
+		observaciones.sort((a,b) => (a.timestart - b.timestart))
+		console.log("done")
+		var previous_timestart = new Date("1800-01-01")
+		console.log("filtering...")
 		return observaciones.filter(o=>{ 
-			if(timestarts.indexOf(o.timestart) >= 0) {
+			if(o.timestart - previous_timestart == 0) {
 				console.log("removing duplicate observacion, timestart:"+o.timestart)
 				return false
 			} else {
-				timestarts.push(o.timestart)
+				previous_timestart = o.timestart
 				return true
 			}
 		})
 	}
 
-	upsertObservacion(observacion) {
+	upsertObservacion(observacion,no_update) {
 		//~ console.log(observacion)
 		if (!(observacion instanceof internal.observacion)) {
 			//~ console.log("create observacion")
@@ -4152,19 +4990,23 @@ internal.CRUD = class {
 				const val_type = (Array.isArray(observacion.valor)) ? "numarr" : "num"
 				const obs_tabla = (observacion.tipo == "areal") ? "observaciones_areal" : "observaciones"
 				const val_tabla = (observacion.tipo == "areal") ? (val_type == "numarr") ? "valores_numarr_areal" : "valores_num_areal" : (val_type == "numarr") ? "valores_numarr" : "valores_num"
+				var on_conflict_clause_obs = (no_update) ? " NOTHING " : " UPDATE SET nombre=excluded.nombre,\
+							  descripcion=excluded.descripcion,\
+							  unit_id=excluded.unit_id,\
+							  timeupdate=excluded.timeupdate "
+				var on_conflict_clause_val = (no_update) ? " NOTHING " : " UPDATE SET valor=excluded.valor "
 				return this.pool.connect()
 				.then(client => {
 					return client.query('BEGIN')
 					.then(res => {
 						const queryText = "INSERT INTO " + obs_tabla + " (series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate)\
 							VALUES ($1,$2,$3,$4,$5,$6,coalesce($7,now()))\
-							ON CONFLICT (series_id,timestart,timeend)\
-							DO UPDATE SET nombre=excluded.nombre,\
-										  descripcion=excluded.descripcion,\
-										  unit_id=excluded.unit_id,\
-										  timeupdate=excluded.timeupdate\
+							ON CONFLICT (series_id,timestart,timeend) DO " + on_conflict_clause_obs + "\
 							RETURNING *"
-						return client.query(queryText,[observacion.series_id,observacion.timestart,observacion.timeend,observacion.nombre,observacion.descripcion,observacion.unit_id,observacion.timeupdate])
+						var stmt = pasteIntoSQLQuery(queryText,[observacion.series_id,observacion.timestart,observacion.timeend,observacion.nombre,observacion.descripcion,observacion.unit_id,observacion.timeupdate])
+						// console.log(stmt)
+						return client.query(stmt)
+						// return client.query(queryText,[observacion.series_id,observacion.timestart,observacion.timeend,observacion.nombre,observacion.descripcion,observacion.unit_id,observacion.timeupdate])
 					}).then( res => {
 						if(res.rows.length == 0) {
 							console.log("No se inserto observacion")
@@ -4180,7 +5022,7 @@ internal.CRUD = class {
 							const insertValorText = "INSERT INTO " + val_tabla + " (obs_id,valor)\
 								VALUES ($1,$2)\
 								ON CONFLICT (obs_id)\
-								DO UPDATE SET valor=excluded.valor\
+								DO " + on_conflict_clause_val + "\
 								RETURNING *"
 							return client.query(insertValorText, [obs.id, observacion.valor])
 							.then(res => {
@@ -4204,6 +5046,7 @@ internal.CRUD = class {
 					valor_string = observacion.valor
 				}
 				// console.log("valor_string:" + valor_string)
+				var on_conflict_clause = (no_update) ? " NOTHING " : " UPDATE SET valor=excluded.valor, timeupdate=excluded.timeupdate "
 				if(observacion.scale) {
 					var scale = parseFloat(observacion.scale)
 					var offset = (observacion.offset) ? parseFloat(observacion.offset) : 0
@@ -4211,14 +5054,14 @@ internal.CRUD = class {
 					stmt = "INSERT INTO observaciones_rast (series_id, timestart, timeend, valor, timeupdate)\
 					VALUES ($1, $2, $3, ST_mapAlgebra(ST_FromGDALRaster($4),'32BF',$5), $6)\
 					ON CONFLICT (series_id, timestart, timeend)\
-					DO UPDATE SET valor=excluded.valor, timeupdate=excluded.timeupdate\
+					DO " + on_conflict_clause + "\
 					RETURNING id,series_id,timestart,timeend,st_asgdalraster(valor,'GTiff') valor,timeupdate"    // '\\x'||encode(st_asgdalraster(valor,'GTiff')::bytea,'hex')
 					args = [observacion.series_id, observacion.timestart, observacion.timeend, valor_string, expression, observacion.timeupdate]
 				} else {
 					stmt = "INSERT INTO observaciones_rast (series_id, timestart, timeend, valor, timeupdate)\
 					VALUES ($1, $2, $3, ST_FromGDALRaster($4), $5)\
 					ON CONFLICT (series_id, timestart, timeend)\
-					DO UPDATE SET valor=excluded.valor, timeupdate=excluded.timeupdate\
+					DO " + on_conflict_clause + "\
 					RETURNING id,series_id,timestart,timeend,st_asgdalraster(valor, 'GTIff') valor,timeupdate" // '\\x'||encode(st_asgdalraster(valor,'GTiff')::bytea,'hex')
 					args = [observacion.series_id, observacion.timestart, observacion.timeend, valor_string, observacion.timeupdate]
 				}	
@@ -4286,7 +5129,7 @@ internal.CRUD = class {
 		return pasteIntoSQLQuery(query,params)
 	}
 
-	upsertObservaciones(observaciones,tipo,series_id,options={}) {
+	async upsertObservaciones(observaciones,tipo,series_id,options={}) {
 		if(!observaciones) {
 			return Promise.reject("falta observaciones")
 		}
@@ -4294,13 +5137,18 @@ internal.CRUD = class {
 			console.log("upsertObservaciones: nothing to upsert (length==0)")
 			return Promise.resolve([]) // "upsertObservaciones: nothing to upsert (length==0)")
 		}
+		var serie
 		if(series_id) {
+			// console.log("setting series_id in each obs...")
 			observaciones = observaciones.map(o=>{
 				o.series_id = series_id
 				return o
 			})
+			observaciones = this.removeDuplicates(observaciones)
+			// console.log("done")
+		} else {
+			observaciones = this.removeDuplicatesMultiSeries(observaciones)
 		}
-		observaciones = this.removeDuplicates(observaciones)
 		if(!tipo && observaciones[0].tipo) {
 			var tipo_guess = observaciones[0].tipo
 			var count = 0
@@ -4314,14 +5162,25 @@ internal.CRUD = class {
 				tipo = tipo_guess
 			}
 		}
+		if(series_id && tipo) {
+			console.log("try read series_id " + series_id)
+			try {
+				serie = await this.getSerie(tipo,series_id,undefined,undefined,{no_metadata:true})
+				console.log("try read var_id " + serie.var.id)
+				serie.var = await this.getVar(serie.var.id) 
+			} catch(e) {
+				throw(e)
+			}
+			console.log("got series, var.timeSupport=" + serie.var.timeSupport.toString())
+		}
 		if(config.verbose) {
 			console.log("crud.upsertObservaciones: tipo: " + tipo)
 		}
 		if(tipo) {
 			if(tipo=="puntual") {
-				return this.upsertObservacionesPuntual(observaciones,options.skip_nulls)
+				return this.upsertObservacionesPuntual(observaciones,options.skip_nulls,options.no_update,(serie) ? serie.var.timeSupport : undefined)
 			} else if(tipo=="areal") {
-				return this.upsertObservacionesAreal(observaciones,options.skip_nulls)
+				return this.upsertObservacionesAreal(observaciones,options.skip_nulls,options.no_update, (serie) ? serie.var.timeSupport : undefined)
 			}
 			observaciones = observaciones.map(o=>{
 				o.tipo = tipo
@@ -4331,37 +5190,42 @@ internal.CRUD = class {
 		if(config.verbose) {
 			console.log("crud.upsertObservaciones: tipo: " + tipo)
 		}
-		var promises = []
+		var upserted = []
+		var errors = []
 		for(var i=0; i<observaciones.length; i++) {
 			const observacion = new internal.observacion(observaciones[i])
-			//~ console.log("pushing obs:"+observacion.toCSVless())
+			// console.log("pushing obs:"+observacion.toCSVless())
 			//~ console.log("valor.length:"+observacion.valor.length)
 			if(options.skip_nulls && (observacion.valor === null || observacion.valor === undefined )) {
 				console.log("skipping null value, series_id:" + observacion.series_id + " timestart:" + observacion.timestart) 
 			} else {
-				promises.push(this.upsertObservacion(observacion))
+				try {
+					var o = await this.upsertObservacion(observacion,options.no_update)
+					upserted.push(o)
+				} catch (e) {
+					errors.push(e)
+				}
 			}
 		}
-		return Promise.allSettled(promises)
-		.then(results=>{
-			return results.map(r=>{
-				if(r.status == "fulfilled") {
-					return r.value //valuetype
-				} else {
-					console.error("upsert rejected, reason:" + r.reason)
-					return
-				}
-			}).filter(r=>r)
-		})
-		//~ .then(result=>{
-			//~ console.log("upserted " + result.length + " observaciones")
-			//~ return result
-		//~ })
-		//~ .catch(e=>{
+		if(!upserted.length && errors.length) {
+			throw(errors)
+		}
+		return upserted
+		// Promise.allSettled(promises)
+		// .then(results=>{
+		// 	return results.map(r=>{
+		// 		if(r.status == "fulfilled") {
+		// 			return r.value //valuetype
+		// 		} else {
+		// 			console.error("upsert rejected, reason:" + r.reason)
+		// 			return
+		// 		}
+		// 	}).filter(r=>r)
+		// })
 	}
 	
 			
-	upsertObservacionesPuntual(observaciones,skip_nulls) {
+	upsertObservacionesPuntual(observaciones,skip_nulls,no_update,timeSupport) {
 		//~ console.log({observaciones:observaciones})
 		var obs_values = []
 		observaciones = observaciones.map(observacion=> {
@@ -4380,7 +5244,7 @@ internal.CRUD = class {
 				console.error("invalid timestart")
 				return
 			}
-			observacion.timeend = !(observacion.timeend instanceof Date) ? new Date(observacion.timeend) : observacion.timeend
+			observacion.timeend = (timeSupport) ? timeSteps.advanceTimeStep(observacion.timestart,timeSupport) : !(observacion.timeend instanceof Date) ? new Date(observacion.timeend) : observacion.timeend
 			if(observacion.timeend.toString()=='Invalid Date')  {
 				console.error("invalid timeend")
 				return
@@ -4404,12 +5268,18 @@ internal.CRUD = class {
 			return Promise.reject("no valid observations")
 		}
 		obs_values = obs_values.join(",")
+		var on_conflict_clause_obs = (no_update) ? " NOTHING " : " UPDATE SET nombre=excluded.nombre,\
+					  timeupdate=excluded.timeupdate"
+		var on_conflict_clause_val = (no_update) ? " NOTHING " : " UPDATE SET valor=excluded.valor"
+		var disable_trigger = (timeSupport) ? "ALTER TABLE observaciones DISABLE TRIGGER obs_puntual_dt_constraint_trigger;" : ""
+		var enable_trigger = (timeSupport) ? "ALTER TABLE observaciones ENABLE TRIGGER obs_puntual_dt_constraint_trigger;" : ""
 		return this.pool.connect()
 		.then(client => {
 			//~ console.log({obs_values:obs_values})
 			return client.query('BEGIN')
 			.then( () => {
 				return client.query("\
+					" + disable_trigger  + "\
 					CREATE TEMPORARY TABLE obs (series_id int,timestart timestamp,timeend timestamp,nombre varchar,timeupdate timestamp,valor real) ON COMMIT DROP ;\
 					INSERT INTO obs (series_id,timestart,timeend,nombre,timeupdate,valor)\
 					VALUES " + obs_values + ";")
@@ -4417,10 +5287,9 @@ internal.CRUD = class {
 				return client.query("\
 				    INSERT INTO observaciones (series_id,timestart,timeend,nombre,timeupdate)\
 					SELECT series_id,timestart,timeend,nombre,timeupdate\
-					FROM obs\
+					FROM obs \
 					ON CONFLICT (series_id,timestart,timeend)\
-					DO UPDATE SET nombre=excluded.nombre,\
-								  timeupdate=excluded.timeupdate;")
+					DO " + on_conflict_clause_obs)
 			}).then( ()=>{
 				return client.query("\
 					INSERT INTO valores_num (obs_id,valor)\
@@ -4428,9 +5297,9 @@ internal.CRUD = class {
 					FROM observaciones,obs\
 					WHERE observaciones.series_id=obs.series_id\
 					AND observaciones.timestart=obs.timestart\
-					AND observaciones.timeend=obs.timeend\
+					AND observaciones.timeend=obs.timeend \
 					ON CONFLICT(obs_id)\
-					DO UPDATE SET valor=excluded.valor")
+					DO " + on_conflict_clause_val)
 			}).then( ()=>{
 				return client.query("\
 					SELECT observaciones.id,\
@@ -4457,7 +5326,8 @@ internal.CRUD = class {
 						throw("No observaciones inserted")
 					}
 				}
-				return client.query("COMMIT")
+				return client.query(enable_trigger + "\
+				COMMIT;")
 				.then(()=>{
 					client.release()
 					console.log("upserted: " + result.rows.length + " obs_puntuales")
@@ -4475,7 +5345,7 @@ internal.CRUD = class {
 		})	
 	}
 	
-	upsertObservacionesAreal(observaciones,skip_nulls) {
+	upsertObservacionesAreal(observaciones,skip_nulls,no_update, timeSupport) {
 		var obs_values = []
 		observaciones = observaciones.map(observacion=> {
 			if(!observacion.series_id) {
@@ -4493,7 +5363,7 @@ internal.CRUD = class {
 				console.error("invalid timestart")
 				return
 			}
-			observacion.timeend = !(observacion.timeend instanceof Date) ? new Date(observacion.timeend) : observacion.timeend
+			observacion.timeend = (timeSupport) ? timeSteps.advanceTimeStep(observacion.timestart,timeSupport) : !(observacion.timeend instanceof Date) ? new Date(observacion.timeend) : observacion.timeend
 			if(observacion.timeend.toString()=='Invalid Date')  {
 				console.error("invalid timeend")
 				return
@@ -4515,16 +5385,20 @@ internal.CRUD = class {
 			console.log("crud.upsertObservacionesAreal: obs_values:" + JSON.stringify(obs_values))
 		}
 		obs_values = obs_values.join(",")
+		var on_conflict_clause_obs = (no_update) ? " NOTHING " : " UPDATE SET nombre=excluded.nombre,\
+					  timeupdate=excluded.timeupdate " 
+		var on_conflict_clause_val = (no_update) ? " NOTHING " : " UPDATE SET valor=excluded.valor "
+		var disable_trigger = (timeSupport) ? "ALTER TABLE observaciones_areal DISABLE TRIGGER obs_dt_trig;" : ""
+		var enable_trigger = (timeSupport) ? "ALTER TABLE observaciones_areal ENABLE TRIGGER obs_dt_trig;" : "" 
 		return this.pool.connect()
 		.then(client => {
-			return client.query('BEGIN')
+			return client.query('BEGIN;' + disable_trigger)
 			.then( () => {
 				return client.query("\
 					INSERT INTO observaciones_areal (series_id,timestart,timeend,nombre,timeupdate)\
 					VALUES " + obs_values + "\
 					ON CONFLICT (series_id,timestart,timeend)\
-					DO UPDATE SET nombre=excluded.nombre,\
-								  timeupdate=excluded.timeupdate\
+					DO " + on_conflict_clause_obs + "\
 					RETURNING *")
 			})
 			.then( result => {
@@ -4559,11 +5433,11 @@ internal.CRUD = class {
 				return client.query("INSERT INTO valores_num_areal (obs_id,valor)\
 					VALUES " + val_values + "\
 					ON CONFLICT (obs_id)\
-					DO UPDATE SET valor=excluded.valor\
+					DO " + on_conflict_clause_val + "\
 					RETURNING *")
 			})
 			.then(result=>{
-				client.query("COMMIT")
+				client.query(enable_trigger + " COMMIT;")
 			})
 			.then(res => {
 				client.release()
@@ -4649,17 +5523,17 @@ internal.CRUD = class {
 		//~ })	
 	}
 	
-	removeDuplicates(observaciones) {
-		var unique_date_series = []
-		return observaciones.filter(o=> {
-			if(unique_date_series.indexOf(o.series_id + "_" + o.timestart.toString()) >= 0) {
-				return false
-			} else {
-				unique_date_series.push(o.series_id + "_" + o.timestart.toString())
-				return true
-			}
-		})
-	}
+	// removeDuplicates(observaciones) {
+	// 	var unique_date_series = []
+	// 	return observaciones.filter(o=> {
+	// 		if(unique_date_series.indexOf(o.series_id + "_" + o.timestart.toString()) >= 0) {
+	// 			return false
+	// 		} else {
+	// 			unique_date_series.push(o.series_id + "_" + o.timestart.toString())
+	// 			return true
+	// 		}
+	// 	})
+	// }
 	
 	runSqlCommand(dbconfig,sql,input_file) {
 		return new Promise( (resolve,reject) =>{
@@ -4823,14 +5697,24 @@ internal.CRUD = class {
 		}
 	}
 	
-	deleteObservaciones(tipo,filter) {
+	deleteObservaciones2(tipo,filter,options) {
+		var stmt = this.build_delete_observaciones_query(tipo,filter,options)
+		return this.pool.query(stmt)
+		.then(result=>{
+			return result.rows
+		})	
+	}
+
+	deleteObservaciones(tipo,filter,options) { // con options.no_send_data devuelve count de registros eliminados, si no devuelve array de registros eliminados
 		return new Promise ( (resolve, reject) => {
 			tipo = (tipo.toLowerCase() == "areal") ? "areal" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "rast" : "puntual"
 			if(tipo == "rast") {
 				var stmt
 				var args
+				var returning_clause = (options && options.no_send_data) ? " RETURNING 1 AS d" : " RETURNING series_id,id,timestart,timeend,'\\x' || encode(st_asgdalraster(valor, 'GTIff')::bytea,'hex') valor, timeupdate"
+				var select_deleted_clause = (options && options.no_send_data) ? " SELECT count(d) FROM deleted" : "SELECT * FROM deleted"
 				if(filter.id) {
-					stmt = "DELETE FROM observaciones_rast WHERE id=$1 RETURNING series_id,id,timestart,timeend,'\\x' || encode(st_asgdalraster(valor, 'GTIff')::bytea,'hex') valor, timeupdate"
+					stmt = "WITH deleted AS (DELETE FROM observaciones_rast WHERE id=$1 " + returning_clause + ") " +  select_deleted_clause
 					args = [parseInt(filter.id)]
 				} else {
 					var valid_filters = {series_id:"integer",timestart:"timestart",timeend:"timeend",timeupdate:"string"}
@@ -4838,46 +5722,52 @@ internal.CRUD = class {
 					if(!filter_string) {
 						return Promise.reject(new Error("invalid filter value"))
 					}
-					stmt = "DELETE FROM observaciones_rast WHERE 1=1 " + filter_string + " RETURNING series_id,id,timestart,timeend,'\\x' || encode(st_asgdalraster(valor, 'GTIff')::bytea,'hex') valor, timeupdate"
+					stmt = "WITH delete AS (DELETE FROM observaciones_rast WHERE 1=1 " + filter_string + returning_clause + ") " + select_deleted_clause
 					args=[]
 				}
 				resolve(this.pool.query(stmt,args)
 				.then(result=>{
 					if(!result.rows) {
 						console.log("Error in transaction: no rows returned")
-						return []
+						return (options && options.no_send_data) ? 0 : []
 					}
 					if(result.rows.length == 0) {
 						console.log("0 rows deleted")
-						return []
+						return (options && options.no_send_data) ? 0 : []
 					}
-					var observaciones = []
-					for(var i=0; i< result.rows.length;i++) {
-						const deleted_observacion = new internal.observacion(tipo, result.rows[i].series_id, result.rows[i].timestart, result.rows[i].timeend, result.rows[i].timeupdate, result.rows[i].valor)
-						deleted_observacion.id = result.rows[i].id
-						observaciones.push(deleted_observacion)
+					if (options && options.no_send_data) {
+						console.log(result.rows[0].count + " rows deleted")
+						return parseInt(result.rows[0].count)
+					} else {
+						var observaciones = []
+						for(var i=0; i< result.rows.length;i++) {
+							const deleted_observacion = new internal.observacion(tipo, result.rows[i].series_id, result.rows[i].timestart, result.rows[i].timeend, result.rows[i].timeupdate, result.rows[i].valor)
+							deleted_observacion.id = result.rows[i].id
+							observaciones.push(deleted_observacion)
+						}
+						return observaciones
 					}
-					return observaciones
 				}).catch(e=>{
 					console.error(e)
 				}))
-				
 			} else {
 				const obs_tabla = (tipo == "areal") ? "observaciones_areal" : "observaciones"
 				const val_tabla = (tipo == "areal") ? "valores_num_areal" : "valores_num"
 				var deleteValorText
 				var deleteObsText
+				var returning_clause = (options && options.no_send_data) ? " RETURNING 1 AS d" : " RETURNING *"
+				var select_deleted_clause = (options && options.no_send_data) ? " SELECT count(d) FROM deleted" : "SELECT * FROM deleted"
 				if(filter.id) {
 					if(Array.isArray(filter.id)) {
 						if(filter.id.length == 0) {
 							console.log("crud/deleteObservaciones: Nothing to delete (passed zero length id array)")
 							return Promise.resolve([])
 						}
-						deleteValorText = "DELETE FROM " + val_tabla + " WHERE obs_id IN (" + filter.id.join(",") + ") RETURNING *"
-						deleteObsText = "DELETE FROM " + obs_tabla + " WHERE id IN (" + filter.id.join(",") + ") RETURNING *"	
+						deleteValorText = "WITH deleted AS (DELETE FROM " + val_tabla + " WHERE obs_id IN (" + filter.id.join(",") + ") " + returning_clause + ") " + select_deleted_clause
+						deleteObsText = "WITH deleted AS (DELETE FROM " + obs_tabla + " WHERE id IN (" + filter.id.join(",") + ") " + returning_clause + ") " + select_deleted_clause
 					} else {
-						deleteValorText = "DELETE FROM " + val_tabla + " WHERE obs_id=" + parseInt(filter.id) + " RETURNING *"
-						deleteObsText = "DELETE FROM " + obs_tabla + " WHERE id=" + parseInt(filter.id) + " RETURNING *"
+						deleteValorText = "WITH deleted AS (DELETE FROM " + val_tabla + " WHERE obs_id=" + parseInt(filter.id) +  + returning_clause + ") " + select_deleted_clause
+						deleteObsText = "WITH deleted AS (DELETE FROM " + obs_tabla + " WHERE id=" + parseInt(filter.id)  + returning_clause + ") " + select_deleted_clause
 					}
 				} else {
 					var valid_filters = {series_id:"integer",timestart:"timestart",timeend:"timeend",unit_id:"integer",timeupdate:"string",valor:"numeric_interval"}
@@ -4885,14 +5775,14 @@ internal.CRUD = class {
 					if(!filter_string) {
 						return Promise.reject(new Error("invalid filter value"))
 					}
-					deleteValorText = "DELETE FROM " + val_tabla + " USING " + obs_tabla +" \
+					deleteValorText = "WITH deleted AS (DELETE FROM " + val_tabla + " USING " + obs_tabla +" \
 						WHERE " + obs_tabla + ".id=" + val_tabla + ".obs_id " + filter_string + " \
-						RETURNING *"
-					deleteObsText = "DELETE FROM " + obs_tabla + " \
+						"  + returning_clause + ") " + select_deleted_clause
+					deleteObsText = "		WITH deleted AS (DELETE FROM " + obs_tabla + " \
 					WHERE 1=1 " + filter_string + " \
-					RETURNING *"
+					"  + returning_clause + ") " + select_deleted_clause
 				}
-				//~ console.log(deleteObsText)
+				// ~ console.log(deleteObsText)
 				this.pool.connect( (err, client, done) => {
 					const shouldAbort = err => {
 						if (err) {
@@ -4921,9 +5811,13 @@ internal.CRUD = class {
 								console.log("No se eliminó ningun valor")
 							}
 							var deleted_valores={}
-							res.rows.forEach(row=> {
-								deleted_valores[row.obs_id] = row.valor 
-							})
+							if(options && options.no_send_data) {
+								console.log(res.rows[0].count + " valores marked for deletion")
+							} else {
+								res.rows.forEach(row=> {
+									deleted_valores[row.obs_id] = row.valor 
+								})
+							}
 							client.query(deleteObsText, (err, res) => {
 								if (shouldAbort(err)) {
 									reject(err)
@@ -4932,24 +5826,34 @@ internal.CRUD = class {
 								if(res.rows.length == 0) {
 									console.log("No se eliminó ninguna observacion")
 								}
-								var deleted_observaciones = res.rows
+								var deleted_observaciones
+								if(options && options.no_send_data) {
+									console.log(res.rows[0].count + " observaciones marked for deletion")
+								} else {
+									deleted_observaciones = res.rows
+								}
 								client.query("COMMIT", err => {
+									done()
 									if (err) {
 										console.error('Error committing transaction', err.stack)
 										reject(err)
 										return
 									}
-									console.log("Deleted " + deleted_observaciones.length + " observaciones from " + obs_tabla)
-									done()
-									var observaciones=[]
-									for(var i=0; i< deleted_observaciones.length;i++) {
-										var valor = deleted_valores[deleted_observaciones[i].id]
-										const deleted_observacion = new internal.observacion(tipo, deleted_observaciones[i].series_id, deleted_observaciones[i].timestart, deleted_observaciones[i].timeend, deleted_observaciones[i].nombre, deleted_observaciones[i].descripcion, deleted_observaciones[i].unit_id, deleted_observaciones[i].timeupdate, valor)
-										deleted_observacion.id = deleted_observaciones[i].id
-										
-										observaciones.push(deleted_observacion)
+									if(options && options.no_send_data) {
+										console.log("Deleted " + res.rows[0].count + " rows from " + obs_tabla)
+										resolve(parseInt(res.rows[0].count))
+									} else {
+										console.log("Deleted " + deleted_observaciones.length + " observaciones from " + obs_tabla)
+										var observaciones=[]
+										for(var i=0; i< deleted_observaciones.length;i++) {
+											var valor = deleted_valores[deleted_observaciones[i].id]
+											const deleted_observacion = new internal.observacion(tipo, deleted_observaciones[i].series_id, deleted_observaciones[i].timestart, deleted_observaciones[i].timeend, deleted_observaciones[i].nombre, deleted_observaciones[i].descripcion, deleted_observaciones[i].unit_id, deleted_observaciones[i].timeupdate, valor)
+											deleted_observacion.id = deleted_observaciones[i].id
+											
+											observaciones.push(deleted_observacion)
+										}
+										resolve(observaciones)
 									}
-									resolve(observaciones)
 								})
 							})
 						})
@@ -4991,26 +5895,335 @@ internal.CRUD = class {
 			return observacion
 		})
 	} 
+
+	getObservacionesGroupByClause(tipo,columns) {
+		if(!columns) {
+			return
+		}
+		if(typeof columns == "string") {
+			columns = columns.split(",")
+		}
+		var valid_columns = {
+			series_id:{},
+			timestart:{},
+			timeend:{},
+			date:{type:"date",column:"timestart"},
+			millennium:{column:"timestart",date_trunc:"millennium"},
+			century:{column:"timestart",date_trunc:"century"},
+			decade:{column:"timestart",date_trunc:"decade"},
+			year:{column:"timestart",date_trunc:"year"},
+			quarter:{column:"timestart",date_trunc:"quarter"},
+			month:{column:"timestart",date_trunc:"month"},
+			week:{column:"timestart",date_trunc:"week"},
+			day:{column:"timestart",date_trunc:"day"},
+			hour:{column:"timestart",date_trunc:"hour"},
+			minute:{column:"timestart",date_trunc:"minute"},
+			second:{column:"timestart",date_trunc:"second"},
+			millisecond:{column:"timestart",date_trunc:"millisecond"},
+			microsecond:{column:"timestart",date_trunc:"microsecond"},
+			part_millennium:{column:"timestart",date_part:"millennium"},
+			part_century:{column:"timestart",date_part:"century"},
+			part_decade:{column:"timestart",date_part:"decade"},
+			part_year:{column:"timestart",date_part:"year"},
+			part_quarter:{column:"timestart",date_part:"quarter"},
+			part_month:{column:"timestart",date_part:"month"},
+			part_week:{column:"timestart",date_part:"week"},
+			part_day:{column:"timestart",date_part:"day"},
+			part_hour:{column:"timestart",date_part:"hour"},
+			part_minute:{column:"timestart",date_part:"minute"},
+			part_second:{column:"timestart",date_part:"second"},
+			part_millisecond:{column:"timestart",date_part:"millisecond"},
+			part_microsecond:{column:"timestart",date_part:"microsecond"}
+		}
+		var default_table
+		switch (tipo) {
+			case "puntual":
+				valid_columns['unit_id'] = {table:"series"}
+				valid_columns['var_id'] = {table:"series"}
+				valid_columns['proc_id'] = {table:"series"}
+				valid_columns['estacion_id'] = {table:"series"}
+				valid_columns['red_id'] = {table:"redes",column:"id"}
+				valid_columns['tabla_id'] = {table:"estaciones",column:"tabla"}
+				valid_columns['timeupdate'] = {}
+				default_table = "observaciones"
+				break;
+			case "areal":
+				valid_columns['unit_id'] = {table:"series_areal"}
+				valid_columns['var_id'] = {table:"series_areal"}
+				valid_columns['proc_id'] = {table:"series_areal"}
+				valid_columns['estacion_id'] = {table:"series_areal"}
+				valid_columns['fuentes_id'] = {table:"series_areal"}
+				default_table = "observaciones_areal"
+				break;
+			case "raster":
+				valid_columns['unit_id'] = {table:"series_rast"}
+				valid_columns['var_id'] = {table:"series_rast"}
+				valid_columns['proc_id'] = {table:"series_rast"}
+				valid_columns['estacion_id'] = {table:"series_rast"}
+				valid_columns['fuentes_id'] = {table:"series_rast"}
+				default_table = "observaciones_rast"
+				break;
+			default:
+				break;
+		} 
+		return build_group_by_clause(valid_columns,columns,default_table)
+	}
 	
-	getObservaciones(tipo,filter,options) {
-		var valid_filters
-		var table
+	// STUB
+	getObservacionesCount(tipo,filter,options={}) { 
+		var filter_string = (filter) ? this.getObservacionesFilterString(tipo,filter,options) : ""
+		// console.log("filter string:" + filter_string)
+		var group_by_clause = this.getObservacionesGroupByClause(tipo,options.group_by)
+		var group_by_string = (group_by_clause) ? " GROUP BY " + group_by_clause.group_by.join(",") : ""
+		// console.log("group by string:" + group_by_string)
+		var order_by_string = (group_by_clause) ? " ORDER BY " + group_by_clause.order_by.join(",") : ""
+		var stmt
+		if (tipo.toLowerCase() == "areal") {
+			var select_string = "count(observaciones_areal.timestart) AS count"
+			if (group_by_clause) {
+				group_by_clause.select.push("count(observaciones_areal.timestart) AS count")
+				select_string = group_by_clause.select.join(",")
+			}
+			stmt =  "SELECT " + select_string + " FROM observaciones_areal,series_areal,fuentes WHERE observaciones_areal.series_id=series_areal.id AND series_areal.fuentes_id=fuentes.id " + filter_string + group_by_string + order_by_string
+		} else if (tipo.toLowerCase() == "puntual") {
+			var select_string = "count(observaciones.timestart) AS count"
+			if(group_by_clause) {
+				group_by_clause.select.push("count(observaciones.timestart) AS count")
+				select_string = group_by_clause.select.join(",")
+			}
+			stmt = "SELECT " + select_string  + " FROM observaciones, series,estaciones,redes WHERE observaciones.series_id=series.id AND series.estacion_id=estaciones.unid AND estaciones.tabla=redes.tabla_id " + filter_string + group_by_string + order_by_string
+		} else {
+			var select_string = "count(observaciones_rast.timestart) AS count"
+			if(group_by_clause) {
+				group_by_clause.select.push("count(observaciones_rast.timestart) AS count")
+				select_string = group_by_clause.select.join(",")
+			}
+			stmt = "SELECT " + select_string + " FROM observaciones_rast,series_rast,fuentes WHERE observaciones_rast.series_id=series_rast.id AND series_rast.fuentes_id=fuentes.id " + filter_string + filter_string + group_by_string + order_by_string
+		}
+		console.log(stmt)
+		return this.pool.query(stmt)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	getObservacionesFilterString(tipo,filter,options) {
+		var series_table = (tipo=="puntual") ? "series" : (tipo=="areal") ? "series_areal" : "series_rast"
+		var observaciones_table = (tipo=="puntual") ? "observaciones" : (tipo=="areal") ? "observaciones_areal" : "observaciones_rast" 
+		var valores_table = (tipo.toLowerCase() == "areal") ? (options && options.obs_type && options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr_areal" : "valores_num_areal" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "observaciones_rast" : (options && options.obs_type && options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr" : "valores_num"
+		var fuentes_table = (tipo.toLowerCase() == "areal") ? "fuentes" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "fuentes" : "redes"
 		var filter_string = "" 
-		filter_string += control_filter({id:"integer",series_id:"integer",timestart:"timestart",timeend:"timeend",unit_id:"integer",timeupdate:"string"},filter, (tipo.toLowerCase() == "areal") ? "observaciones_areal" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "observaciones_rast" : "observaciones")
-		filter_string += control_filter({valor:"numeric_interval"},filter, (tipo.toLowerCase() == "areal") ? (options && options.obs_type && options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr_areal" : "valores_num_areal" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "observaciones_rast" : (options && options.obs_type && options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr" : "valores_num")
-		filter_string += control_filter({public:"boolean_only_true"},filter, (tipo.toLowerCase() == "areal") ? "fuentes" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "fuentes" : "redes") 
+		var valid_filters = {
+			id:{type:"integer"},
+			series_id:{type:"integer"},
+			timestart:{type:"timestart"},
+			timeend:{type:"timeend"},
+			unit_id:{type:"integer"},
+			timeupdate:{type:"date"},
+			var_id:{type:"integer",table:series_table},
+			proc_id:{type:"integer",table:series_table}
+		}
+		if(tipo=="puntual") {
+			valid_filters["red_id"] = {type:"integer",table:"redes",column:"id"}
+			valid_filters["tabla_id"] = {type:"integer",table:"redes"}
+			valid_filters["estacion_id"] = {type:"integer",table: series_table}
+		} else if(tipo=="areal") {
+			valid_filters["fuentes_id"] = {type:"integer",table:series_table}
+			valid_filters["area_id"] = {type:"integer",table: series_table}
+		} else { // "raster"
+			valid_filters["fuentes_id"] = {type:"integer",table:series_table}
+			valid_filters["escena_id"] = {type:"integer",table: series_table}
+		}
+		filter_string += control_filter2(valid_filters,filter,observaciones_table)
+		// filter_string += control_filter({id:"integer",series_id:"integer",timestart:"timestart",timeend:"timeend",unit_id:"integer",timeupdate:"string"},filter, (tipo.toLowerCase() == "areal") ? "observaciones_areal" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "observaciones_rast" : "observaciones")
+		filter_string += control_filter({valor:"numeric_interval"},filter, valores_table)
+		filter_string += control_filter({public:"boolean_only_true"},filter, fuentes_table)
+		console.log(filter_string)
+		return filter_string
+	}
+
+	getObservacionesGuardadasFilterString(tipo,filter,options) {
+		var series_table = (tipo=="puntual") ? "series" : (tipo=="areal") ? "series_areal" : "series_rast"
+		var observaciones_table = (tipo=="puntual") ? "observaciones_guardadas" : (tipo=="areal") ? "observaciones_areal_guardadas" : "observaciones_rast_guardadas" 
+		var fuentes_table = (tipo.toLowerCase() == "areal") ? "fuentes" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "fuentes" : "redes"
+		var filter_string = "" 
+		var valid_filters = {
+			id:{type:"integer"},
+			series_id:{type:"integer"},
+			timestart:{type:"timestart"},
+			timeend:{type:"timeend"},
+			unit_id:{type:"integer"},
+			timeupdate:{type:"timestamp"},
+			var_id:{type:"integer",table:series_table},
+			proc_id:{type:"integer",table:series_table}
+		}
+		if(tipo=="puntual") {
+			valid_filters["red_id"] = {type:"integer",table:"redes",column:"id"}
+			valid_filters["tabla_id"] = {type:"integer",table:"redes"}
+			valid_filters["estacion_id"] = {type:"integer",table: series_table}
+		} else if(tipo=="areal") {
+			valid_filters["fuentes_id"] = {type:"integer",table:series_table}
+			valid_filters["area_id"] = {type:"integer",table: series_table}
+		} else { // "raster"
+			valid_filters["fuentes_id"] = {type:"integer",table:series_table}
+			valid_filters["escena_id"] = {type:"integer",table: series_table}
+		}
+		filter_string += control_filter2(valid_filters,filter,observaciones_table)
+		// filter_string += control_filter({id:"integer",series_id:"integer",timestart:"timestart",timeend:"timeend",unit_id:"integer",timeupdate:"string"},filter, (tipo.toLowerCase() == "areal") ? "observaciones_areal" : (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") ? "observaciones_rast" : "observaciones")
+		filter_string += control_filter({valor:"numeric_interval"},filter, observaciones_table)
+		return filter_string
+	}
+
+	getTipo(tipo) {
+		if(tipo.toLowerCase() == "areal") {
+			return "areal"
+		} else if (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") {
+			return "raster"
+		} else {
+			return "puntual"
+		}
+	}
+
+	async backupObservaciones(tipo,filter,options) {
+		try {
+			var series = this.getSeries(tipo,filter)
+		} catch (e) {
+			throw(e)
+		}
+		if(!series.length) {
+			throw("No series found")
+		}
+		var results = []
+		for(var i in series) {
+			var series_id = series[i].id
+			var tipo = series[i].tipo
+			var output = (options.output) ? path.resolve(options.output) : path.resolve(this.config.crud.backup_base_dir,'obs',tipo,series_id,'observaciones_' + new Date().toISOString() + ".json")
+			try {
+				var result = await this.streamObservaciones(tipo,{series_id:series_id,timestart:filter.timestart,timeend:filter.timeend},options,output)
+			} catch(e) {
+				console.error(e)
+			}
+			results.push(result)
+		}
+		return results
+	}
+
+	async streamObservaciones(tipo,filter,options,output) {
+		try {
+			var stmt = this.build_observaciones_query(tipo,filter,options)
+			await this.streamQuery(stmt,options,output)
+		} catch(e) {
+			throw(e)
+		}
+		return
+	}
+
+	streamQuery(stmt,options,output) {
+		return new Promise((resolve,reject)=>{
+			var file = fs.createWriteStream(output)
+			this.pool.connect((err,client,done)=>{
+				if (err) {
+					reject(err)
+				}
+				var query = new QueryStream(stmt)
+				var stream = client.query(query)
+				stream.on('end',()=>{
+					done()
+					resolve()
+				})
+				stream.pipe(JSONStream.stringify()).pipe(file)
+			})
+		})
+	}
+
+	build_delete_observaciones_query(tipo,filter,options={}) {
+		tipo = this.getTipo(tipo)
+		var filter_string = this.getObservacionesFilterString(tipo,filter,options) 
 		//~ console.log({filter_string:filter_string})
 		if(filter_string == "") {
-			return Promise.reject(new Error("invalid filter value"))
+			throw "invalid filter value"
+		}
+		var stmt
+		if (tipo.toLowerCase() == "raster") {
+			const returning_clause = (options.no_send_data  && !options.save) ? "" : "RETURNING %s.id,%s.series_id,%s.timestart,%s.timeend,%s.timeupdate,%s.valor".replace(/%s/g,"observaciones_rast")
+			var select_deleted_clause = (options.no_send_data && !options.save) ? "SELECT 1" : "SELECT deleted_obs.id,deleted_obs.series_id,deleted_obs.timestart,deleted_obs.timeend,deleted_obs.timeupdate,deleted_obs.valor FROM deleted_obs WHERE deleted_obs.valor IS NOT NULL"
+			if(options.save) {
+				select_deleted_clause = this.build_save_query(tipo,select_deleted_clause,options)
+			}
+			stmt = "WITH deleted_obs AS (DELETE FROM observaciones_rast USING series_rast WHERE observaciones_rast.series_id=series_rast.id\
+			" + filter_string + " \
+			" + returning_clause + ") " + select_deleted_clause
+		} else {
+			const obs_tabla = (tipo == "areal") ? "observaciones_areal" : "observaciones"
+			const val_tabla = (tipo == "areal") ? (options.obs_type && options.obs_type.toLowerCase() == 'numarr') ?"valores_numarr_areal" : "valores_num_areal" : (options.obs_type && options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr" : "valores_num"
+			const val_using_clause = (tipo == "areal") ? "USING observaciones_areal JOIN series_areal ON (observaciones_areal.series_id=series_areal.id)" : "USING observaciones JOIN series ON (observaciones.series_id=series.id) JOIN estaciones ON (series.estacion_id=estaciones.unid) JOIN redes ON (estaciones.tabla = redes.tabla_id)"
+			const obs_using_clause = (tipo == "areal") ? "USING series_areal WHERE observaciones_areal.series_id=series_areal.id" : "USING series JOIN estaciones ON (series.estacion_id=estaciones.unid) JOIN redes ON (estaciones.tabla = redes.tabla_id) WHERE observaciones.series_id=series.id"
+			const returning_clause = (options.no_send_data  && !options.save) ? "RETURNING 1 as d" : "RETURNING %s.id,%s.series_id,%s.timestart,%s.timeend,%s.nombre,%s.descripcion,%s.unit_id,%s.timeupdate".replace(/%s/g,obs_tabla)
+			var select_deleted_clause = (options.no_send_data && !options.save) ? "SELECT count(d) from deleted_obs" : "SELECT deleted_obs.id,deleted_obs.series_id,deleted_obs.timestart,deleted_obs.timeend,deleted_obs.nombre,deleted_obs.descripcion,deleted_obs.unit_id,deleted_obs.timeupdate,deleted_val.valor FROM deleted_val JOIN deleted_obs ON (deleted_val.obs_id=deleted_obs.id) WHERE deleted_val.valor IS NOT NULL"
+			if(options.save) {
+				select_deleted_clause = this.build_save_query(tipo,select_deleted_clause,options)
+			}
+
+			stmt = "WITH deleted_val AS (DELETE FROM " + val_tabla + " " + val_using_clause + " \
+						WHERE " + obs_tabla + ".id=" + val_tabla + ".obs_id " + filter_string + " \
+						RETURNING obs_id,valor),\
+						deleted_obs AS (DELETE FROM " + obs_tabla + " " + obs_using_clause + "\
+						" + filter_string + " \
+						" + returning_clause + ") " + select_deleted_clause
+		}
+		return stmt
+	}
+
+	build_save_query(tipo,select_clause,options) {
+		var insert_stmt
+		var returning_clause = (options.no_send_data) ? " RETURNING 1 AS d" : " RETURNING *"
+		var on_conflict_clause = (options.no_update) ? " ON CONFLICT (series_id, timestart, timeend) DO NOTHING" : " ON CONFLICT (series_id, timestart, timeend) DO UPDATE SET timeupdate=excluded.timeupdate, valor=excluded.valor"
+		switch(tipo) {
+			case "puntual":
+				insert_stmt = "INSERT INTO observaciones_guardadas (id,series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate,valor) " + select_clause + on_conflict_clause + returning_clause
+				break;
+			case "areal":
+				insert_stmt = "INSERT INTO observaciones_areal_guardadas (id,series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate,valor) " + select_clause + on_conflict_clause  + returning_clause
+				break;
+			case "raster":
+				insert_stmt = "INSERT INTO observaciones_rast_guardadas (id,series_id,timestart,timeend,timeupdate,valor) " + select_clause + on_conflict_clause  + returning_clause
+		}
+		var select_return_clause = (options.no_send_data) ? "SELECT count(d) FROM saved" : "SELECT * from saved"
+		var stmt = ", saved AS (" + insert_stmt + ") " + select_return_clause 
+		return stmt
+	}
+
+	build_observaciones_query(tipo,filter,options) {
+		tipo = this.getTipo(tipo)
+		var filter_string = this.getObservacionesFilterString(tipo,filter,options) 
+		//~ console.log({filter_string:filter_string})
+		if(filter_string == "") {
+			throw "invalid filter value"
 		}
 		var stmt
 		if (tipo.toLowerCase() == "areal") {
 			var valtablename = (options) ? (options.obs_type) ? (options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr_areal" : "valores_num_areal" : "valores_num_areal" : "valores_num_areal"
-			stmt =  "SELECT observaciones_areal.*, " + valtablename + ".valor FROM observaciones_areal, " + valtablename + ",series_areal,fuentes WHERE observaciones_areal.series_id=series_areal.id AND series_areal.fuentes_id=fuentes.id AND observaciones_areal.id=" + valtablename + ".obs_id " + filter_string + " ORDER BY timestart"
+			stmt =  "SELECT observaciones_areal.id, \
+			observaciones_areal.series_id,\
+			observaciones_areal.timestart,\
+			observaciones_areal.timeend,\
+			observaciones_areal.nombre,\
+			observaciones_areal.descripcion,\
+			observaciones_areal.unit_id,\
+			observaciones_areal.timeupdate,\
+			" + valtablename + ".valor \
+			FROM observaciones_areal, " + valtablename + ",series_areal,fuentes\
+			WHERE observaciones_areal.series_id=series_areal.id \
+			AND series_areal.fuentes_id=fuentes.id \
+			AND observaciones_areal.id=" + valtablename + ".obs_id \
+			" + filter_string + "\
+			ORDER BY timestart"
 		} else if (tipo.toLowerCase() == "rast" || tipo.toLowerCase() == "raster") {
 			var format = (options) ? (options.format) ? options.format : "GTiff" : "GTiff"
 			switch(format.toLowerCase()) {
-				case "GTiff":
+				case "postgres":
+					stmt =  "SELECT observaciones_rast.id,observaciones_rast.series_id,observaciones_rast.timestart,observaciones_rast.timeend,observaciones_rast.valor,observaciones_rast.timeupdate FROM observaciones_rast,series_rast,fuentes WHERE observaciones_rast.series_id=series_rast.id AND series_rast.fuentes_id=fuentes.id " + filter_string + " ORDER BY timestart"
+					break;				case "GTiff":
 					stmt =  "SELECT observaciones_rast.id,observaciones_rast.series_id,observaciones_rast.timestart,observaciones_rast.timeend,ST_AsGDALRaster(observaciones_rast.valor,'GTIff') valor,(st_summarystats(observaciones_rast.valor)).*,observaciones_rast.timeupdate FROM observaciones_rast,series_rast,fuentes WHERE observaciones_rast.series_id=series_rast.id AND series_rast.fuentes_id=fuentes.id " + filter_string + " ORDER BY timestart"
 					break;
 				case "hex":
@@ -5053,141 +6266,359 @@ internal.CRUD = class {
 			}
 		} else {
 			var valtablename = (options && options.obs_type && options.obs_type.toLowerCase() == 'numarr') ? "valores_numarr" : "valores_num"
-			stmt =  "SELECT observaciones.*, "+valtablename+".valor FROM observaciones, "+valtablename+",series,estaciones,redes WHERE observaciones.series_id=series.id AND series.estacion_id=estaciones.unid AND estaciones.tabla=redes.tabla_id AND observaciones.id="+valtablename+".obs_id " + filter_string  + " ORDER BY timestart"
+			stmt =  "SELECT observaciones.id,\
+			observaciones.series_id,\
+			observaciones.timestart,\
+			observaciones.timeend,\
+			observaciones.nombre,\
+			observaciones.descripcion,\
+			observaciones.unit_id,\
+			observaciones.timeupdate,\
+			"+valtablename+".valor \
+			FROM observaciones, "+valtablename+",series,estaciones,redes \
+			WHERE observaciones.series_id=series.id \
+			AND series.estacion_id=estaciones.unid \
+			AND estaciones.tabla=redes.tabla_id \
+			AND observaciones.id="+valtablename+".obs_id \
+			" + filter_string  + "\
+			ORDER BY timestart"
 		}
 		if(filter.limit) {
 			stmt += " LIMIT " + parseInt(filter.limit)
 		}
-		//~ console.log({stmt:stmt})
+		return stmt
+	}
+
+	async restoreObservaciones(tipo,filter,options={}) {
+		var stmt = this.buildRestoreObservacionesQuery(tipo,filter,options)
 		return this.pool.query(stmt)
-		.then(res=>{
-			var observaciones = new internal.observaciones
-			for(var i = 0; i < res.rows.length; i++) {
-				var obs=res.rows[i]
-				if(tipo.toLowerCase()=="rast") {
-					const observacion = new internal.observacion({tipo:tipo, series_id:obs.series_id, timestart:obs.timestart, timeend:obs.timeend, nombre:obs.nombre, descripcion:obs.descripcion, unit_id: obs.unit_id, timeupdate: obs.timeupdate, valor:obs.valor, stats: {count: obs.count, mean: obs.mean, stddev: obs.stddev, min: obs.min, max: obs.max}})
-					observacion.id = obs.id
-					observaciones.push(observacion)
-				} else if (options && options.asArray) {
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	buildRestoreObservacionesQuery(tipo,filter,options={}) {
+		tipo = this.getTipo(tipo)
+		var filter_string = this.getObservacionesGuardadasFilterString(tipo,filter,options)
+		var stmt
+		if(tipo == "raster") {
+			var select_return_clause = (options.no_send_data) ? "SELECT count(id) AS count FROM restored_obs" : "SELECT restored_obs.id, restored_obs.series_id, restored_obs.timestart, restored_obs.timeend, restored_obs.timeupdate, restored_obs.valor\
+			FROM restored_obs"
+			stmt = "WITH deleted_obs AS (\
+				DELETE FROM observaciones_rast_guardadas \
+				USING series_rast \
+				WHERE observaciones_rast_guardadas.series_id=series_rast.id\
+				" + filter_string + " \
+				RETURNING observaciones_rast_guardadas.id, observaciones_rast_guardadas.series_id, observaciones_rast_guardadas.timestart, observaciones_rast_guardadas.timeend, observaciones_rast_guardadas.timeupdate, observaciones_rast_guardadas.valor\
+			), restored_obs AS (\
+				INSERT INTO observaciones_rast (series_id,timestart,timeend,timeupdate,valor)\
+					SELECT deleted_obs.series_id, deleted_obs.timestart, deleted_obs.timeend, deleted_obs.timeupdate, deleted_obs.valor\
+					FROM deleted_obs\
+				ON CONFLICT (series_id,timestart,timeend)\
+				DO UPDATE SET timeupdate=excluded.timeupdate, valor=excluded.valor\
+				RETURNING id,series_id,timestart,timeend,timeupdate, valor\
+			) " + select_return_clause
+		} else if (tipo == "puntual") {
+			var select_return_clause = (options.no_send_data) ? "SELECT count(id) AS count FROM restored_obs" : "SELECT restored_obs.id, restored_obs.series_id, restored_obs.timestart, restored_obs.timeend, restored_obs.nombre, restored_obs.descripcion, restored_obs.unit_id, restored_obs.timeupdate, restored_val.valor\
+			FROM restored_obs\
+			JOIN restored_val ON (restored_obs.id=restored_val.obs_id)"
+			stmt = "WITH deleted_obs AS (\
+				DELETE FROM observaciones_guardadas \
+				USING series \
+				JOIN estaciones ON (series.estacion_id=estaciones.unid) \
+				JOIN redes ON (estaciones.tabla=redes.tabla_id) \
+				WHERE observaciones_guardadas.series_id=series.id\
+				" + filter_string + " \
+				RETURNING observaciones_guardadas.id, observaciones_guardadas.series_id, observaciones_guardadas.timestart, observaciones_guardadas.timeend, observaciones_guardadas.nombre, observaciones_guardadas.descripcion, observaciones_guardadas.unit_id, observaciones_guardadas.timeupdate, observaciones_guardadas.valor\
+			), restored_obs AS (\
+				INSERT INTO observaciones (series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate)\
+					SELECT deleted_obs.series_id, deleted_obs.timestart, deleted_obs.timeend, deleted_obs.nombre, deleted_obs.descripcion, deleted_obs.unit_id, deleted_obs.timeupdate\
+					FROM deleted_obs\
+				ON CONFLICT (series_id,timestart,timeend)\
+				DO UPDATE SET nombre=excluded.nombre, descripcion=excluded.descripcion, unit_id=excluded.unit_id, timeupdate=excluded.timeupdate\
+				RETURNING id,series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate\
+			), restored_val AS (\
+				INSERT INTO valores_num (obs_id,valor)\
+					SELECT restored_obs.id, deleted_obs.valor\
+					FROM restored_obs\
+					JOIN deleted_obs ON (restored_obs.series_id=deleted_obs.series_id AND restored_obs.timestart=deleted_obs.timestart AND restored_obs.timeend=deleted_obs.timeend)\
+					ON CONFLICT (obs_id) \
+					DO UPDATE SET valor=excluded.valor  \
+					RETURNING obs_id,valor\
+			) " + select_return_clause
+		} else { // AREAL 
+			var select_return_clause = (options.no_send_data) ? "SELECT count(id) AS count FROM restored_obs" : "SELECT restored_obs.id, restored_obs.series_id, restored_obs.timestart, restored_obs.timeend, restored_obs.nombre, restored_obs.descripcion, restored_obs.unit_id, restored_obs.timeupdate, restored_val.valor\
+			FROM restored_obs\
+			JOIN restored_val ON (restored_obs.id=restored_val.obs_id)"
+			stmt = "WITH deleted_obs AS (\
+				DELETE FROM observaciones_areal_guardadas \
+				USING series_areal \
+				WHERE observaciones_areal_guardadas.series_id=series_areal.id\
+				" + filter_string + " \
+				RETURNING observaciones_areal_guardadas.id, observaciones_areal_guardadas.series_id, observaciones_areal_guardadas.timestart, observaciones_areal_guardadas.timeend, observaciones_areal_guardadas.nombre, observaciones_areal_guardadas.descripcion, observaciones_areal_guardadas.unit_id, observaciones_areal_guardadas.timeupdate, observaciones_areal_guardadas.valor\
+			), restored_obs AS (\
+				INSERT INTO observaciones_areal (series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate)\
+					SELECT deleted_obs.series_id, deleted_obs.timestart, deleted_obs.timeend, deleted_obs.nombre, deleted_obs.descripcion, deleted_obs.unit_id, deleted_obs.timeupdate\
+					FROM deleted_obs\
+				ON CONFLICT (series_id,timestart,timeend)\
+				DO UPDATE SET nombre=excluded.nombre, descripcion=excluded.descripcion, unit_id=excluded.unit_id, timeupdate=excluded.timeupdate\
+				RETURNING id,series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate\
+			), restored_val AS (\
+				INSERT INTO valores_num_areal (obs_id,valor)\
+					SELECT restored_obs.id, deleted_obs.valor\
+					FROM restored_obs\
+					JOIN deleted_obs ON (restored_obs.series_id=deleted_obs.series_id AND restored_obs.timestart=deleted_obs.timestart AND restored_obs.timeend=deleted_obs.timeend)\
+					ON CONFLICT (obs_id) \
+					DO UPDATE SET valor=excluded.valor  \
+					RETURNING obs_id,valor\
+			) " + select_return_clause
+		}
+		return stmt
+	}
+
+	async guardarObservaciones(tipo,filter,options={}) {
+		tipo = this.getTipo(tipo)
+		try {
+			var select_stmt = this.build_observaciones_query(tipo,filter,options)
+			var insert_stmt
+			var returning_clause = (options.no_send_data) ? " RETURNING 1 AS d" : " RETURNING *"
+			var on_conflict_clause = (options.no_update) ? " ON CONFLICT (series_id, timestart, timeend) DO NOTHING" : " ON CONFLICT (series_id, timestart, timeend) DO UPDATE SET timeupdate=excluded.timeupdate, valor=excluded.valor"
+			switch(tipo) {
+				case "puntual":
+					insert_stmt = "INSERT INTO observaciones_guardadas (id,series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate,valor) " + select_stmt + on_conflict_clause + returning_clause
+					break;
+				case "areal":
+					insert_stmt = "INSERT INTO observaciones_areal_guardadas (id,series_id,timestart,timeend,nombre,descripcion,unit_id,timeupdate,valor) " + select_stmt + on_conflict_clause  + returning_clause
+					break;
+				case "raster":
+					options.format = "postgres"
+					insert_stmt = "INSERT INTO observaciones_rast_guardadas (id,series_id,timestart,timeend,valor,timeupdate) " + select_stmt + on_conflict_clause  + returning_clause
+			}
+			//~ console.log({stmt:stmt})
+			var res = await this.pool.query(insert_stmt)
+			return res.rows
+		} catch(e) {
+			throw(e)
+		}
+	}
+
+
+	async getObservaciones(tipo,filter,options) {
+		try {
+			var stmt = this.build_observaciones_query(tipo,filter,options)
+			var res = await this.pool.query(stmt)
+		} catch(e) {
+			throw(e)
+		}	//~ console.log({stmt:stmt})
+		var observaciones = [] // new internal.observaciones
+		for(var i = 0; i < res.rows.length; i++) {
+			var obs=res.rows[i]
+			if(tipo.toLowerCase()=="rast") {
+				const observacion = new internal.observacion({tipo:tipo, series_id:obs.series_id, timestart:obs.timestart, timeend:obs.timeend, nombre:obs.nombre, descripcion:obs.descripcion, unit_id: obs.unit_id, timeupdate: obs.timeupdate, valor:obs.valor, stats: {count: obs.count, mean: obs.mean, stddev: obs.stddev, min: obs.min, max: obs.max}})
+				observacion.id = obs.id
+				observaciones.push(observacion)
+			} else if (options && options.asArray) {
+				observaciones.push([obs.timestart, obs.timeend, obs.valor, obs.id])
+			} else {
+				const observacion = new internal.observacion(tipo, obs.series_id, obs.timestart, obs.timeend, obs.nombre, obs.descripcion, obs.unit_id, obs.timeupdate, obs.valor)
+				observacion.id = obs.id
+				observaciones.push(observacion)
+			}
+		}
+		if(options && options.pivot) {
+			if(options.dt && options.t_offset) {
+				// ---
+			} else if(filter.var_id) {
+				const var_id_filter = (Array.isArray(filter.var_id)) ? filter.var_id[0] : filter.var_id
+				try {
+					var variable = await this.getVar(var_id_filter)
+					options.dt = variable.dt
+					options.t_offset = variable.t_offset
+				} catch(e) {
+					throw(e)
+				}
+			} else if(filter.series_id) { // toma dt y t_offset de 
+				const series_id_filter = (Array.isArray(filter.series_id)) ? filter.series_id[0] : filter.series_id
+				try {
+					var serie = await this.getSerie(filter.tipo,series_id_filter)
+					options.dt = serie.var.dt
+					options.t_offset = serie.var.t_offset
+				} catch(e) {
+					throw(e)
+				}
+			} 
+			else {
+				// throw("Pivot error: missing dt, var_id or series_id")
+				options.dt = {days:1}
+				options.t_offset = {days:1}
+			}
+			options.dt = timeSteps.createInterval(options.dt)
+			options.t_offset = timeSteps.createInterval(options.t_offset)
+			options.timestart = filter.timestart
+			options.timeend = filter.timeend
+			options.pivot = true
+			observaciones = new internal.observaciones(observaciones,options)
+		} else {
+			//~ console.log({observaciones:observaciones})
+			observaciones = new internal.observaciones(observaciones,options)
+		}
+		return observaciones
+	}
+
+	getObsTable(tipo="puntual") {
+		var t  = tipo.toLowerCase()
+		return (t == "areal") ? "observaciones_areal" : (t == "rast" || t == "raster") ? "observaciones_rast" : "observaciones"
+	}
+
+	getValTable(tipo="puntual") {
+		var t  = tipo.toLowerCase()
+		return (t == "areal") ? "valores_num_areal" : (t == "rast" || t == "raster") ? "observaciones_rast" : "valores_num"
+	}
+
+	async getObservacionesDateRange(tipo,filter,options) {
+		var tipo = this.getTipo(tipo)
+		var obs_table = this.getObsTable(tipo)
+		var filter_string = this.getObservacionesFilterString(tipo,filter,options) 
+		//~ console.log({filter_string:filter_string})
+		if(filter_string == "") {
+			throw "invalid filter value"
+		}
+		try {
+			var result = await this.pool.query("SELECT min(timestart),max(timestart) FROM " + obs_table + " WHERE 1=1 " + filter_string)
+			return result.rows[0]
+		} catch(e) {
+			throw(e)
+		}
+	}
+	
+	async getObservacionesRTS(tipo,filter={},options={},serie) {
+		//~ console.log({options:options})
+		if(options.skip_nulls || !filter.series_id || Array.isArray(filter.series_id)) {
+			return this.getObservaciones(tipo,filter,options)
+		}
+		if(!filter.timestart || !filter.timeend) {
+			if(!filter.timeupdate) {
+				// return Promise.reject("Faltan parametros: series_id, timestart, timeend, timeupdate")
+				throw("Faltan parametros: series_id, timestart, timeend, timeupdate")
+			}
+		}
+		var serie_result
+		if(serie) {
+			if(filter.public && !serie.estacion.public) {
+				console.log("usuario no autorizado para acceder a la serie seleccionada")
+				// return Promise.reject("usuario no autorizado para acceder a la serie seleccionada")
+				throw("usuario no autorizado para acceder a la serie seleccionada")
+			}
+			serie_result = serie
+		} else {
+			try {
+				serie_result = await this.getSerie(tipo,filter.series_id,undefined,undefined,undefined,filter.public) // tipo,id,timestart,timeend,options={},isPublic
+			} catch(e) {
+				throw(e)
+			}
+		}
+		serie = serie_result
+		if(!serie) {
+			throw("Serie no encontrada")
+		}
+		if(!serie.var.timeSupport) {
+			// console.log("no timeSupport")
+			var getObsFilter = {...filter}
+			getObsFilter.series_id = serie.id
+			return this.getObservaciones(tipo,getObsFilter)
+		} 
+		try {
+			var dateRange = await this.getObservacionesDateRange(tipo,{series_id:serie.id,timestart:filter.timestart,timeend:filter.timeend})
+		} catch(e) {
+			throw(e)
+		}
+		if(!dateRange.min) {
+			console.error("No observaciones found in date range")
+			return []
+		}
+		var timestart = dateRange.min // new Date(filter.timestart)
+		var timeend =  dateRange.max // new Date(filter.timeend)
+		var interval = timeSteps.interval2epochSync(serie.var.timeSupport)
+		// console.log("interval:" + interval)
+		if(!interval) {
+			// console.log("timeSupport inválido o nulo")
+			if(!options.obs_type && serie.var.type) {
+				options.obs_type = serie.var.type
+			}
+			return  this.getObservaciones(tipo,{series_id:serie.id,timestart:timestart,timeend:timeend,timeupdate:filter.timeupdate},options)
+		}
+		var interval_string = timeSteps.interval2string(serie.var.timeSupport)
+		const obs_tabla = this.getObsTable(tipo)
+		const val_tabla = this.getValTable(tipo)
+		//~ console.log({keys:Object.keys(serie.var.def_hora_corte).join(","),tostr:timeSteps.interval2string(serie.var.def_hora_corte)})
+		var t_offset = (serie.fuente && serie.fuente.hora_corte) ? timeSteps.interval2string(serie.fuente.hora_corte) : (serie.var.def_hora_corte)  ? timeSteps.interval2string(serie.var.def_hora_corte) : "00:00:00"
+		// console.log("t_offset:" + t_offset)
+		var valuequerystring = (tipo == "rast" || tipo == "raster") ? this.rasterValueQueryString(options.format,options) : val_tabla + ".valor"
+		// console.log(valuequerystring)
+		var query = "WITH seq AS (\
+			SELECT generate_series('" + timestart.toISOString() + "'::date + $3::interval,'" + timeend.toISOString() + "'::timestamp,$2::interval) date)\
+			SELECT " + obs_tabla + ".id, \
+					$1 AS series_id, \
+					seq.date timestart, \
+					seq.date + $2::interval AS timeend, \
+					" + obs_tabla + ".timeupdate,\
+					" + valuequerystring + " valor\
+			FROM seq\
+			LEFT JOIN " + obs_tabla + " ON (\
+				" + obs_tabla + ".series_id=$1\
+				AND seq.date=" + obs_tabla + ".timestart\
+				AND seq.date>=$4\
+				AND seq.date<=$5\
+			) "
+		if(tipo == "puntual" || tipo == "areal") {
+			query += "\
+			LEFT JOIN " + val_tabla + " ON (\
+				" + obs_tabla + ".id=" + val_tabla + ".obs_id\
+			) "
+		}
+		var query_params = [serie.id, interval_string, t_offset, timestart, timeend]
+		if(filter.timeupdate) {
+			query += " WHERE " + obs_tabla + ".timeupdate=$6"
+			query_params.push(filter.timeupdate)
+		}
+		query += "ORDER BY seq.date"
+		console.log(pasteIntoSQLQuery(query,[serie.id,interval_string,t_offset, timestart, timeend]))
+		try {
+			var result = await this.pool.query(query, query_params)
+		} catch(e){
+			throw(e)
+		}
+		var count = result.rows.map(r=>{
+			return (r.valor !== null) ? 1 : 0
+		}).reduce((a,b)=>a+b)
+		if(count == 0) {
+			console.log("No se encontraron registros")
+			return []
+		}
+		//~ console.log({options:options})
+		var observaciones = []
+		for(var i = 0; i < result.rows.length; i++) {
+			var obs=result.rows[i]
+			if(tipo.toLowerCase()=="rast") {
+				const observacion = new internal.observacion({tipo:tipo, series_id:obs.series_id, timestart:obs.timestart, timeend:obs.timeend, nombre:obs.nombre, descripcion:obs.descripcion, unit_id: obs.unit_id, timeupdate: obs.timeupdate, valor:obs.valor, stats: {count: obs.count, mean: obs.mean, stddev: obs.stddev, min: obs.min, max: obs.max}})
+				observacion.id = obs.id
+				observaciones.push(observacion)
+			} else if (options) {
+				if(options.asArray) {
 					observaciones.push([obs.timestart, obs.timeend, obs.valor, obs.id])
 				} else {
 					const observacion = new internal.observacion(tipo, obs.series_id, obs.timestart, obs.timeend, obs.nombre, obs.descripcion, obs.unit_id, obs.timeupdate, obs.valor)
 					observacion.id = obs.id
 					observaciones.push(observacion)
 				}
+			} else {
+				const observacion = new internal.observacion(tipo, obs.series_id, obs.timestart, obs.timeend, obs.nombre, obs.descripcion, obs.unit_id, obs.timeupdate, obs.valor)
+				observacion.id = obs.id
+				observaciones.push(observacion)
 			}
-			//~ console.log({observaciones:observaciones})
-			return observaciones
-		})
-		.catch(e=>{
-			console.error(e)
-			return null
-		})
-	}
-	
-	getObservacionesRTS(tipo,filter={},options={},serie) {
-		//~ console.log({options:options})
-		if(options.skip_nulls || !filter.series_id || Array.isArray(filter.series_id)) {
-			return this.getObservaciones(tipo,filter,options)
 		}
-		if(!filter.timestart || !filter.timeend) {
-			return Promise.reject("Faltan parametros: series_id, timestart, timeend")
-		}
-		var timestart = new Date(filter.timestart)
-		var timeend =  new Date(filter.timeend)
-		var serie_promise
-		if(serie) {
-			if(filter.public && !serie.estacion.public) {
-				console.log("usuario no autorizado para acceder a la serie seleccionada")
-				return Promise.reject("usuario no autorizado para acceder a la serie seleccionada")
-			}
-			serie_promise = Promise.resolve(serie)
-		} else {
-			serie_promise =  this.getSerie(tipo,filter.series_id,undefined,undefined,undefined,filter.public) // tipo,id,timestart,timeend,options={},isPublic
-		}
-		return serie_promise
-		.then(serie=>{
-			if(!serie) {
-				throw("Serie no encontrada")
-			}
-			if(!serie.var.timeSupport) {
-				// console.log("no timeSupport")
-				return this.getObservaciones(tipo,{series_id:serie.id,timestart:timestart,timeend:timeend})
-			}
-			var interval = timeSteps.interval2epochSync(serie.var.timeSupport)
-			if(!interval) {
-				// console.log("timeSupport inválido o nulo")
-				if(!options.obs_type && serie.var.type) {
-					options.obs_type = serie.var.type
-				}
-				return  this.getObservaciones(tipo,{series_id:serie.id,timestart:timestart,timeend:timeend},options)
-			}
-			var interval_string = timeSteps.interval2string(serie.var.timeSupport)
-			const obs_tabla = (tipo == "areal") ? "observaciones_areal" : (tipo == "rast" || tipo == "raster") ? "observaciones_rast" : "observaciones"
-			const val_tabla = (tipo == "areal") ? "valores_num_areal" : (tipo == "rast" || tipo == "raster") ? "observaciones_rast" : "valores_num"
-			//~ console.log({keys:Object.keys(serie.var.def_hora_corte).join(","),tostr:timeSteps.interval2string(serie.var.def_hora_corte)})
-			var t_offset = (serie.var.def_hora_corte)  ? timeSteps.interval2string(serie.var.def_hora_corte) : "00:00:00"
-			// console.log("t_offset:" + t_offset)
-			var valuequerystring = (tipo == "rast" || tipo == "raster") ? this.rasterValueQueryString(options.format,options) : val_tabla + ".valor"
-			// console.log(valuequerystring)
-			var query = "WITH seq AS (\
-				SELECT generate_series('" + timestart.toISOString() + "'::date + $3::interval,'" + timeend.toISOString() + "'::timestamp,$2::interval) date)\
-				SELECT " + obs_tabla + ".id, \
-				       $1 AS series_id, \
-				       seq.date timestart, \
-				       seq.date + $2::interval AS timeend, \
-				       " + obs_tabla + ".timeupdate,\
-				       " + valuequerystring + " valor\
-				FROM seq\
-				LEFT JOIN " + obs_tabla + " ON (\
-					" + obs_tabla + ".series_id=$1\
-					AND seq.date=" + obs_tabla + ".timestart\
-					AND seq.date>=$4\
-					AND seq.date<=$5\
-				) "
-			if(tipo == "puntual" || tipo == "areal") {
-				query += "\
-				LEFT JOIN " + val_tabla + " ON (\
-					" + obs_tabla + ".id=" + val_tabla + ".obs_id\
-				) "
-			}
-			query += "ORDER BY seq.date"
-			// console.log(pasteIntoSQLQuery(query,[serie.id,interval_string,t_offset, timestart, timeend]))
-			return this.pool.query(query, [serie.id,interval_string,t_offset, timestart, timeend])
-			.then(result=>{
-				var count = result.rows.map(r=>{
-					return (r.valor !== null) ? 1 : 0
-				}).reduce((a,b)=>a+b)
-				if(count == 0) {
-					console.log("No se encontraron registros")
-					return []
-				}
-				//~ console.log({options:options})
-				var observaciones = []
-				for(var i = 0; i < result.rows.length; i++) {
-					var obs=result.rows[i]
-					if(tipo.toLowerCase()=="rast") {
-						const observacion = new internal.observacion({tipo:tipo, series_id:obs.series_id, timestart:obs.timestart, timeend:obs.timeend, nombre:obs.nombre, descripcion:obs.descripcion, unit_id: obs.unit_id, timeupdate: obs.timeupdate, valor:obs.valor, stats: {count: obs.count, mean: obs.mean, stddev: obs.stddev, min: obs.min, max: obs.max}})
-						observacion.id = obs.id
-						observaciones.push(observacion)
-					} else if (options) {
-						if(options.asArray) {
-							observaciones.push([obs.timestart, obs.timeend, obs.valor, obs.id])
-						} else {
-							const observacion = new internal.observacion(tipo, obs.series_id, obs.timestart, obs.timeend, obs.nombre, obs.descripcion, obs.unit_id, obs.timeupdate, obs.valor)
-							observacion.id = obs.id
-							observaciones.push(observacion)
-						}
-					} else {
-						const observacion = new internal.observacion(tipo, obs.series_id, obs.timestart, obs.timeend, obs.nombre, obs.descripcion, obs.unit_id, obs.timeupdate, obs.valor)
-						observacion.id = obs.id
-						observaciones.push(observacion)
-					}
-				}
-				//~ console.log(observaciones)
-				return observaciones
-			})
-		})
+		//~ console.log(observaciones)
+		return observaciones
 	}
 	
 	rasterValueQueryString(format,options) {
@@ -5678,6 +7109,93 @@ internal.CRUD = class {
 		})
 	}
 
+	getRastFromCube(fuentes_id,timestart,timeend,forecast_date,isPublic) {
+		if(!fuentes_id) {
+			return Promise.reject("Missing fuentes_id")
+		}
+		return this.getFuente(fuentes_id,isPublic)
+		.then(fuente=>{
+			if(!fuente) {
+				return Promise.reject("Data cube not found")
+			}
+			var data_table = fuente.data_table
+			var data_column = (fuente.data_column) ? fuente.data_column : "rast"
+			var date_column = (fuente.date_column) ? fuente.date_column : "date"
+			if(!fuente.fd_column) { // 	no forecast date
+				if(!timestart || !timeend) {
+					return Promise.reject("missing timestart and/or timeend")
+				}
+				timestart = new Date(timestart)
+				if(timestart.toString() == "Invalid Date") {
+					return Promise.reject("timestart is invalid")
+				}
+				timeend = new Date(timeend)
+				if(timeend.toString() == "Invalid Date") {
+					return Promise.reject("timeend is invalid")
+				}
+				var query = "SELECT " + date_column + "::timestamp AS timestart,ST_AsGDALRaster(" + data_column + ",'GTIff') AS valor FROM " + data_table + " WHERE " + date_column + ">=$1::timestamptz::timestamp AND " + date_column + "<$2::timestamptz::timestamp ORDER BY " + date_column
+				return this.pool.query(query,[timestart,timeend])
+			} else {
+				// 	forecast date
+				var fd_column = fuente.fd_column
+				var date_filter = ""
+				if(forecast_date) {
+					forecast_date = new Date(forecast_date)
+					if(forecast_date.toString() == "Invalid Date") {
+						return Promise.reject("Invalid forecast date")
+					}
+					date_filter += " AND " + fd_column + "='" + forecast_date.toISOString() + "'::timestamptz::timestamp"
+				}
+				if(timestart) {
+					timestart = new Date(timestart)
+					if(timestart.toString() == "Invalid Date") {
+						return Promise.reject("timestart is invalid")
+					}
+					date_filter += " AND " + date_column + ">='" + timestart.toISOString() + "'::timestamptz:timestamp"
+				}
+				if(timeend) {
+					timeend = new Date(timeend)
+					if(timeend.toString() == "Invalid Date") {
+						return Promise.reject("timeend is invalid")
+					}
+					date_filter += " AND " + date_column + "<'" + timeend.toISOString() + "'::timestamptz:timestamp"
+				}
+				if(date_filter == "") {
+					return Promise.reject("missing forecast date or timestart or timeend")
+				}
+				var query = "SELECT id," + fd_column + "::timestamp AS forecast_date," + date_column + "::timestamp AS timestart,ST_AsGDALRaster(" + data_column + ",'GTIff') AS valor FROM " + data_table + " WHERE 1=1 " + date_filter + " ORDER BY " + fd_column + "," + date_column
+				return this.pool.query(query)
+			}
+		})
+		.then(result=>{
+			if(!result.rows) {
+				return []
+			}
+			return result.rows.map(r=>{
+				r.timeend = r.timestart
+				r.tipo = "raster"
+				return r
+			})
+		})
+	}
+
+	upsertRastFromCube(fuentes_id,timestart,timeend,forecast_date,isPublic,series_id) {
+		if(!series_id) {
+			return Promise.reject("Missing destination series_id (from series_rast)")
+		}
+		return this.getRastFromCube(fuentes_id,timestart,timeend,forecast_date,isPublic)
+		.then(results=>{
+			if(!results.length) {
+				return Promise.reject("Nothing found")
+			}
+			results = results.map(r=>{
+				r.series_id = series_id
+				return r
+			})
+			return this.upsertObservaciones(results)
+		})
+	}
+
 	rastExtract(series_id,timestart,timeend,options,isPublic) {
 		return this.getSerie("raster",series_id,undefined,undefined,undefined,isPublic)
 		.then(serie=>{
@@ -5731,6 +7249,9 @@ internal.CRUD = class {
 				         (stats).*,\
 				         ST_asGDALRaster(st_colormap(st_resize(st_reclass(rast,'[' || (st_summarystats(rast)).min || '-' || (st_summarystats(rast)).max || ']:1-255, ' || st_bandnodatavalue(rast) || ':0','8BUI'),$8,$9),1,'grayscale','nearest'),$10) valor\
 				  FROM rasts, raststats"
+				if(options.min_count) {
+					stmt += sprintf(" WHERE rasts.c>=%d", options.min_count)
+				}
 				args = [options.pixel_height, options.bbox.toString(), options.srid, options.funcion, serie.id, timestart, timeend, options.height, options.width, options.format]
 				
 			} else {
@@ -5752,6 +7273,9 @@ internal.CRUD = class {
 				         (stats).*,\
 				       ST_AsGDALRaster(rast,$7) valor\
 				FROM agg,raststats"
+				if(options.min_count) {
+					stmt += sprintf(" WHERE agg.count>=%d", options.min_count)
+				}
 			    args = [options.bbox.toString(),options.srid,series_id,timestart,timeend,options.funcion,options.format]
 		    }
 			return this.pool.query(stmt,args)
@@ -5782,6 +7306,9 @@ internal.CRUD = class {
 	}
 
 	rastExtractByArea(series_id,timestart,timeend,area,options={}) {
+		if(!timestart || !timeend) {
+			return Promise.reject("falta timestart y/o timeend")
+		}
 		var promises =[]
 		if(parseInt(area).toString() != "NaN") {
 			promises.push(this.getArea(parseInt(area)))
@@ -5824,7 +7351,7 @@ internal.CRUD = class {
 						WHERE valor IS NOT NULL\
 				  ORDER BY timestart;"
 				var args = [area.geom.toString(),serie.fuente.def_srid,series_id,timestart,timeend] // [serie.fuente.hora_corte,serie.fuente.def_dt, area.geom.toString(),serie.fuente.def_srid,timestart,timeend]
-				//~ console.log(args)
+				// console.log(pasteIntoSQLQuery(stmt,args))
 				return this.pool.query(stmt,args)
 				.then(result=>{
 					if(!result.rows) {
@@ -5873,7 +7400,9 @@ internal.CRUD = class {
 	
 	rast2areal(series_id,timestart,timeend,area,options={}) {
 		if(area == "all") {
-			return this.pool.query("SELECT series_areal.id,series_areal.area_id FROM series_areal,series_rast,areas_pluvio WHERE series_rast.id=$1 AND series_rast.fuentes_id=series_areal.fuentes_id AND areas_pluvio.unid=series_areal.area_id AND areas_pluvio.activar=TRUE ORDER BY series_areal.id",[series_id])
+			var query = "SELECT series_areal.id,series_areal.area_id FROM series_areal,series_rast,areas_pluvio WHERE series_rast.id=$1 AND series_rast.fuentes_id=series_areal.fuentes_id AND areas_pluvio.unid=series_areal.area_id AND areas_pluvio.activar=TRUE ORDER BY series_areal.id"
+			// console.log(pasteIntoSQLQuery(query,[series_id]))
+			return this.pool.query(query,[series_id])
 			.then(result=>{
 				if(result.rows.length == 0) {
 					console.log("No se encontraron series areal")
@@ -5932,7 +7461,6 @@ internal.CRUD = class {
 				return arr
 			})
 		} else {
-				
 			return this.rastExtractByArea(series_id,timestart,timeend,area,options)
 			.then(serie=>{
 				if(!serie) {
@@ -5947,6 +7475,7 @@ internal.CRUD = class {
 					console.log("observaciones no encontradas")
 					return
 				}
+				// console.log({tipo:"areal", "var":serie["var"], procedimiento:serie.procedimiento, unidades:serie.unidades, estacion:serie.estacion, fuente:serie.fuente})
 				const serie_areal = new internal.serie({tipo:"areal", "var":serie["var"], procedimiento:serie.procedimiento, unidades:serie.unidades, estacion:serie.estacion, fuente:serie.fuente})
 				return serie_areal.getId(this.pool)
 				.then((id)=>{
@@ -6135,12 +7664,12 @@ internal.CRUD = class {
 						}
 					}
 					return Promise.all([this.date2obj(timestart),this.date2obj(timeend),this.interval2epoch(dt), this.interval2epoch(t_offset)])
-					.then((results)=>{
-						// console.log(results)
+					.then(async (results)=>{
+						// console.log({dates:results})
 						var timestart =results[0]
 						var timeend = results[1] 
 						var dt = results[2] * 1000
-						dt_epoch = dt
+						dt_epoch = (inst) ? 0 : dt
 						var t_offset = results[3] * 1000
 						var timestart_time = (timestart.getHours()*3600 + timestart.getMinutes()*60 + timestart.getSeconds()) * 1000 + timestart.getMilliseconds() + timestart.getTimezoneOffset()*60*1000
 						if(timestart_time < t_offset) {
@@ -6157,16 +7686,16 @@ internal.CRUD = class {
 							timeend.setTime(timeend.getTime() - timeend_time + t_offset + dt)
 						}
 						console.log({timestart:timestart,timeend:timeend,dt:dt})
-						var promises = []
+						var results = []
 						for(var i=timestart.getTime();i<timeend.getTime();i=i+dt) {
 							var stepstart = new Date(i)
 							var stepend = new Date(i+dt)
 							if(config.verbose) {
 								console.log("crud.getRegularSeries: stepstart:" +stepstart.toISOString() + ",stepend:" + stepend.toISOString())
 							}
-							promises.push(this.rastExtract(series_id,stepstart,stepend,options))
+							results.push(await this.rastExtract(series_id,stepstart,stepend,options))
 						}
-						return Promise.all(promises)
+						return results // Promise.all(promises)
 					})
 					.then(obs=>{
 						if(obs) {
@@ -6196,7 +7725,7 @@ internal.CRUD = class {
 										return o
 									}
 								})
-								return this.upsertObservaciones(observaciones)
+								return this.upsertObservaciones(observaciones,undefined,undefined,options)
 								//~ .then(results=>{
 									//~ return results.map(o=>{
 										//~ if(o instanceof Buffer) {
@@ -6268,7 +7797,10 @@ internal.CRUD = class {
 							break;
 						case "increment":
 							aggStmt = "round((max(valor)-first(valor))::numeric," + precision + ")"
-							break
+							break;
+						case "math": 
+							aggStmt = options.expression
+							break;
 						default:
 							console.error("aggFunction incorrecta")
 							throw(new Error("aggFunction incorrecta"))
@@ -6499,7 +8031,7 @@ internal.CRUD = class {
 						if(options.no_insert) {
 							return observaciones
 						}
-						return this.upsertObservaciones(observaciones.filter(o=> o.valor),tipo.toLowerCase())	// filter out null values and return
+						return this.upsertObservaciones(observaciones.filter(o=> o.valor),tipo.toLowerCase(),undefined,options)	// filter out null values and return
 						.then(obs=>{
 							console.log("Inserted " + obs.length + " observaciones")
 							if(options.no_send_data) {
@@ -6974,7 +8506,7 @@ internal.CRUD = class {
 	// asociaciones
 	
 	getAsociaciones(filter={source_tipo:"puntual",dest_tipo:"puntual"},options={}) {
-		console.log({filter:filter})
+		// console.log({filter:filter})
 		//~ var tabla_sitios = (filter.source_tipo=="areal") ? "areas_pluvio" : (filter.source_tipo=='raster') ? "escenas" : "estaciones"
 		//~ var tabla_series = (filter.source_tipo=="areal") ? "series_areal" : (filter.source_tipo=='raster') ? "series_rast" : "series"
 		//~ var tabla_dest_series = (filter.dest_tipo=="areal") ? "series_areal" : (filter.dest_tipo=='raster') ? "series_rast" : "series"
@@ -6984,7 +8516,7 @@ internal.CRUD = class {
 		//~ var params = [filter.source_tipo,filter.source_series_id,filter.estacion_id,filter.provider_id,filter.source_var_id,filter.source_proc_id,filter.dest_tipo,filter.dest_series_id,filter.dest_var_id,filter.dest_proc_id,options.agg_func,options.dt,options.t_offset,filter.habilitar]
 	
 		var filter_string = control_filter2(
-			{source_tipo: {type: "string"}, source_series_id: {type: "number"}, source_estacion_id: {type: "number"}, source_fuentes_id: {type: "string"}, source_var_id: {type: "number"},  source_proc_id: {type: "number"}, dest_tipo: {type: "string"}, dest_series_id: {type: "number"}, dest_var_id: {type: "number"}, dest_proc_id: {type: "number"}, agg_func: {type: "string"}, dt: {type: "interval"}, t_offset: {type: "interval"},habilitar: {type: "boolean"}}, 
+			{id:{type:"integer"},source_tipo: {type: "string"}, source_series_id: {type: "number"}, source_estacion_id: {type: "number"}, source_fuentes_id: {type: "string"}, source_var_id: {type: "number"},  source_proc_id: {type: "number"}, dest_tipo: {type: "string"}, dest_series_id: {type: "number"}, dest_var_id: {type: "number"}, dest_proc_id: {type: "number"}, agg_func: {type: "string"}, dt: {type: "interval"}, t_offset: {type: "interval"},habilitar: {type: "boolean"}}, 
 			{source_tipo: filter.source_tipo, source_series_id: filter.source_series_id, source_estacion_id: filter.estacion_id, source_fuentes_id: filter.provider_id, source_var_id: filter.source_var_id,  source_proc_id: filter.source_proc_id, dest_tipo: filter.dest_tipo, dest_series_id: filter.dest_series_id, dest_var_id: filter.dest_var_id, dest_proc_id: filter.dest_proc_id, agg_func: options.agg_func, dt: options.dt, t_offset: options.t_offset},
 			"asociaciones_view")
 		var query = "SELECT * \
@@ -7169,16 +8701,16 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 	
 	runAsociaciones(filter,options={}) {
 		return this.getAsociaciones(filter,options)
-		.then(asociaciones=>{
+		.then(async asociaciones=>{
 			if(asociaciones.length==0) {
 				console.log("No se encontraron asociaciones")
 				return []
 			}
 			// filter out no habilitadas
 			asociaciones = asociaciones.filter(a=>a.habilitar)
-			var promises = []
-			asociaciones.forEach(async a=>{
-				var opt = {aggFunction: a.agg_func, t_offset: a.t_offset, insertSeriesId: a.dest_series_id}
+			var results = []
+			for(var a of asociaciones) {
+				var opt = {aggFunction: a.agg_func, t_offset: a.t_offset, insertSeriesId: a.dest_series_id, insertSeriesTipo: a.dest_tipo}
 				if(a.source_time_support) {
 					opt.source_time_support = a.source_time_support
 				}
@@ -7196,21 +8728,34 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 				if(options.no_send_data) {
 					opt.no_send_data = options.no_send_data
 				}
+				if(options.no_update) {
+					opt.no_update = true
+				}
 				//~ promises.push(a)
-				if(a.agg_func) {
-					await promises.push(this.getRegularSeries(a.source_tipo,a.source_series_id,a.dt,filter.timestart,filter.timeend,opt))
-				} else if(a.source_tipo=="raster" && a.dest_tipo=="areal") {
-					await promises.push(
-						this.getSerie('areal',a.dest_series_id,undefined,undefined,{no_metadata:true})
+				var result
+				try {
+					if(a.agg_func) {
+						if(a.agg_func == "math") {
+							if(a.source_tipo != "puntual") {
+								throw("Tipo inválido para convertir por expresión (math)")
+							}
+							result = await  this.getSerieAndConvert(a.source_series_id,filter.timestart,filter.timeend,a.expresion,a.dest_series_id)
+						} else {
+							result =  await this.getRegularSeries(a.source_tipo,a.source_series_id,a.dt,filter.timestart,filter.timeend,opt)
+						}
+					} else if(a.source_tipo=="raster" && a.dest_tipo=="areal") {
+						console.log("Running asociacion raster to areal")
+						result = await this.getSerie('areal',a.dest_series_id,undefined,undefined,{no_metadata:true})
 						.then(series=>{
 							return this.rast2areal(a.source_series_id,filter.timestart,filter.timeend,series.estacion.id,options)
 						})
-					)
-				} else {
-					//~ promises.push(null)
-				}
-			})
-			return Promise.all(promises)
+					}
+					results.push(result)
+				} catch (e) {
+					console.error(e)
+				} 
+			}
+			return results
 		})
 		.then(inserts=>{
 			if(!inserts) {
@@ -7238,6 +8783,7 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 	runAsociacion(id,filter={},options={}) {
 		return this.getAsociacion(id)
 		.then(a=>{
+			console.log("Got asociacion " + a.id)
 			var opt = {aggFunction: a.agg_func, t_offset: a.t_offset, insertSeriesId: a.dest_series_id}
 			if(a.source_time_support) {
 				opt.source_time_support = a.source_time_support
@@ -7291,6 +8837,7 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 				o.series_id = (dest_series_id) ? dest_series_id : null
 				var valor = parseFloat(o.valor)
 				o.valor = eval(expresion)
+				//console.log(`convert: ${valor} -> ${o.valor}`)
 				return o
 			})
 		})
@@ -7324,6 +8871,26 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 		return this.pool.query("SELECT * from redes_accessors WHERE 1=1 " + filter_string)
 		.then(result=>{
 			return result.rows
+		})
+	}
+
+	updateAccessorToken(accessor_id,token,token_expiry_date) {
+		return this.pool.query("UPDATE accessors SET token=$1, token_expiry_date=$2 WHERE class=$3 RETURNING class AS accessor_id,token,token_expiry_date",[token,token_expiry_date,accessor_id])
+		.then(result=>{
+			if(!result.rows.length) {
+				throw("updateToken failed, no rows affected")
+			}
+			return result.rows[0]
+		})
+	}
+
+	getAccessorToken(accessor_id) {
+		return this.pool.query("SELECT class AS accessor_id,token,token_expiry_date FROM accessors WHERE class=$1",[accessor_id])
+		.then(result=>{
+			if(!result.rows.length) {
+				throw("getToken failed, no rows matched")
+			}
+			return result.rows[0]
 		})
 	}
 	//~ upsertAccessor(accessor) {
@@ -7645,6 +9212,14 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 	   })
 	}
 	
+	async upsertDailyDoyStats2(tipo,series_id,timestart,timeend,range,t_offset,precision,is_public) {
+		return this.getCuantilesDiariosSuavizados(tipo,series_id,timestart,timeend,range,t_offset,precision,is_public)
+		.then(dailyStats=>{
+			//~ console.log(dailyStats)
+			return this.upsertDailyDoyStats(dailyStats)
+		})
+	}
+
 	upsertDailyDoyStats(dailyStatsList) {
 		var promises = dailyStatsList.values.map(i=>{
 			return this.pool.query("INSERT INTO series_doy_stats (tipo, series_id,doy, count, min, max, mean, p01, p10, p50, p90, p99, window_size, timestart, timeend) VALUES\
@@ -7687,6 +9262,71 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 		})
 	}
     
+	upsertMonthlyStats(tipo,series_id) {
+		return this.getDailyDoyStats(tipo,series_id)
+		.then(dailyStatsList=>{
+			var cuantiles_mensuales = dailyStatsList.getMonthlyValues2()
+			var values = Object.keys(cuantiles_mensuales).map(key=>{
+				// console.log("key:"+key)
+				var m = cuantiles_mensuales[key]
+				return pasteIntoSQLQuery("('puntual',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",[series_id,parseInt(key),m.count,m.min,m.max,m.mean,m.p01,m.p10,m.p50,m.p90,m.p99,m.timestart.toISOString(),m.timeend.toISOString()])
+			}).join(",")
+			if(!values.length) {
+				console.log("No stats found")
+				return []
+			}
+			var stmt = `INSERT INTO series_mon_stats (tipo, series_id, mon,count ,min ,max ,mean ,p01 ,p10 ,p50 ,p90 ,p99 ,timestart ,timeend) \
+			VALUES ${values} \
+			ON CONFLICT (tipo,series_id,mon) DO UPDATE SET count=excluded.count ,min=excluded.min ,max=excluded.max ,mean=excluded.mean ,p01=excluded.p01 ,p10=excluded.p10 ,p50=excluded.p50 ,p90=excluded.p90 ,p99=excluded.p99 ,timestart=excluded.timestart ,timeend=excluded.timeend RETURNING *`
+			// console.log(stmt)
+			return this.pool.query(stmt)
+			.then(result=>{
+				return new internal.monthlyStatsList(result.rows)
+			})
+		})
+	}
+
+	getMonthlyStats(tipo="puntual",series_id,isPublic) {
+		return this.getSerie(tipo,series_id,undefined,undefined,undefined,isPublic)
+		.then(serie=>{
+			return this.pool.query("SELECT * FROM series_mon_stats WHERE tipo=$1 AND series_id=$2 ORDER BY mon",[tipo,series_id])
+		})
+		.then(result=>{
+			if(!result.rows) {
+				throw("Nothing found")
+				return
+			}
+			return new internal.monthlyStatsList(result.rows)
+		})
+	}
+
+	getMonthlyStatsSeries(tipo="puntual",series_id,isPublic) {
+		var filter
+		var params
+		if(!series_id) {
+			filter = "WHERE tipo=$1" 
+			params = [tipo]
+		} else if(Array.isArray(series_id)) {
+			if(series_id.length) {
+				var id_list = series_id.map(id=>parseInt(id)).join(",")
+				filter = "WHERE tipo=$1 AND series_id IN (" + id_list + ")"
+				params = [tipo]
+			} else {
+				filter = "WHERE tipo=$1" 
+				params = [tipo]
+			}
+		} else {
+			filter = "WHERE tipo=$1 AND series_id=$2"
+			params = [tipo,series_id]
+		}
+		var stmt = "SELECT tipo,series_id,json_agg(json_build_object('mon',mon,'count',count,'min',min,'max',max,'mean',mean,'p01',p01,'p10',p10,'p50',p50,'p90',p90,'p99',p99,'timestart',timestart,'timeend',timeend) ORDER BY mon) AS stats FROM series_mon_stats " + filter + " GROUP BY tipo,series_id ORDER BY tipo,series_id"
+		console.log(stmt)
+		return this.pool.query(stmt,params)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
 	extract_doy_from_date(date) {
 		date = new Date(date)
 		var first = new Date(date.getUTCFullYear(),0,1)
@@ -7708,7 +9348,7 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 		return parseFloat((parseFloat(value)+.5/10**precision).toString().replace(regexp,"$1"))
 	}
 	//~ getCuantilesDiariosSuavizadosTodos
-	calcPercentilesDiarios(tipo="puntual",series_id,timestart='1974-01-01',timeend='2020-01-01',range=15,t_offset='0 hours', precision=3,isPublic) {
+	calcPercentilesDiarios(tipo="puntual",series_id,timestart='1974-01-01',timeend='2020-01-01',range=15,t_offset='0 hours', precision=3,isPublic,update=false) {
 		if(!series_id) {
 			return Promise.reject("missing series_id")
 		}
@@ -7773,6 +9413,13 @@ ON CONFLICT (dest_tipo, dest_series_id) DO UPDATE SET\
 				//~ doys.push({doy:doy,count:obslength,percentiles:percentiles})
 			}
 			return percentiles // doys
+		})
+		.then(percentiles=>{
+			if(update) {
+				return this.upsertPercentilesDiarios(tipo,series_id,percentiles)
+			} else {
+				return percentiles
+			}
 		})
 	}
 	
@@ -8078,7 +9725,7 @@ SELECT mod.id, \
 		return modelos
 	}
 	
-	getCalibrados(estacion_id,var_id,includeCorr=false,timestart,timeend,cal_id,model_id,qualifier,isPublic,grupo_id,no_metadata,group_by_cal,forecast_date,includeInactive) {
+	getCalibrados_(estacion_id,var_id,includeCorr=false,timestart,timeend,cal_id,model_id,qualifier,isPublic,grupo_id,no_metadata,group_by_cal,forecast_date,includeInactive) {
 		// console.log({includeCorr:includeCorr, isPublic: isPublic})
 		var public_filter = (isPublic) ? "AND calibrados.public=true" : ""
 		var activar_filter = (includeInactive) ? "" : "AND calibrados.activar = TRUE"
@@ -8162,7 +9809,7 @@ SELECT mod.id, \
 		}
 		var query
 		if(no_metadata) {
-			query = base_query + " SELECT cal.cal_id id, \
+			query = `${base_query} SELECT cal.cal_id id, \
 			cal.out_id, \
 			cal.area_id, \
 			cal.in_id, \
@@ -8173,28 +9820,28 @@ SELECT mod.id, \
 			cal.selected, \
 			cal.dt, \
 			cal.t_offset \
-	 FROM cal ORDER BY cal.cal_id"
+	 FROM cal ORDER BY cal.cal_id`
 		} else {
-			query = base_query + ",  pars as (\
-	select cal_pars.cal_id,\
-		   json_agg(cal_pars) arr\
-	from cal_pars, cal\
-	where cal_pars.cal_id=cal.cal_id\
+			query = `${base_query},  pars as ( \
+	select cal_pars.cal_id, \
+		   json_agg(cal_pars) arr \
+	from cal_pars, cal \
+	where cal_pars.cal_id=cal.cal_id \
 	group by cal_pars.cal_id\
 ),\
-states as (\
+states as ( \
 	select cal_estados.cal_id,\
-		   json_agg(cal_estados) arr\
-	from cal_estados, cal\
-	where cal_estados.cal_id=cal.cal_id\
-	group by cal_estados.cal_id\
+		   json_agg(cal_estados) arr \
+	from cal_estados, cal \
+	where cal_estados.cal_id=cal.cal_id \
+	group by cal_estados.cal_id \
 ),\
 forcings as (\
-	select forzantes.cal_id,\
-		   json_agg(forzantes) arr\
-	from forzantes, cal\
-	where forzantes.cal_id=cal.cal_id\
-	group by forzantes.cal_id\
+	select forzantes.cal_id, \
+		   json_agg(forzantes) arr \
+	from forzantes, cal \
+	where forzantes.cal_id=cal.cal_id \
+	group by forzantes.cal_id \
 )\
 SELECT cal.cal_id id, \
        cal.out_id, \
@@ -8209,12 +9856,14 @@ SELECT cal.cal_id id, \
        cal.t_offset, \
        pars.arr parametros, \
        states.arr estados_iniciales, \
-       forcings.arr forzantes \
+       forcings.arr forzantes, \
+	   row_to_json(extra_pars.*) as extra_pars \
 FROM cal \
-LEFT OUTER JOIN pars  ON (cal.cal_id=pars.cal_id )\
-LEFT OUTER JOIN states ON (states.cal_id=cal.cal_id)\
-LEFT OUTER JOIN forcings ON (forcings.cal_id=cal.cal_id)\
-ORDER BY cal.cal_id"
+LEFT OUTER JOIN extra_pars ON (extra_pars.cal_id=cal.cal_id) \
+LEFT OUTER JOIN pars  ON (cal.cal_id=pars.cal_id ) \
+LEFT OUTER JOIN states ON (states.cal_id=cal.cal_id) \
+LEFT OUTER JOIN forcings ON (forcings.cal_id=cal.cal_id) \
+ORDER BY cal.cal_id`
 		}
 		// console.log(pasteIntoSQLQuery(query,[estacion_id,var_id,cal_id,model_id]))
 		return this.pool.query(query,[estacion_id,var_id,cal_id,model_id])
@@ -8263,6 +9912,20 @@ ORDER BY cal.cal_id"
 					}
 				}))
 			}
+			if(!no_metadata) {
+				var get_forzantes_series = Promise.all(calibrados.map(async cal=>{
+					if(!cal.forzantes || !cal.forzantes.length) {
+						return
+					}
+					for(var i in cal.forzantes) {
+						const f = new internal.forzante(cal.forzantes[i])
+						await f.getSerie(this.pool)
+						cal.forzantes[i] = f
+					}
+					return
+				}))
+				extraqueries.push(get_forzantes_series)
+			}
 			return Promise.all(extraqueries)
 			.then(()=>{
 				return calibrados
@@ -8288,11 +9951,98 @@ ORDER BY cal.cal_id"
 		})
 	}
 
+	getSeriesPronoLast(filter={}) {
+		var grupo_filter = (filter.grupo_id) ? "AND series_prono_last.cal_grupo_id=" + parseInt(filter.grupo_id) : ""
+		var query = "\
+		SELECT series_prono_last.cal_id,\
+			series_prono_last.cor_id,\
+			series_prono_last.fecha_emision,\
+			json_agg(json_build_object('id',series.id,'estacion_id',series.estacion_id,'var_id',series.var_id,'proc_id',series.proc_id,'unit_id',series.unit_id)) series\
+			from series_prono_last,series\
+		WHERE series_prono_last.series_id=series.id\
+		AND series.estacion_id=coalesce($1,series.estacion_id)\
+		AND series.var_id=coalesce($2,series.var_id)\
+		AND series_prono_last.cal_id=coalesce($3,series_prono_last.cal_id)\
+		AND series_prono_last.model_id=coalesce($4,series_prono_last.model_id)\
+		AND series.id=coalesce($5,series_id)\
+		" + grupo_filter + "\
+		GROUP BY series_prono_last.cal_id,series_prono_last.cor_id,series_prono_last.fecha_emision"
+		return this.pool.query(query,[filter.estacion_id,filter.var_id,filter.cal_id,filter.model_id,filter.series_id])
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async getCalibrado(id) {
+		if(!id) {
+			throw("missing id")
+		}
+		const engine = new internal.engine(this.pool)
+		var filter = {id:id}
+		try {
+			var calibrados = await engine.read("Calibrado",filter)
+		} catch(e) {
+			throw(e)
+		}
+		if(!calibrados.length) {
+			throw("Calibrado not found")
+		}
+		return calibrados[0]
+	}
+
+	async getCalibrados(estacion_id,var_id,includeCorr=false,timestart,timeend,cal_id,model_id,qualifier,isPublic,grupo_id,no_metadata,group_by_cal,forecast_date,includeInactive,series_id) {
+		const engine = new internal.engine(this.pool)
+		var filter = {id:cal_id,model_id:model_id,grupo_id:grupo_id}
+		if(!includeInactive) {
+			filter.activar = true
+		}
+		var calibrados
+		var series_prono_last
+		if(estacion_id || var_id || includeCorr || qualifier || forecast_date || series_id) {
+			series_prono_last = await this.getSeriesPronoLast({cal_id:cal_id,model_id:model_id,grupo_id:filter.grupo_id,estacion_id:estacion_id,var_id:var_id,forecast_date:forecast_date,series_id:series_id})
+			console.log({series_prono_last:series_prono_last})
+			const cal_ids = new Set(series_prono_last.map(result=>result.cal_id))
+			filter.id = Array.from(cal_ids)
+			if(!filter.id.length) {
+				console.error("No series_prono found")
+				return []
+			}
+			calibrados = await engine.read("Calibrado",filter)
+		} else {
+			calibrados = await engine.read("Calibrado",filter)
+		}
+		if(includeCorr) {
+			var series_id
+			if(series_prono_last && series_prono_last.length) {
+				const series_ids = Array.from(new Set(flatten(series_prono_last.map(p=> p.series.map(s=>s.id)))))
+				if(series_ids.length) {
+					series_id = series_ids
+				}
+			}
+			if(forecast_date) {
+				for(var i in calibrados) {
+					const corridas = await this.getPronosticos(undefined,calibrados[i].id,undefined,undefined,forecast_date,timestart,timeend,qualifier,calibrados[i].out_id,var_id,true,isPublic,series_id,false,undefined,true)
+					if(corridas.length > 0) {
+						calibrados[i].corrida = corridas[0]
+					} else {
+						calibrados[i].corrida = null
+					}
+				}
+			} else {
+				for(var i in calibrados) {
+					const corrida = await this.getLastCorrida(calibrados[i].out_id,var_id,calibrados[i].id,timestart,timeend,qualifier,true,isPublic,series_id)
+					calibrados[i].corrida = corrida
+				}
+			}
+		}
+		return calibrados
+	}
+
 	getLastCorrida(estacion_id,var_id,cal_id,timestart,timeend,qualifier,includeProno=true,isPublic,series_id,series_metadata) {
 		var corrida = {}
 		var public_filter = (isPublic) ? "AND calibrados.public=true" : ""
 		//~ console.log([estacion_id,var_id,cal_id,timestart,timeend])
-		return this.pool.query("with last as (\
+		var query = "with last as (\
 			select max(date) \
 			from corridas,calibrados \
 			where cal_id=$1 \
@@ -8301,7 +10051,9 @@ ORDER BY cal.cal_id"
 		select corridas.* \
 		from corridas,last \
 		where cal_id=$1 \
-		and date=last.max;",[cal_id])
+		and date=last.max;"
+		// console.log(pasteIntoSQLQuery(query,[cal_id]))
+		return this.pool.query(query,[cal_id])
 		.then(result=>{
 			if(!result.rows) {
 				console.log("No rows found for cal_id:"+cal_id)
@@ -8316,20 +10068,29 @@ ORDER BY cal.cal_id"
 				if(!includeProno) {
 					return corrida
 				}
-				var date_filter = ""
-				date_filter += (timestart) ? " AND pronosticos.timestart>='" + new Date(timestart).toISOString() + "' " : "" 
-				date_filter += (timeend) ?  " AND pronosticos.timeend<='" +  new Date(timeend).toISOString() + "' " : ""
-				return this.pool.query("select pronosticos.series_id,\
-										pronosticos.qualifier,\
-										json_agg(ARRAY [to_char(pronosticos.timestart::timestamptz at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), to_char(pronosticos.timeend::timestamptz at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'),valores_prono_num.valor::text,pronosticos.qualifier::text]) pronosticos\
-										from series,pronosticos,valores_prono_num  \
-										where cor_id=$1 and valores_prono_num.prono_id=pronosticos.id and series.id=pronosticos.series_id\
-										AND series.estacion_id=coalesce($2,series.estacion_id)\
-										AND series.var_id=coalesce($3,series.var_id)\
-										AND pronosticos.qualifier=coalesce($4,pronosticos.qualifier)\
-										AND series.id=coalesce($5,series.id)\
-										" + date_filter + "\
-										group by pronosticos.series_id,pronosticos.qualifier;",[corrida.cor_id,estacion_id,var_id,qualifier,series_id])
+				var filter_string = control_filter2({timestart:{type:"timestart","table":"pronosticos"},timeend:{type:"timeend","table":"pronosticos"},estacion_id:{type:"integer","table":"series"},var_id:{type:"integer","table":"series"},qualifier:{type:"string","table":"pronosticos"},series_id:{type:"integer","table":"pronosticos"}},{timestart:timestart,timeend:timeend,estacion_id:estacion_id,var_id:var_id,qualifier:qualifier,series_id:series_id})
+				// var date_filter = ""
+				// date_filter += (timestart) ? " AND pronosticos.timestart>='" + new Date(timestart).toISOString() + "' " : "" 
+				// date_filter += (timeend) ?  " AND pronosticos.timeend<='" +  new Date(timeend).toISOString() + "' " : ""
+				var query = pasteIntoSQLQuery("select pronosticos.series_id,\
+				pronosticos.qualifier,\
+				json_agg(ARRAY [to_char(pronosticos.timestart::timestamptz at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), to_char(pronosticos.timeend::timestamptz at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'),valores_prono_num.valor::text,pronosticos.qualifier::text]) pronosticos\
+				from series,pronosticos,valores_prono_num  \
+				WHERE valores_prono_num.prono_id=pronosticos.id \
+				and series.id=pronosticos.series_id\
+				AND pronosticos.cor_id=$1\
+				" + filter_string + "\
+				group by pronosticos.series_id,pronosticos.qualifier;",[corrida.cor_id])
+				console.log(query)
+				return this.pool.query(query) 										
+										// "\
+										// where cor_id=$1 and valores_prono_num.prono_id=pronosticos.id and series.id=pronosticos.series_id\
+										// AND series.estacion_id=coalesce($2,series.estacion_id)\
+										// AND series.var_id=coalesce($3,series.var_id)\
+										// AND pronosticos.qualifier=coalesce($4,pronosticos.qualifier)\
+										// AND series.id=coalesce($5,series.id)\
+										// " + date_filter + "\
+										// "group by pronosticos.series_id,pronosticos.qualifier;") ,[corrida.cor_id,estacion_id,var_id,qualifier,series_id])
 				.then(result=>{
 					if(!result.rows) {
 						console.log("No rows found for cor_id:"+corrida.cor_id)
@@ -8385,17 +10146,18 @@ ORDER BY cal.cal_id"
 		})
 	}
 
-	deleteCalibrados(filter) {
+	async deleteCalibrados(filter) {
+		if(filter.cal_id) {
+			filter.id = filter.cal_id
+		}
 		var valid_filters = {"id":{table:"calibrados",type:"integer"},"model_id":{table:"calibrados",type:"integer"}}
-		var filter_string = (valid_filters,filter,"calibrados") 
-		return this.pool.query("DELETE FROM calibrados WHERE id=id " + filter_string + " RETURNING *",[cal_id])
-		.then(result=>{
-			if(result.rows) {
-				return result.rows[0]
-			} else {
-				return
-			}
-		})
+		var filter_string = utils.control_filter2(valid_filters,filter,"calibrados") 
+		if(filter_string == "") {
+			throw("deleteCalibrados error: at least one filter is required")
+		}
+		var stmt = `DELETE FROM calibrados WHERE id=id ${filter_string} RETURNING *`
+		// console.log(stmt)
+		return this.pool.query(stmt)
 	}
 	
 	async upsertCalibrados(calibrados) {
@@ -8413,86 +10175,194 @@ ORDER BY cal.cal_id"
 		// 	input_cal = new internal.calibrado(input_cal)
 		// }
 		// console.log("is_calibrado:" + input_cal instanceof internal.calibrado)
+
 		input_cal.setArrayProperties()
+		if(!input_cal.model_id) {
+			return Promise.reject("Missing model_id")
+		}
 		var calibrado
 		return this.pool.connect()
-		.then(client=>{
-			return client.query("BEGIN")
-			.then(()=>{
-				var promise
+		.then(async client=>{
+			try {
+				await client.query("BEGIN")
+				var upserted
 				if(input_cal.id) {
-					promise = client.query("INSERT INTO calibrados (id,nombre, modelo, parametros, estados_iniciales, activar, selected, out_id, area_id, in_id, model_id, tramo_id, dt, t_offset) VALUES \
-				  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,coalesce($13,'1 days'::interval),coalesce($14,'9 hours'::interval))\
-				  ON CONFLICT (id)\
-				  DO UPDATE SET nombre=coalesce(excluded.nombre,calibrados.nombre), modelo=coalesce(excluded.modelo,calibrados.modelo), parametros=coalesce(excluded.parametros,calibrados.parametros), estados_iniciales=coalesce(excluded.estados_iniciales,calibrados.estados_iniciales), activar=coalesce(excluded.activar,calibrados.activar), selected=coalesce(excluded.selected,calibrados.selected), out_id=coalesce(excluded.out_id,calibrados.out_id), area_id=coalesce(excluded.area_id,calibrados.area_id), in_id=coalesce(excluded.in_id,calibrados.in_id), model_id=coalesce(excluded.model_id,calibrados.model_id), tramo_id=coalesce(excluded.tramo_id,calibrados.tramo_id), dt=coalesce(excluded.dt,calibrados.dt), t_offset=coalesce(excluded.t_offset,calibrados.t_offset)\
-				  RETURNING *",[input_cal.id, input_cal.nombre, input_cal.modelo, input_cal.parametros, input_cal.estados_iniciales, input_cal.activar, input_cal.selected, input_cal.out_id, input_cal.area_id, input_cal.in_id, input_cal.model_id, input_cal.tramo_id, input_cal.dt, input_cal.t_offset])
+					var stmt = pasteIntoSQLQuery("INSERT INTO calibrados (id,nombre, modelo, parametros, estados_iniciales, activar, selected, out_id, area_id, in_id, model_id, tramo_id, dt, t_offset) VALUES \
+					($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,coalesce($13,'1 days'::interval),coalesce($14,'9 hours'::interval))\
+					ON CONFLICT (id)\
+					DO UPDATE SET nombre=coalesce(excluded.nombre,calibrados.nombre), modelo=coalesce(excluded.modelo,calibrados.modelo), parametros=coalesce(excluded.parametros,calibrados.parametros), estados_iniciales=coalesce(excluded.estados_iniciales,calibrados.estados_iniciales), activar=coalesce(excluded.activar,calibrados.activar), selected=coalesce(excluded.selected,calibrados.selected), out_id=coalesce(excluded.out_id,calibrados.out_id), area_id=coalesce(excluded.area_id,calibrados.area_id), in_id=coalesce(excluded.in_id,calibrados.in_id), model_id=coalesce(excluded.model_id,calibrados.model_id), tramo_id=coalesce(excluded.tramo_id,calibrados.tramo_id), dt=coalesce(excluded.dt,calibrados.dt), t_offset=coalesce(excluded.t_offset,calibrados.t_offset)\
+					RETURNING *",[input_cal.id, input_cal.nombre, input_cal.modelo, input_cal.parametros, input_cal.estados, input_cal.activar, input_cal.selected, input_cal.out_id, input_cal.area_id, input_cal.in_id, input_cal.model_id, input_cal.tramo_id, input_cal.dt, input_cal.t_offset])
+					// console.log(stmt)
+					upserted = await client.query(stmt)
 				} else {
-					promise = client.query("INSERT INTO calibrados (id,nombre, modelo, parametros, estados_iniciales, activar, selected, out_id, area_id, in_id, model_id, tramo_id, dt, t_offset) VALUES \
-					  (nextval('calibrados_id_seq'),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,coalesce($12,'1 days'::interval),coalesce($13,'9 hours'::interval))\
-					  RETURNING *",[input_cal.nombre, input_cal.modelo, input_cal.parametros, input_cal.estados_iniciales, input_cal.activar, input_cal.selected, input_cal.out_id, input_cal.area_id, input_cal.in_id, input_cal.model_id, input_cal.tramo_id, input_cal.dt, input_cal.t_offset])
+					var stmt = pasteIntoSQLQuery("INSERT INTO calibrados (id,nombre, modelo, parametros, estados_iniciales, activar, selected, out_id, area_id, in_id, model_id, tramo_id, dt, t_offset) VALUES \
+					(nextval('calibrados_id_seq'),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,coalesce($12,'1 days'::interval),coalesce($13,'9 hours'::interval))\
+					RETURNING *",[input_cal.nombre, input_cal.modelo, input_cal.parametros, input_cal.estados, input_cal.activar, input_cal.selected, input_cal.out_id, input_cal.area_id, input_cal.in_id, input_cal.model_id, input_cal.tramo_id, timeSteps.interval2string(input_cal.dt), timeSteps.interval2string(input_cal.t_offset)])
+					// console.log(stmt)
+					upserted = await client.query(stmt)
 				}
-				return promise
-			})
-			.then(result=>{
-				calibrado = result.rows[0]
-				if(calibrado.parametros) {
-					return Promise.all(calibrado.parametros.map((p,i)=>{
-						return this.upsertParametro(client,{cal_id:calibrado.id, orden:i+1, valor:p})
-					}))
-				} else {
-					return
-				}
-			})
-			.then(result=> {
-				calibrado.parametros=(result) ? result.rows : undefined
-				if(calibrado.estados_iniciales) {
-					return Promise.all(calibrado.estados_iniciales.map((e,i)=>{
-						return this.upsertEstadoInicial(client,{cal_id:calibrado.id, orden:i+1, valor:e})
-					}))
-				} else {
-					return
-				}
-			})
-			.then(result=>{
-				calibrado.estados_iniciales = (result) ? result.rows : undefined
-				if(calibrado.forzantes) {
-					return Promise.all(calibrado.forzantes.map((forzante,i)=>{
-						return this.upsertForzante(client,{cal_id:calibrado.id, orden:(forzante.orden)?forzante.orden:i+1, series_table:forzantes.series_table, series_id:forzante.series_id})
-					}))
-				} else {
-					return
-				}
-			})
-			.then(result=>{
-				calibrado.forzantes = (result) ? result.rows : undefined
-				if(input_cal.outputs) {
-					return Promise.all(input_cal.outputs.map((o,i)=>{
-						return this.upsertOutput(client,{cal_id:calibrado.id, orden:(o.orden)?o.orden:i+1, series_table:o.series_table, series_id:o.series_id})
-					}))
-				} else {
-					return
-				}
-			}).then(result=>{
-				calibrado.outputs = (result) ? result.rows : undefined
-				return client.query("COMMIT")
-			}).then(()=>{
-				client.release()
-				return calibrado
-			})
-			.catch(e=>{
-				client.release()
+			} catch(e) {
+				await client.query("ROLLBACK")
+				client.end()
 				throw(e)
-			})
+			}
+			calibrado = upserted.rows[0]
+			if(!calibrado) {
+				await client.query("ROLLBACK")
+				client.end()
+				throw("No se insertó calibrado")
+			}
+			if(input_cal.parametros) {
+				console.log({parametros:input_cal.parametros})
+				try {
+					var parametros = await this.upsertParametros(client,calibrado.id,input_cal.parametros)
+				} catch(e) {
+					await client.query("ROLLBACK")
+					client.end()
+					throw(e)
+				}
+				// var parametros = []
+				// for(var i=0;i<input_cal.parametros.length;i++) {
+				// 	try {
+				// 		var parametro = await this.upsertParametro(client,{cal_id:calibrado.id, orden:i+1, valor:input_cal.parametros[i]})
+				// 		if(!parametro) {
+				// 			throw("no se insertó parámetro")
+				// 		}
+				// 		parametros.push(parametro)
+				// 	} catch(e) {
+				// 		await client.query("ROLLBACK")
+				// 		client.end()
+				// 		throw(e)
+				// 	}
+				// }
+				calibrado.parametros = parametros
+			} 
+			if(input_cal.estados) {
+				try {
+					var estados = await this.upsertEstadosIniciales(client,calibrado.id,input_cal.estados)
+				} catch(e) {
+					await client.query("ROLLBACK")
+					client.end()
+					throw(e)
+				}
+				// var estados_iniciales = []
+				// for(var i=0;i>input_cal.estados_iniciales.length;i++) {
+				// 	try {
+				// 		var estado_inicial =  await this.upsertEstadoInicial(client,{cal_id:calibrado.id, orden:i+1, valor:input_cal.estados_iniciales[i]})
+				// 		if(!estado_inicial) {
+				// 			throw("no se insertó estado_inicial")
+				// 		}
+				// 		estados_iniciales.push(estado_inicial)
+				// 	} catch(e) {
+				// 		await client.query("ROLLBACK")
+				// 		client.end()
+				// 		throw(e)
+				// 	}
+				// }
+				calibrado.estados_iniciales = estados
+			} 
+			if(input_cal.forzantes) {
+				console.log(input_cal.forzantes)
+				try {
+					var forzantes = await this.upsertForzantes2(client,calibrado.id,input_cal.forzantes)
+				} catch(e) {
+					await client.query("ROLLBACK")
+					client.end()
+					throw(e)
+				}
+				// var forzantes = []
+				// for(var i=0;i>input_cal.forzantes.length;i++) {
+				// 	try {
+				// 		var forzante =  await this.upsertForzante(client,{cal_id:calibrado.id, orden:(input_cal.forzantes[i].orden)?input_cal.forzantes[i].orden:i+1, series_table:input_cal.forzantes[i].series_table, series_id:input_cal.forzantes[i].series_id})
+				// 		if(!forzantes) {
+				// 			throw("no se insertó forzante")
+				// 		}
+				// 		forzantes.push(forzante)
+				// 	} catch(e) {
+				// 		await client.query("ROLLBACK")
+				// 		client.end()
+				// 		throw(e)
+				// 	}
+				// }
+				calibrado.forzantes = forzantes
+			}
+			if(input_cal.outputs) {
+				var outputs = []
+				for(var i =0;i<input_cal.outputs.length;i++) {
+					try {
+						var output = await this.upsertOutput(client,{cal_id:calibrado.id, orden:(input_cal.outputs[i].orden)?input_cal.outputs[i].orden:i+1, series_table:input_cal.outputs[i].series_table, series_id:input_cal.outputs[i].series_id})
+						if(!output) {
+							throw("no se insertó output")
+						}
+						outputs.push(output)
+					} catch(e) {
+						endAndThrow(e)
+					}
+				}
+				calibrado.outputs = outputs
+			}
+			if(input_cal.stats) {
+				try {
+					var stats = await this.upsertCalStats(client,calibrado.id,input_cal.stats)
+				} catch(e) {
+					await client.query("ROLLBACK")
+					client.end()
+					throw(e)
+				}
+				calibrado.stats = stats
+			} 
+			try {
+				await client.query("COMMIT")
+			} catch(e) {
+				await client.query("ROLLBACK")
+				client.end()
+				throw(e)
+			}
+			client.release()
+			return calibrado
 		})
+	}
+
+	upsertCalStats(client,cal_id,stats) {
+		var stmt = pasteIntoSQLQuery("INSERT INTO cal_stats (cal_id,timestart,timeend,n_cal,rnash_cal,rnash_val,beta,omega,repetir,iter,rmse,stats_json,pvalues,calib_period) VALUES \
+		($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)\
+		ON CONFLICT (cal_id) DO UPDATE SET timestart=excluded.timestart,timeend=excluded.timeend, n_cal=excluded.n_cal, rnash_cal=excluded.rnash_cal,rnash_val=excluded.rnash_val, beta=excluded.beta, omega=excluded.omega, repetir=excluded.repetir, iter=excluded.iter, rmse=excluded.rmse, stats_json=excluded.stats_json, pvalues=excluded.pvalues, calib_period=excluded.calib_period RETURNING *",[cal_id,stats.timestart,stats.timeend,stats.n_cal,stats.rnash_cal,stats.rnash_val,stats.beta,stats.omega,stats.repetir,stats.iter,stats.rmse,JSON.stringify(stats),stats.pvalues,stats.calib_period])
+		console.log(stmt)
+		return Promise.resolve()
+		// return client.query(stmt)
+		// .then(result=>{
+		// 	console.log(result)
+		// 	return result.rows[0]
+		// })
 	}
 	
 	upsertParametro(client,parametro) {
-		return client.query("INSERT INTO cal_pars (cal_id,orden,valor) VALUES\
-		  ($1,$2,$3)\
-		  ON CONFLICT (cal_id,orden)\
-		  DO UPDATE SET valor=excluded.valor\
-		  RETURNING *",[parametro.cal_id,parametro.orden,parametro.valor])
+		var stmt = pasteIntoSQLQuery("INSERT INTO cal_pars (cal_id,orden,valor) VALUES\
+		($1,$2,$3)\
+		ON CONFLICT (cal_id,orden)\
+		DO UPDATE SET valor=excluded.valor\
+		RETURNING *",[parametro.cal_id,parametro.orden,parametro.valor])
+		console.log(stmt)
+		return client.query(stmt)
 		.then(result=>{
+			console.log(result)
+			return result.rows[0]
+		})
+	}
+
+	upsertParametros(client,cal_id,parametros) { // parametros::int[]
+		var tuples = parametros.map((p,i)=>{
+			return `(${[cal_id, i + 1, p].join(",")})`
+		})
+		var stmt = `INSERT INTO cal_pars (cal_id,orden,valor) VALUES\
+		${tuples.join(",")}\
+		ON CONFLICT (cal_id,orden)\
+		DO UPDATE SET valor=excluded.valor\
+		RETURNING *`
+		console.log(stmt)
+		return client.query(stmt)
+		.then(result=>{
+			console.log(result)
 			return result.rows[0]
 		})
 	}
@@ -8521,6 +10391,21 @@ ORDER BY cal.cal_id"
 		  RETURNING *",[estado_inicial.cal_id,estado_inicial.orden,estado_inicial.valor])
 		.then(result=>{
 			return result.rows[0]
+		})
+	}
+
+	upsertEstadosIniciales(client,cal_id,estados_iniciales) { //  estados_iniciales::int[]
+		var tuples = estados_iniciales.map((p,i)=>{
+			return `(${[cal_id, i + 1, p].join(",")})`
+		})
+		var stmt = `INSERT INTO cal_estados (cal_id,orden,valor) VALUES\
+		${tuples.join(",")}\
+		ON CONFLICT (cal_id,orden)\
+		DO UPDATE SET valor=excluded.valor\
+		RETURNING *`
+		return client.query(stmt)
+		.then(result=>{
+			return result.rows
 		})
 	}
 
@@ -8581,6 +10466,23 @@ ORDER BY cal.cal_id"
 		})
 	}
 
+	upsertForzantes2(client,cal_id,forzantes) { // forzantes = [{series_table:"",series_id:0},...] o [0,1,2] (en el segundo caso asume series_table:"series")
+		var tuples = forzantes.map((p,i)=>{
+			var series_table = (p.series_table) ? (p.series_table.toLowerCase() == "series_rast") ? "series_rast" : (p.series_table.toLowerCase() == "series_areal") ? "series_areal" : "series" : "series"
+			var series_id = (p.series_id) ? p.series_id : parseInt(p)
+			return sprintf ("(%d,%d,'%s',%d)", cal_id,i+1,series_table,series_id)
+		})
+		var stmt = `INSERT INTO forzantes (cal_id,orden,series_table,series_id) VALUES\
+		${tuples.join(",")}\
+		ON CONFLICT (cal_id,orden)\
+		DO UPDATE SET series_table=excluded.series_table, series_id=excluded.series_id\
+		RETURNING *`
+		return client.query(stmt)
+		.then(result=>{
+			return result.rows.map(f=>new internal.forzante(f))
+		})
+	}
+
 	upsertForzanteDeModelo(client,forzante) {
 		return client.query("INSERT INTO modelos_forzantes (model_id , orden , var_id , unit_id , nombre , inst , tipo , required) VALUES\
 		  ($1,$2,$3,$4,$5,$6,$7,$8)\
@@ -8609,11 +10511,11 @@ ORDER BY cal.cal_id"
 			var series_table = (f.series_table) ? (f.series_tabla == "series_areal") ? "series_areal" : "series" : "series"
 			return sprintf("(%d,%d,'%s',%d)", cal_id, f.orden, series_table, f.series_id)
 		}).join(",")
-		return this.pool.query("INSERT INTO forzantes (cal_id, orden, series_table, series_id) VALUES\
-		  "+values+"\
+		return this.pool.query(`INSERT INTO forzantes (cal_id, orden, series_table, series_id) VALUES\
+		  ${values}\
 		  ON CONFLICT (cal_id, orden)\
 		  DO UPDATE SET series_table=excluded.series_table, series_id=excluded.series_id\
-		  RETURNING *")
+		  RETURNING *`)
 		.then(result=>{
 			return new internal.forzante(result.rows[0])
 		})
@@ -8667,7 +10569,55 @@ ORDER BY cal.cal_id"
 			})
 		})
 	}
-	
+
+	upsertOutputs(client,cal_id,outputs) { // outputs = = [{series_table:"",series_id:0},...] o [0,1,2] (en el segundo caso asume series_table:"series")
+		var tuples = outputs.map((p,i)=>{
+			var series_table = (p.series_table) ? (p.series_table.toLowerCase() == "series_rast") ? "series_rast" : (p.series_table.toLowerCase() == "series_areal") ? "series_areal" : "series" : "series"
+			var series_id = (p.series_id) ? p.series_id : parseInt(p)
+			return sprintf ("(%d,%d,'%s',%d)", cal_id,i+1,series_table,series_id)
+		})
+		//~ console.log({output:output})
+		var stmt = `INSERT INTO cal_out (cal_id,orden,series_table,series_id) VALUES\
+		${tuples.join(",")}\
+		ON CONFLICT (cal_id,orden)\
+		DO UPDATE SET series_table=excluded.series_table, series_id = excluded.series_id\
+		RETURNING *`
+		return client.query(stmt)
+		.then(result=>{
+			if(!result.rows.length) {
+				throw new Error("error on output upsert: nothing upserted")
+			}
+			var calibrados_out = result.rows.map(output=>{
+				var series_table = (output.series_table) ? (output.series_table == "series_rast") ? "series_rast" :(output.series_table == "series_areal") ? "series_areal" : "series" : "series" 
+				return { cal_id:cal_id, series_table:series_table, series_id: output.series_id}
+			})
+			return this.upsertCalibradosOut(client,cal_id,calibrados_out)
+			.then(result2=>{
+				return result.rows.map(r=>new internal.output(r))
+			})
+	})
+	}
+
+	async upsertCalibradosOut(client,cal_id,calibrados_out) {
+		if(!calibrados_out.length) {
+			throw("upsertCalibradosOut error: calibrados_out is missing or of length 0")
+		}
+		var tuples = []
+		for(var o of calibrados.out){
+			var tipo = (o.series_table) ? (o.series_table == "series_rast") ? "raster" :(output.series_table == "series_areal") ? "areal" : "puntual" : "puntual"
+			try {
+				var serie = await this.getSerie(tipo,o.series_id)
+			} catch(e) {
+				throw(e)
+			}
+			tuples.push(`(${cal_id},${serie.estacion.id})`)
+		}
+		var stmt = `INSERT INTO calibrados_out (cal_id,out_id)\
+		${tuples.join(",")}\
+		ON CONFLICT (cal_id,out_id) DO NOTHING`
+		return client.query(stmt)
+	}
+
 	getPronosticos(cor_id,cal_id,forecast_timestart,forecast_timeend,forecast_date,timestart,timeend,qualifier,estacion_id,var_id,includeProno=false,isPublic,series_id,series_metadata,cal_grupo_id,group_by_qualifier,model_id) {
 		// console.log({includeProno:includeProno, isPublic: isPublic})
 		var model_filter = (model_id) ? "AND calibrados.model_id=" + parseInt(model_id) : ""
@@ -8701,6 +10651,7 @@ ORDER BY cal.cal_id"
 					return {cor_id:r.id,cal_id:r.cal_id,forecast_date:r.date}
 				})
 			}
+			var filter_string = control_filter2({ timestart:{type:"timestart","table":"pronosticos"}, timeend:{type:"timeend","table":"pronosticos"}, cor_id:{type:"integer","table":"pronosticos"}, estacion_id:{type:"integer","table":"series"}, var_id:{type:"integer","table":"series"}, qualifier:{type:"string","table":"pronosticos"}, series_id:{type:"integer","table":"pronosticos"}},{timestart:timestart,timeend:timeend,cor_id:cor_id,estacion_id:estacion_id,var_id:var_id,qualifier:qualifier, series_id:series_id})
 			return Promise.all(result.rows.map(r=>{
 				return this.pool.query("SELECT series.id series_id,\
 											   series.estacion_id,\
@@ -8710,16 +10661,19 @@ ORDER BY cal.cal_id"
 										       valores_prono_num.valor,\
 										       pronosticos.qualifier\
 										from pronosticos,valores_prono_num,series  \
-										where pronosticos.cor_id=$1 \
-										and valores_prono_num.prono_id=pronosticos.id\
-										and pronosticos.timestart>=coalesce($2::timestamptz,'1970-01-01'::date)\
-										and pronosticos.timeend<=coalesce($3::timestamptz,'2100-01-01'::date)\
-										AND pronosticos.qualifier=coalesce($4,pronosticos.qualifier)\
-										and series.id=pronosticos.series_id\
-										AND series.estacion_id=coalesce($5,series.estacion_id)\
-										AND series.var_id=coalesce($6,series.var_id)\
-										AND series.id=coalesce($7,series.id)\
-										ORDER BY pronosticos.series_id,pronosticos.timestart",[r.id,timestart,timeend,qualifier,estacion_id,var_id,series_id])
+										where valores_prono_num.prono_id=pronosticos.id\
+										and series.id=pronosticos.series_id " + filter_string + "\
+										ORDER BY pronosticos.series_id,pronosticos.timestart")
+										// pronosticos.cor_id=$1 \
+										// and valores_prono_num.prono_id=pronosticos.id\
+										// and pronosticos.timestart>=coalesce($2::timestamptz,'1970-01-01'::date)\
+										// and pronosticos.timeend<=coalesce($3::timestamptz,'2100-01-01'::date)\
+										// AND pronosticos.qualifier=coalesce($4,pronosticos.qualifier)\
+										// and series.id=pronosticos.series_id\
+										// AND series.estacion_id=coalesce($5,series.estacion_id)\
+										// AND series.var_id=coalesce($6,series.var_id)\
+										// AND series.id=coalesce($7,series.id)\
+										// ORDER BY pronosticos.series_id,pronosticos.timestart",[r.id,timestart,timeend,qualifier,estacion_id,var_id,series_id])
 				.then(result=>{
 					if(result.rows) {
 						var series = {}
@@ -8986,7 +10940,7 @@ ORDER BY cal.cal_id"
 		})
 	}
 
-	async batchDeleteCorridas(options={n:10,skip_cal_id:[288,308,391,400,439,440,441,442,432,433,439,440,441,442,444,445,446]}) {
+	async batchDeleteCorridas(options={n:10,skip_cal_id:[288,308,391,400,439,440,441,442,432,433,439,440,441,442,444,445,446,454,457,455,456,458,459,460,461]}) {
 		// ELIMINA CORRIDAS DE n + 10 a n DÍAS ATRÁS (cal_id NOT IN skip_cal_id)
 		for(var i=0;i<=9;i++) {
 		  var cal_id_list = options.skip_cal_id
@@ -9022,9 +10976,13 @@ ORDER BY cal.cal_id"
 		try {
 			var client = await this.pool.connect()
 			await client.query("BEGIN")
-			var corridas = await client.query("INSERT INTO corridas (cal_id,date) VALUES ($1,$2::timestamptz)\
-				  ON CONFLICT (cal_id,date) DO UPDATE set date=excluded.date\
-				  RETURNING *",[corrida.cal_id,corrida.forecast_date])
+			var stmt = pasteIntoSQLQuery("INSERT INTO corridas (cal_id,date) VALUES ($1,$2)\
+			ON CONFLICT (cal_id,date) DO UPDATE set date=excluded.date\
+			RETURNING *",[corrida.cal_id,corrida.forecast_date])
+			var corridas = await client.query(stmt)
+			// var corridas = await client.query("INSERT INTO corridas (cal_id,date) VALUES ($1,$2)\
+				//   ON CONFLICT (cal_id,date) DO UPDATE set date=excluded.date\
+				//   RETURNING *",[corrida.cal_id,corrida.forecast_date])
 			ups_corrida.cor_id  = corridas.rows[0].id
 			ups_corrida.forecast_date = corridas.rows[0].date
 			ups_corrida.cal_id = corridas.rows[0].cal_id
@@ -9048,14 +11006,25 @@ ORDER BY cal.cal_id"
 					continue
 				}
 				var pronosticos = corrida.series[i].pronosticos.map(p=>{
+					if(Array.isArray(p)) {
+						return {
+							cor_id: ups_corrida.cor_id,
+							cal_id: ups_corrida.cal_id,
+							series_id: corrida.series[i].series_id,
+							timestart: new Date(p[0]),
+							timeend: new Date(p[1]),
+							valor: p[2],
+							qualifier: (p[3]) ? p[3] : (corrida.series[i].qualifier) ? corrida.series[i].qualifier : 'main' 
+						} 
+					}
 					return {
 						cor_id: ups_corrida.cor_id,
 						cal_id: ups_corrida.cal_id,
 						series_id: corrida.series[i].series_id,
-						timestart: p.timestart,
-						timeend: p.timeend,
+						timestart: new Date(p.timestart),
+						timeend: new Date(p.timeend),
 						valor: p.valor,
-						qualifier: (p.qualifier) ? p.qualifier : 'main' 
+						qualifier: (p.qualifier) ? p.qualifier : (corrida.series[i].qualifier) ? corrida.series[i].qualifier : 'main' 
 					} 
 				})
 				var ups_pronos = await this.upsertPronosticos(client,pronosticos)
@@ -9293,13 +11262,14 @@ ORDER BY cal.cal_id"
 	
 	async upsertPronosticos(client,pronosticos) {
 		var values = pronosticos.map(pronostico=>{
-			return sprintf("(%d,%d,'%s'::timestamptz,'%s'::timestamptz,'%s',%f)", pronostico.series_id,pronostico.cor_id,pronostico.timestart,pronostico.timeend,pronostico.qualifier,parseFloat(pronostico.valor))
+			return sprintf("(%d,%d,'%s'::timestamptz,'%s'::timestamptz,'%s',%f)", pronostico.series_id,pronostico.cor_id,pronostico.timestart.toISOString(),pronostico.timeend.toISOString(),pronostico.qualifier,parseFloat(pronostico.valor))
 		}).join(",")
 		var result
 		try {
-			await client.query("CREATE TEMPORARY TABLE prono_tmp (series_id int,cor_id int,timestart timestamp,timeend timestamp,qualifier varchar,valor real);\
+			var stmt = "CREATE TEMPORARY TABLE prono_tmp (series_id int,cor_id int,timestart timestamp,timeend timestamp,qualifier varchar,valor real);\
 			INSERT INTO prono_tmp (series_id,cor_id,timestart,timeend,qualifier,valor)\
-			VALUES " + values + ";")
+			VALUES " + values + ";"
+			await client.query(stmt)
 			await client.query("INSERT INTO pronosticos (series_id,cor_id,timestart,timeend,qualifier)\
 				SELECT series_id,cor_id,timestart,timeend,qualifier \
 				FROM prono_tmp \
@@ -9328,7 +11298,6 @@ ORDER BY cal.cal_id"
 		}
 		return Promise.resolve(result.rows)
 	}
-	
 	
 	getSeriesBySiteAndVar(estacion_id,var_id,startdate,enddate,includeProno=true,regular=false,dt="1 days",proc_id,isPublic,forecast_date) {
 		// console.log("getSeriesBySiteAndVar at "  + Date()) 
@@ -10152,7 +12121,10 @@ ORDER BY cal.cal_id"
 				return Promise.reject("Missing filter.series_id OR filter.fuentes_id/red_id")
 			}
 			filter.id = (filter.series_id) ? filter.series_id : filter.id
-			return this.getSeries(tipo,filter,{no_metadata:true})
+			var filter_get_series = {...filter}
+			delete filter_get_series.timestart
+			delete filter_get_series.timeend
+			return this.getSeries(tipo,filter_get_series,{no_metadata:true})
 			.then(async series=>{
 				if(series.length == 0) {
 					console.log("crud.thinObs: no series found")
@@ -10207,7 +12179,7 @@ ORDER BY cal.cal_id"
 		} 
 		return this.getObservaciones(tipo,filter)
 		.then(observaciones=>{
-			// console.log("got " + observaciones.length + " observaciones.")
+			console.log("got " + observaciones.length + " observaciones.")
 			// console.log(observaciones)
 			var i = 0
 			var result = []
@@ -10257,6 +12229,170 @@ ORDER BY cal.cal_id"
 				return result
 			}
 		})
+	}
+
+	// 	 SERIES OBS - by SERIES_ID OR FUENTES_ID
+	pruneObs(tipo,filter, options={}) { // filter:series_id,timestart,timeend; options: no_send_data=false) {
+		if(!filter.timestart || !filter.timeend) {
+			return Promise.reject("crud.pruneObs: Missing filter.timestart filter.timeend")
+		}
+		
+		// CASE SINGLE SERIES_ID 
+		if(filter.series_id && typeof filter.series_id == "number") {
+			return this.deleteObservaciones(tipo,{series_id:filter.series_id,timestart:filter.timestart,timeend:filter.timeend},{no_send_data:options.no_send_data})
+			.then(result=>{
+				return [
+					{
+						id:filter.series_id,
+						observaciones: result
+					}
+				]
+			})
+		// CASE MULTIPLE SERIES_ID OR FUENTES_ID/RED_ID
+		} else {
+			if(!(tipo == "puntual" && filter.red_id) && !(tipo!="puntual" && filter.fuentes_id) && !filter.series_id) {
+				return Promise.reject("crud.pruneObs: Missing filter.series_id OR filter.fuentes_id/red_id")
+			}
+			filter.id = (filter.series_id) ? filter.series_id : filter.id
+			return this.getSeries(tipo,filter,{no_metadata:true})
+			.then(async series=>{
+				if(series.length == 0) {
+					console.log("crud.pruneObs: no series found")
+					return
+				}
+				series = series.filter(s=>s.date_range.timestart && s.date_range.timestart < new Date(filter.timeend) && s.date_range.timeend && s.date_range.timeend >= new Date(filter.timestart))
+				var results = []
+				var accum_deletes = 0
+				console.log("about to prune " + series.length + " series")
+				for(var i=0;i<series.length;i++) {
+					var series_id = series[i].id
+					console.log("index:" + i + ", series_id:" + series_id)
+					try {
+						var result = await this.deleteObservaciones(tipo,{series_id:series_id,timestart:filter.timestart,timeend:filter.timeend},{no_send_data:options.no_send_data})
+					} catch (e) {
+						console.error("crud.pruneObs: " + e.toString())
+						results.push({error:e})
+						break
+					}
+					if(options.no_send_data) {
+						accum_deletes += result
+						console.log("accum deletes:" + accum_deletes)
+						results.push({
+							series_id: series[i].id,
+							observaciones: result
+						})
+					} else {
+						results.push({values:result})
+					}
+				}
+				if(options.no_send_data) {
+					return results
+				} else {
+					var i=-1
+					return results.map(r=>{
+						i++
+						if (r.values) {
+							return {
+								id: series[i].id,
+								observaciones: r.values
+							}
+						} else {
+							return {
+								id: series[i].id,
+								observaciones: null,
+								message: r.error.toString()
+							}
+						}
+					})
+				}
+			})
+		}
+	}
+	async prunePartedByYear(tipo,filter,options) {
+		if(!filter.timestart || !filter.timeend) {
+			throw("Missing timestart and/or timeend")
+		}
+		filter.timestart = new Date(filter.timestart)
+		filter.timeend = new Date(filter.timeend)
+		var startYear = filter.timestart.getUTCFullYear()
+		var endYear = filter.timeend.getUTCFullYear()
+		var results = []
+		for(var y=startYear;y<=endYear;y++) {
+			var timestart = new Date(y,0,1)
+			if(timestart < filter.timestart) {
+				timestart = filter.timestart
+			}
+			var timeend = new Date(y+1,0,1)
+			if(timeend > filter.timeend) {
+				timeend = filter.timeend
+			}
+			var this_filter = {...filter}
+			this_filter.timestart = timestart
+			this_filter.timeend = timeend
+			// console.log(JSON.stringify(this_filter))
+			try {
+				var result = await this.pruneObs(tipo,this_filter,options)
+				results.push(result)
+			} catch(e) {
+				console.error(e)
+			}
+		}
+		return results
+	}
+	// pais
+	async getPais(id,name) {
+		var stmt
+		if(!id) {
+			if(!name) {
+				return Promise.reject("Missing id or name")
+			}
+			stmt = pasteIntoSQLQuery("SELECT id,nombre,abrev,wmdr_name,wmdr_notation,wmdr_uri FROM paises WHERE lower(nombre)=lower($1)",[name])
+		} else {
+			stmt = pasteIntoSQLQuery(("SELECT id,nombre,abrev,wmdr_name,wmdr_notation,wmdr_uri FROM paises WHERE id=$1",[parseInt(id)]))
+		}
+		return this.pool.query(stmt)
+		.then(result=>{
+			if(!result.rows.length) {
+				throw("pais not found")
+			}
+			return result.rows[0]
+		})
+	}
+	
+	async getPaises(filter={}) {
+		var filter_string = control_filter2({id:{type:"integer"},nombre:{type:"string",case_insensitive:true},abrev:{type:"string",case_insensitive:true},wmdr_name:{type:"string"},wmdr_notation:{type:"string"},wmdr_uri:{type:"string",case_insensitive:true}},filter,"paises")
+		return this.pool.query(`SELECT id,nombre,abrev,wmdr_name,wmdr_notation,wmdr_uri FROM paises WHERE 1=1 ${filter_string}`)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async getRegionesOMM(filter={}) {
+		var filter_string = control_filter2({id:{type:"integer"},name:{type:"string",case_insensitive:true},notation:{type:"string",case_insensitive:true},uri:{type:"string",case_insensitive:true}},filter,"regiones_omm")
+		return this.pool.query(`SELECT id,name,notation,uri FROM regiones_omm WHERE 1=1 ${filter_string}`)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async getProcessTypeWaterml2(filter={}) {
+		var filter_string = control_filter2({proc_id:{type:"integer"},name:{type:"string",case_insensitive:true},notation:{type:"string",case_insensitive:true},uri:{type:"string",case_insensitive:true}},filter,"process_type_waterml2")
+		return this.pool.query(`SELECT proc_id,name,notation,uri FROM process_type_waterml2 WHERE 1=1 ${filter_string}`)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async getDataTypes(filter={}) {
+		var filter_string = control_filter2({id:{type:"integer"},term:{type:"string",case_insensitive:true},in_waterml1_cv:{type:"boolean"},waterml2_code:{type:"string",case_insensitive:true},waterml2_uri:{type:"string",case_insensitive:true}},filter,"datatypes")
+		return this.pool.query(`SELECT id,term,in_waterml1_cv,waterml2_code,waterml2_uri FROM datatypes WHERE 1=1 ${filter_string}`)
+		.then(result=>{
+			return result.rows
+		})
+	}
+
+	async series2waterml2(series) {
+		return series2waterml2.convert(this,series)
 	}
 }
 
